@@ -6,6 +6,7 @@ import SwiftUI
 struct DashboardView: View {
     @StateObject private var viewModel = DashboardViewModel()
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appSettings: AppSettings
 
     @State private var showLoopDetails = false
@@ -64,34 +65,95 @@ struct DashboardView: View {
     }
 
     private var heroSection: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(viewModel.greeting)
-                    .font(.system(.title3, design: .rounded))
-                    .foregroundColor(.liquidGlassAccent)
-                Text(viewModel.userName)
-                    .font(.system(.largeTitle, design: .serif).bold())
-                    .foregroundColor(.white)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                Text("先稳住，再优化：今天只选一个低负担动作。")
-                    .font(.caption)
-                    .foregroundColor(.textSecondary)
+        LiquidGlassCard(style: .elevated, padding: 20) {
+            VStack(spacing: 24) {
+                // 1. Semi-Circle Progress Gauge
+                ZStack {
+                    // Track
+                    Circle()
+                        .trim(from: 0.15, to: 0.85)
+                        .stroke(Color.textSecondary.opacity(0.1), style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                        .rotationEffect(.degrees(90))
+                        .frame(width: 220, height: 220)
+                    
+                    // Progress
+                    Circle()
+                        .trim(from: 0.15, to: 0.15 + (0.7 * loopProgress)) // 0.7 is the span (0.85 - 0.15)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.bioGlow(for: colorScheme), Color.bioluminPink(for: colorScheme)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            style: StrokeStyle(lineWidth: 20, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(90))
+                        .frame(width: 220, height: 220)
+                        .shadow(color: Color.bioluminPink(for: colorScheme).opacity(0.5), radius: 10)
+                    
+                    // Center Content (Glow Orb + Score)
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.bioluminPink(for: colorScheme).opacity(0.2),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: 80
+                                )
+                            )
+                            .frame(width: 160, height: 160)
+                            .blur(radius: 10)
+                        
+                        VStack(spacing: 4) {
+                            Text(viewModel.overallScore.map { "\($0)" } ?? "0")
+                                .font(.system(size: 64, weight: .bold, design: .serif))
+                                .foregroundColor(.textPrimary)
+                            Text("/100")
+                                .font(.caption)
+                                .foregroundColor(.textTertiary)
+                        }
+                    }
+                }
+                .padding(.top, 10)
+                
+                // 2. Greeting & Status
+                VStack(spacing: 8) {
+                    Text(viewModel.greeting)
+                        .font(.title3)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text(positiveFeedbackText)
+                        .font(.subheadline)
+                        .foregroundColor(.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 10)
+                    
+                    Button {
+                        // Action for "See details"
+                        withAnimation { showLoopDetails.toggle() }
+                    } label: {
+                        Text("查看今日洞察")
+                            .font(.caption.bold())
+                            .foregroundColor(.liquidGlassAccent)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(.bottom, 10)
             }
-
-            Spacer()
-
-            VStack(spacing: 8) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 34))
-                    .foregroundColor(.liquidGlassPurple)
-                Text("Max")
-                    .font(.caption)
-                    .foregroundColor(.textTertiary)
-            }
+            .frame(maxWidth: .infinity)
         }
-        .padding(.top, metrics.isCompactHeight ? 12 : 20)
     }
+    
+    // Helper to get colorScheme in view (since View structs have @Environment, but extension vars don't)
+    // Actually DashboardView has @Environment(\.colorScheme), but I didn't see it in the file view.
+    // I will add it to the view struct first.
 
     private var stateBarSection: some View {
         let scoreText = viewModel.overallScore.map { "\($0)" } ?? "—"

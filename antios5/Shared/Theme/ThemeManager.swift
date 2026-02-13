@@ -73,44 +73,52 @@ extension Color {
     // ==========================================
     // ==========================================
     // ==========================================
+    // ==========================================
+    // ==========================================
+    // ==========================================
+    // ==========================================
     static func bgAbyss(for scheme: ColorScheme) -> Color {
-        // Light Mode = Oatmeal (Paper Like)
-        // Dark Mode  = Deep Green (Bio/Abyss)
-        scheme == .dark ? Color(hex: "#0B3D2E") : Color(hex: "#FAF6EF")
+        // Light Mode = Porcelain Silk (Crisp Off-White)
+        // Dark Mode  = Void Black (Pure #000000)
+        scheme == .dark ? Color(hex: "#000000") : Color(hex: "#FAFAF8")
     }
     
     static func bgMist(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#FFFFFF").opacity(0.05) : Color(hex: "#0B3D2E").opacity(0.05)
+        // Subtle texture overlay
+        scheme == .dark ? Color(hex: "#FFFFFF").opacity(0.03) : Color(hex: "#000000").opacity(0.02)
     }
     
     // ==========================================
-    // 生物荧光色 (Bioluminescent)
+    // 情绪流光色 (Emotional Flux / Bioluminescent)
     // ==========================================
     static func bioGlow(for scheme: ColorScheme) -> Color {
-        // Light: Dark Green for contrast on Oatmeal
-        // Dark:  Bright Moss for glow on dark
-        scheme == .dark ? Color(hex: "#9CAF88") : Color(hex: "#0B3D2E")
+        // Light: Soft Lavender (Airy)
+        // Dark:  Neon Cyan (Cyber/Immersive)
+        scheme == .dark ? Color(hex: "#00F0FF") : Color(hex: "#B39DDB")
     }
     
     static func bioluminPink(for scheme: ColorScheme) -> Color {
-        // Light: Sage Green
-        // Dark:  Pale Sage
-        scheme == .dark ? Color(hex: "#CBD6C4") : Color(hex: "#7A8F70")
+        // Light: Sky Blue (Airy)
+        // Dark:  Neon Magenta (Cyber/Immersive)
+        scheme == .dark ? Color(hex: "#FF00FF") : Color(hex: "#87CEEB")
     }
     
     static func deepViolet(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#0F4636") : Color(hex: "#E8E4DC")
+        // Deep accent background
+        scheme == .dark ? Color(hex: "#0A0014") : Color(hex: "#F5F5F7")
     }
     
     // ==========================================
     // 彩虹渐变 (Chromatic Frost)
     // ==========================================
-    static let chromaticColors: [Color] = [
-        Color(hex: "#9CAF88"),
-        Color(hex: "#CBD6C4"),
-        Color(hex: "#FAF6EF"),
-        Color(hex: "#0B3D2E")
-    ]
+    static var chromaticColors: [Color] {
+        [
+            Color(hex: "#00F0FF"), // Cyan
+            Color(hex: "#FF00FF"), // Magenta
+            Color(hex: "#FFD700"), // Gold
+            Color(hex: "#00FF00")  // Lime
+        ]
+    }
     
     static var chromaticGradient: LinearGradient {
         LinearGradient(
@@ -124,13 +132,12 @@ extension Color {
     // 自适应文字色
     // ==========================================
     static func bioTextPrimary(for scheme: ColorScheme) -> Color {
-        // Light (Oatmeal): Dark Green Text
-        // Dark (Green): Light Text
-        scheme == .dark ? Color(hex: "#FAF6EF") : Color(hex: "#0B3D2E")
+        // High Contrast: Pure White vs Deep Ink
+        scheme == .dark ? Color(hex: "#FFFFFF") : Color(hex: "#1A1A1A")
     }
     
     static func bioTextSecondary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#FAF6EF").opacity(0.7) : Color(hex: "#0B3D2E").opacity(0.7)
+        scheme == .dark ? Color(hex: "#E0E0E0").opacity(0.7) : Color(hex: "#4A4A4A").opacity(0.7)
     }
 }
 

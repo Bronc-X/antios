@@ -281,48 +281,63 @@ extension LinearGradient {
 }
 
 // MARK: - Background
+// MARK: - Background
 struct AuroraBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @State private var animate = false
     
     var body: some View {
         ZStack {
-            // Dynamic Gradient Background
-            LinearGradient(
-                colors: [
-                    Color.bgPrimary,
-                    Color.bgSecondary
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            ).ignoresSafeArea()
+            // Dynamic Background
+            if colorScheme == .dark {
+                // Dark Mode: Pure Black Void
+                Color.black.ignoresSafeArea()
+            } else {
+                // Light Mode: Porcelain Silk Gradient
+                LinearGradient(
+                    colors: [Color(hex: "#FAFAF8"), Color(hex: "#F5F5F0")],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ).ignoresSafeArea()
+            }
 
-            // Orb 1 (Top Left)
+            // Orb 1 (Top Left) - Breathing
             Circle()
-                .fill(Color.liquidGlassAccent.opacity(colorScheme == .dark ? 0.18 : 0.3))
+                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.4 : 0.25))
                 .frame(width: 320, height: 320)
-                .blur(radius: 70)
-                .offset(x: -140, y: -180)
+                .blur(radius: colorScheme == .dark ? 100 : 80)
+                .offset(x: animate ? -120 : -160, y: -180)
 
-            // Bar (Top Right)
-            RoundedRectangle(cornerRadius: 200)
-                .fill(colorScheme == .dark ? Color.bgTertiary : Color.sageGreen.opacity(0.2))
-                .frame(width: 480, height: 260)
-                .blur(radius: 80)
-                .rotationEffect(.degrees(-8))
-                .offset(x: 120, y: -30)
-
-            // Orb 2 (Bottom Right)
+            // Orb 2 (Bottom Right) - Flowing
             Circle()
-                .fill(Color.liquidGlassPurple.opacity(colorScheme == .dark ? 0.12 : 0.2))
+                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.3 : 0.2))
                 .frame(width: 420, height: 420)
-                .blur(radius: 90)
-                .offset(x: 120, y: 260)
+                .blur(radius: colorScheme == .dark ? 110 : 90)
+                .offset(x: animate ? 100 : 140, y: 260)
+            
+            // Orb 3 (Center Accent) - Pulse
+            if colorScheme == .dark {
+                Circle()
+                    .fill(Color(hex: "#7000FF").opacity(0.15))
+                    .frame(width: 200, height: 200)
+                    .blur(radius: 80)
+                    .offset(x: 0, y: 0)
+                    .scaleEffect(animate ? 1.1 : 0.9)
+            }
 
-            GrainTexture(opacity: colorScheme == .dark ? 0.04 : 0.03) // Light mode 稍微减弱噪点
-                .blendMode(colorScheme == .dark ? .overlay : .multiply) // Light mode 使用 multiply 让噪点显现
-                .ignoresSafeArea()
+            // Texture: Only in Light Mode for "Paper/Silk" feel. Pure Black should be clean.
+            if colorScheme == .light {
+                GrainTexture(opacity: 0.025)
+                    .blendMode(.multiply)
+                    .ignoresSafeArea()
+            }
         }
         .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
+                animate.toggle()
+            }
+        }
     }
 }
 
@@ -398,15 +413,25 @@ struct LiquidGlassCard<Content: View>: View {
             }
             // 2. 物理材质层 (Physical Material - Blur)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-            // 3. 边缘光与内描边
+            // 3. 边缘光与内描边 (Rim Light)
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(borderGradient, lineWidth: 1)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(colorScheme == .dark ? 0.15 : 0.4),
+                                Color.white.opacity(colorScheme == .dark ? 0.02 : 0.1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: colorScheme == .dark ? 0.5 : 0.5
+                    )
             )
-            // 4. 投影
+            // 4. 投影 (Shadow)
             .shadow(
-                color: style == .elevated ? shadowColor.opacity(0.25) : shadowColor.opacity(0.15),
-                radius: style == .elevated ? 16 : 8,
+                color: Color.black.opacity(colorScheme == .dark ? 0.0 : 0.05), // Dark mode relies on glow/contrast, Light mode needs soft shadow
+                radius: style == .elevated ? 20 : 10,
                 y: style == .elevated ? 8 : 4
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))

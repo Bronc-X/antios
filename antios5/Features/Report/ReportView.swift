@@ -13,7 +13,7 @@ struct ReportView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AuroraBackground()
+                MeshVibrantBackground()
                     .ignoresSafeArea()
 
                 ScrollView {
@@ -803,6 +803,54 @@ struct WearableConnectView: View {
         return L10n.runtime("\(display)\(suffix)")
     }
 }
+
+// MARK: - Vibrant Mesh Background
+struct MeshVibrantBackground: View {
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            // Base: Warm Peach / Orange
+            Color(hex: "#FFD580").ignoresSafeArea()
+            
+            // Mesh 1: Violet Purple
+            RadialGradient(
+                colors: [Color(hex: "#8A2BE2").opacity(0.6), .clear],
+                center: .topLeading,
+                startRadius: 100,
+                endRadius: 800
+            )
+            .offset(x: animate ? -100 : 0, y: animate ? -100 : 0)
+            
+            // Mesh 2: Emerald Green
+            RadialGradient(
+                colors: [Color(hex: "#50C878").opacity(0.5), .clear],
+                center: .bottomTrailing,
+                startRadius: 50,
+                endRadius: 600
+            )
+            .offset(x: animate ? 100 : 0, y: animate ? 100 : 0)
+            
+            // Mesh 3: Soft Pink Overlay
+            RadialGradient(
+                colors: [Color(hex: "#FFB6C1").opacity(0.4), .clear],
+                center: .center,
+                startRadius: 0,
+                endRadius: 500
+            )
+            .scaleEffect(animate ? 1.2 : 1.0)
+            
+            // Blur it all to mesh
+            .blur(radius: 60)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
+                animate.toggle()
+            }
+        }
+    }
+}
+
 
 struct FeedbackLoopDetailView: View {
     @ObservedObject var viewModel: UnderstandingScoreViewModel
