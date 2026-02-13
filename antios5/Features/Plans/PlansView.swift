@@ -91,6 +91,7 @@ struct PlansView: View {
         }
       }
       .navigationTitle("行动闭环")
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button { showAddPlan = true } label: {

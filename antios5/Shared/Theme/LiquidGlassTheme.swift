@@ -22,7 +22,9 @@ struct ScreenMetrics {
 
     /// 水平边距（基于 fixedScreenWidth 判断，避免 safeWidth 微小波动导致阈值跳变）
     var horizontalPadding: CGFloat {
-        fixedScreenWidth <= 360 ? 16 : (fixedScreenWidth < 390 ? 24 : 32)
+        if fixedScreenWidth <= 360 { return 14 }
+        if fixedScreenWidth < 430 { return 18 }
+        return 24
     }
 
     var verticalPadding: CGFloat {
@@ -57,7 +59,7 @@ struct ScreenMetrics {
     }
 
     var maxContentWidth: CGFloat {
-        max(0, min(safeWidth - horizontalPadding * 2, 520))
+        max(0, min(safeWidth - horizontalPadding * 2, 560))
     }
 
     var ringLarge: CGFloat { isCompactHeight ? 140 : 160 }
