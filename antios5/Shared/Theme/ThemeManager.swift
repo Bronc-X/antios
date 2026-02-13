@@ -78,34 +78,34 @@ extension Color {
     // ==========================================
     // ==========================================
     static func bgAbyss(for scheme: ColorScheme) -> Color {
-        // Light Mode = Porcelain Silk (Crisp Off-White)
-        // Dark Mode  = Void Black (Pure #000000)
-        scheme == .dark ? Color(hex: "#000000") : Color(hex: "#FAFAF8")
+        // Light Mode = Porcelain Silk
+        // Dark Mode  = Ink Green Black (less harsh than pure black)
+        scheme == .dark ? Color(hex: "#06110F") : Color(hex: "#FAFAF8")
     }
     
     static func bgMist(for scheme: ColorScheme) -> Color {
         // Subtle texture overlay
-        scheme == .dark ? Color(hex: "#FFFFFF").opacity(0.03) : Color(hex: "#000000").opacity(0.02)
+        scheme == .dark ? Color(hex: "#FFFFFF").opacity(0.04) : Color(hex: "#000000").opacity(0.02)
     }
     
     // ==========================================
     // 情绪流光色 (Emotional Flux / Bioluminescent)
     // ==========================================
     static func bioGlow(for scheme: ColorScheme) -> Color {
-        // Light: Soft Lavender (Airy)
-        // Dark:  Neon Cyan (Cyber/Immersive)
-        scheme == .dark ? Color(hex: "#00F0FF") : Color(hex: "#B39DDB")
+        // Light: Airy Periwinkle
+        // Dark:  Mint Cyan (restrained techno)
+        scheme == .dark ? Color(hex: "#4CC7BB") : Color(hex: "#A8BDE8")
     }
     
     static func bioluminPink(for scheme: ColorScheme) -> Color {
-        // Light: Sky Blue (Airy)
-        // Dark:  Neon Magenta (Cyber/Immersive)
-        scheme == .dark ? Color(hex: "#FF00FF") : Color(hex: "#87CEEB")
+        // Light: Soft Sky
+        // Dark:  Soft Violet Blue (replace neon magenta)
+        scheme == .dark ? Color(hex: "#8FA2E6") : Color(hex: "#9EC8E7")
     }
     
     static func deepViolet(for scheme: ColorScheme) -> Color {
         // Deep accent background
-        scheme == .dark ? Color(hex: "#0A0014") : Color(hex: "#F5F5F7")
+        scheme == .dark ? Color(hex: "#101A2A") : Color(hex: "#F5F5F7")
     }
     
     // ==========================================
@@ -113,10 +113,10 @@ extension Color {
     // ==========================================
     static var chromaticColors: [Color] {
         [
-            Color(hex: "#00F0FF"), // Cyan
-            Color(hex: "#FF00FF"), // Magenta
-            Color(hex: "#FFD700"), // Gold
-            Color(hex: "#00FF00")  // Lime
+            Color(hex: "#4CC7BB"), // Mint Cyan
+            Color(hex: "#8FA2E6"), // Violet Blue
+            Color(hex: "#C5A56E"), // Warm Gold
+            Color(hex: "#6DBA7B")  // Sage Green
         ]
     }
     
@@ -132,12 +132,12 @@ extension Color {
     // 自适应文字色
     // ==========================================
     static func bioTextPrimary(for scheme: ColorScheme) -> Color {
-        // High Contrast: Pure White vs Deep Ink
-        scheme == .dark ? Color(hex: "#FFFFFF") : Color(hex: "#1A1A1A")
+        // High Contrast but less glaring
+        scheme == .dark ? Color(hex: "#F2F4EF") : Color(hex: "#1A1A1A")
     }
     
     static func bioTextSecondary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#E0E0E0").opacity(0.7) : Color(hex: "#4A4A4A").opacity(0.7)
+        scheme == .dark ? Color(hex: "#D8DDD4").opacity(0.72) : Color(hex: "#4A4A4A").opacity(0.7)
     }
 }
 
@@ -189,7 +189,7 @@ struct BioluminescentCard<Content: View>: View {
     }
     
     private var glowIntensity: Double {
-        colorScheme == .dark ? 0.4 : 0.2
+        colorScheme == .dark ? 0.24 : 0.18
     }
     
     var body: some View {
@@ -232,7 +232,7 @@ struct BioluminescentButtonStyle: ButtonStyle {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .shadow(color: .bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.4 : 0.2), radius: 12)
+                        .shadow(color: .bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.28 : 0.18), radius: 10)
                 } else {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(colorScheme == .dark ? .ultraThinMaterial : .regularMaterial)
@@ -242,7 +242,7 @@ struct BioluminescentButtonStyle: ButtonStyle {
                         )
                 }
             }
-            .foregroundColor(isProminent ? .black : .bioTextPrimary(for: colorScheme))
+            .foregroundColor(isProminent ? Color(hex: "#0B1A15") : .bioTextPrimary(for: colorScheme))
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
@@ -255,24 +255,32 @@ struct AbyssBackground: View {
     
     var body: some View {
         ZStack {
-            Color.bgAbyss(for: colorScheme).ignoresSafeArea()
+            LinearGradient(
+                colors: [
+                    Color.bgAbyss(for: colorScheme),
+                    Color.deepViolet(for: colorScheme).opacity(colorScheme == .dark ? 0.28 : 0.08)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
             
             // 荧光雾 1
             Circle()
-                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.16 : 0.1))
+                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.12 : 0.09))
                 .frame(width: 320, height: 320)
-                .blur(radius: 100)
+                .blur(radius: 92)
                 .offset(x: animate ? -100 : 100, y: animate ? -100 : 100)
             
             // 荧光雾 2
             Circle()
-                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.12 : 0.08))
+                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.09 : 0.07))
                 .frame(width: 360, height: 360)
-                .blur(radius: 100)
+                .blur(radius: 96)
                 .offset(x: animate ? 100 : -100, y: animate ? 100 : -100)
             
             // 噪点纹理
-            NoiseTexture(opacity: colorScheme == .dark ? 0.06 : 0.03)
+            NoiseTexture(opacity: colorScheme == .dark ? 0.04 : 0.03)
                 .ignoresSafeArea()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity) // 内部 ZStack 也要约束

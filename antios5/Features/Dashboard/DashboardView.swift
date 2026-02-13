@@ -72,9 +72,9 @@ struct DashboardView: View {
                     // Track
                     Circle()
                         .trim(from: 0.15, to: 0.85)
-                        .stroke(Color.textSecondary.opacity(0.1), style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                        .stroke(Color.textSecondary.opacity(0.11), style: StrokeStyle(lineWidth: 16, lineCap: .round))
                         .rotationEffect(.degrees(90))
-                        .frame(width: 220, height: 220)
+                        .frame(width: 208, height: 208)
                     
                     // Progress
                     Circle()
@@ -85,11 +85,11 @@ struct DashboardView: View {
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ),
-                            style: StrokeStyle(lineWidth: 20, lineCap: .round)
+                            style: StrokeStyle(lineWidth: 16, lineCap: .round)
                         )
                         .rotationEffect(.degrees(90))
-                        .frame(width: 220, height: 220)
-                        .shadow(color: Color.bioluminPink(for: colorScheme).opacity(0.5), radius: 10)
+                        .frame(width: 208, height: 208)
+                        .shadow(color: Color.bioluminPink(for: colorScheme).opacity(0.22), radius: 6)
                     
                     // Center Content (Glow Orb + Score)
                     ZStack {
@@ -97,20 +97,20 @@ struct DashboardView: View {
                             .fill(
                                 RadialGradient(
                                     colors: [
-                                        Color.bioluminPink(for: colorScheme).opacity(0.2),
+                                        Color.bioluminPink(for: colorScheme).opacity(0.12),
                                         Color.clear
                                     ],
                                     center: .center,
                                     startRadius: 0,
-                                    endRadius: 80
+                                    endRadius: 70
                                 )
                             )
-                            .frame(width: 160, height: 160)
-                            .blur(radius: 10)
+                            .frame(width: 148, height: 148)
+                            .blur(radius: 8)
                         
                         VStack(spacing: 4) {
                             Text(viewModel.overallScore.map { "\($0)" } ?? "0")
-                                .font(.system(size: 64, weight: .bold, design: .serif))
+                                .font(.system(size: 56, weight: .bold, design: .serif))
                                 .foregroundColor(.textPrimary)
                             Text("/100")
                                 .font(.caption)
@@ -150,10 +150,6 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity)
         }
     }
-    
-    // Helper to get colorScheme in view (since View structs have @Environment, but extension vars don't)
-    // Actually DashboardView has @Environment(\.colorScheme), but I didn't see it in the file view.
-    // I will add it to the view struct first.
 
     private var stateBarSection: some View {
         let scoreText = viewModel.overallScore.map { "\($0)" } ?? "—"

@@ -292,8 +292,13 @@ struct AuroraBackground: View {
         ZStack {
             // Dynamic Background
             if colorScheme == .dark {
-                // Dark Mode: Pure Black Void
-                Color.black.ignoresSafeArea()
+                // Dark Mode: Deep Ink Gradient (less aggressive than pure black)
+                LinearGradient(
+                    colors: [Color(hex: "#050B09"), Color(hex: "#101922")],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
             } else {
                 // Light Mode: Porcelain Silk Gradient
                 LinearGradient(
@@ -305,26 +310,26 @@ struct AuroraBackground: View {
 
             // Orb 1 (Top Left) - Breathing
             Circle()
-                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.4 : 0.25))
+                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.19 : 0.2))
                 .frame(width: 320, height: 320)
-                .blur(radius: colorScheme == .dark ? 100 : 80)
+                .blur(radius: colorScheme == .dark ? 94 : 78)
                 .offset(x: animate ? -120 : -160, y: -180)
 
             // Orb 2 (Bottom Right) - Flowing
             Circle()
-                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.3 : 0.2))
+                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.14 : 0.16))
                 .frame(width: 420, height: 420)
-                .blur(radius: colorScheme == .dark ? 110 : 90)
+                .blur(radius: colorScheme == .dark ? 100 : 88)
                 .offset(x: animate ? 100 : 140, y: 260)
             
             // Orb 3 (Center Accent) - Pulse
             if colorScheme == .dark {
                 Circle()
-                    .fill(Color(hex: "#7000FF").opacity(0.15))
+                    .fill(Color(hex: "#6F6AAE").opacity(0.06))
                     .frame(width: 200, height: 200)
-                    .blur(radius: 80)
+                    .blur(radius: 74)
                     .offset(x: 0, y: 0)
-                    .scaleEffect(animate ? 1.1 : 0.9)
+                    .scaleEffect(animate ? 1.05 : 0.95)
             }
 
             // Texture: Only in Light Mode for "Paper/Silk" feel. Pure Black should be clean.
