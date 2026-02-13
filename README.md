@@ -1,3 +1,0 @@
-# antios
-
-Initialized repository.
