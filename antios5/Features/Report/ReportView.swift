@@ -13,7 +13,7 @@ struct ReportView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                MeshVibrantBackground()
+                AuroraBackground()
                     .ignoresSafeArea()
 
                 ScrollView {

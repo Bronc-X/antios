@@ -15,8 +15,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // 深渊背景
-                AbyssBackground()
+                // 统一背景体系
+                AuroraBackground()
                     .ignoresSafeArea()
                 
                 ScrollView {
@@ -67,14 +67,13 @@ struct SettingsView: View {
                         logoutButton
                     }
                     .liquidGlassPageWidth()
-                    .padding(.top, 24)  // 增加顶部间距，避免被导航栏截断
-                    .padding(.bottom, metrics.verticalPadding)
+                    .padding(.top, metrics.isCompactHeight ? 8 : 12)
+                    .padding(.bottom, metrics.bottomContentInset)
                 }
             }
             .navigationTitle("闭环设置")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.bgPrimary, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("闭环设置")
@@ -557,7 +556,7 @@ struct HealthKitSettingsViewNew: View {
     
     var body: some View {
         ZStack {
-            AbyssBackground()
+            AuroraBackground()
             
             ScrollView {
                 VStack(spacing: 20) {
