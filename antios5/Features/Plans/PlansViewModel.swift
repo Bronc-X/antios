@@ -581,8 +581,8 @@ class PlansViewModel: ObservableObject {
   private func fallbackMaxPrompt(language: AppLanguage, contextSummary: String?) -> String {
     let isEn = language == .en
     let header = isEn
-      ? "Please generate exactly TWO anti-anxiety action-loop options for me."
-      : "请基于我当前的焦虑状态，生成两个可执行的反焦虑行动闭环方案。"
+      ? "Please generate exactly TWO anti-anxiety action plan options for me."
+      : "请基于我当前的焦虑状态，生成两个可执行的反焦虑行动方案。"
     let constraints = isEn
       ? """
 Output only one fenced code block in this exact format:
@@ -676,6 +676,16 @@ Requirements:
     do {
       let dto = UpdatePlanDTO(status: status.rawValue, progress: progress)
       try await supabase.requestVoid("user_plans?id=eq.\(planId)", method: "PATCH", body: dto)
+      await supabase.captureUserSignal(
+        domain: "plans",
+        action: "status_updated",
+        summary: "\(plans[index].name) -> \(status.rawValue)",
+        metadata: [
+          "plan_id": planId,
+          "status": status.rawValue,
+          "progress": progress ?? plans[index].progress
+        ]
+      )
     } catch {
       plans[index] = previous
       print("[Plans] Status update error: \(error)")
@@ -736,6 +746,18 @@ Requirements:
 
       let updateDTO = UpdatePlanDTO(status: progress == 100 ? PlanStatus.completed.rawValue : nil, progress: progress)
       try await supabase.requestVoid("user_plans?id=eq.\(planId)", method: "PATCH", body: updateDTO)
+      await supabase.captureUserSignal(
+        domain: "plans",
+        action: "items_updated",
+        summary: "\(plans[index].name) progress \(progress)%",
+        metadata: [
+          "plan_id": planId,
+          "completion_status": status.rawValue,
+          "completed_items": completedCount,
+          "total_items": items.count,
+          "progress": progress
+        ]
+      )
     } catch {
       plans[index] = previous
       self.error = error.localizedDescription
@@ -945,7 +967,7 @@ private func buildPersonalizedPlanDraft(from profile: UnifiedProfile, language: 
       action: isEn ? "Complete daily calibration and log sleep/mood." : "每天完成每日校准，记录睡眠和情绪。",
       science: isEn
         ? "Self-monitoring is the first step to sustainable behavior change."
-        : "自我监测是行为改变的第一步，有助于稳定反焦虑闭环。",
+        : "自我监测是行为改变的第一步，有助于稳定反焦虑恢复节奏。",
       difficulty: "easy",
       category: "habits"
     ))

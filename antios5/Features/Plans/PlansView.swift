@@ -4,10 +4,22 @@
 import SwiftUI
 
 struct PlansView: View {
+  private enum LightweightEntrySheet: String, Identifiable {
+    case journal
+    case habits
+    case reminders
+    case goals
+
+    var id: String { rawValue }
+  }
+
   @StateObject private var viewModel = PlansViewModel()
   @State private var showAddPlan = false
+  @State private var showPlanGuide = false
   @State private var isPreparingMaxChat = false
+  @State private var lightweightEntrySheet: LightweightEntrySheet?
   @Environment(\.screenMetrics) private var metrics
+  @Environment(\.colorScheme) private var colorScheme
   @EnvironmentObject private var appSettings: AppSettings
 
   var body: some View {
@@ -90,20 +102,72 @@ struct PlansView: View {
             .progressViewStyle(CircularProgressViewStyle(tint: .liquidGlassAccent))
         }
       }
-      .navigationTitle("行动闭环")
+      .navigationTitle("行动计划")
       .navigationBarTitleDisplayMode(.inline)
       .toolbarBackground(.hidden, for: .navigationBar)
       .toolbar {
-        ToolbarItem(placement: .navigationBarTrailing) {
-          Button { showAddPlan = true } label: {
-            Image(systemName: "plus")
+        ToolbarItem(placement: .navigationBarLeading) {
+          Button {
+            let impact = UIImpactFeedbackGenerator(style: .soft)
+            impact.impactOccurred()
+            showPlanGuide = true
+          } label: {
+            Image(systemName: "questionmark.circle")
+              .font(.system(size: 16, weight: .semibold))
+              .foregroundColor(.liquidGlassAccent)
+              .liquidGlassCircleBadge(padding: 6)
           }
         }
+        ToolbarItem(placement: .navigationBarTrailing) {
+          Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            showAddPlan = true
+          } label: {
+            HStack(spacing: 6) {
+              Image(systemName: "plus")
+              Text("新增")
+                .font(GlassTypography.cnLovi(13, weight: .medium))
+            }
+            .foregroundColor(.liquidGlassAccent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.surfaceGlass(for: colorScheme))
+            .clipShape(Capsule())
+            .overlay(
+              Capsule()
+                .stroke(Color.white.opacity(0.24), lineWidth: 1)
+            )
+          }
+        }
+      }
+      .sheet(isPresented: $showPlanGuide) {
+        PlanGuideSheet()
+          .presentationDetents([.fraction(0.42), .large])
+          .liquidGlassSheetChrome(cornerRadius: 28)
       }
       .sheet(isPresented: $showAddPlan) {
         NavigationStack {
           PlanCreatorView(viewModel: viewModel)
         }
+      }
+      .sheet(item: $lightweightEntrySheet) { sheet in
+        NavigationStack {
+          Group {
+            switch sheet {
+            case .journal:
+              ScienceFeedView()
+            case .habits:
+              HabitsView()
+            case .reminders:
+              AiRemindersView()
+            case .goals:
+              GoalsView()
+            }
+          }
+        }
+        .presentationDetents([.medium, .large])
+        .liquidGlassSheetChrome(cornerRadius: 28)
       }
       .refreshable {
         await viewModel.loadPlans()
@@ -118,7 +182,7 @@ struct PlansView: View {
 
   private var pageHeader: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text("行动闭环")
+      Text("行动计划")
         .font(GlassTypography.display(30, weight: .bold))
         .foregroundColor(.textPrimary)
       Text("将 Max 的建议转成可执行动作，并持续跟进完成率")
@@ -130,7 +194,11 @@ struct PlansView: View {
   }
 
   private var journalEntry: some View {
-    NavigationLink(destination: ScienceFeedView()) {
+    Button {
+      let impact = UIImpactFeedbackGenerator(style: .soft)
+      impact.impactOccurred()
+      lightweightEntrySheet = .journal
+    } label: {
       quickEntryCard(
         icon: "books.vertical.fill",
         iconColor: .liquidGlassAccent,
@@ -143,7 +211,11 @@ struct PlansView: View {
   }
 
   private var habitsEntry: some View {
-    NavigationLink(destination: HabitsView()) {
+    Button {
+      let impact = UIImpactFeedbackGenerator(style: .light)
+      impact.impactOccurred()
+      lightweightEntrySheet = .habits
+    } label: {
       quickEntryCard(
         icon: "checkmark.circle",
         iconColor: .statusSuccess,
@@ -156,7 +228,11 @@ struct PlansView: View {
   }
 
   private var remindersEntry: some View {
-    NavigationLink(destination: AiRemindersView()) {
+    Button {
+      let impact = UIImpactFeedbackGenerator(style: .light)
+      impact.impactOccurred()
+      lightweightEntrySheet = .reminders
+    } label: {
       quickEntryCard(
         icon: "bell.badge.fill",
         iconColor: .liquidGlassWarm,
@@ -186,13 +262,15 @@ struct PlansView: View {
           }
         }
 
-        Text("让 Max 基于问询、校准和科学证据生成下一步行动，并在这里闭环执行")
+        Text("让 Max 基于问询、校准和科学证据生成下一步行动，并在这里执行与跟进")
           .font(.caption)
           .foregroundColor(.textSecondary)
 
         ViewThatFits(in: .horizontal) {
           HStack(spacing: 10) {
             Button {
+              let impact = UIImpactFeedbackGenerator(style: .medium)
+              impact.impactOccurred()
               launchMaxCustomization()
             } label: {
               HStack(spacing: 8) {
@@ -208,6 +286,8 @@ struct PlansView: View {
             .disabled(isPreparingMaxChat)
 
             Button {
+              let impact = UIImpactFeedbackGenerator(style: .light)
+              impact.impactOccurred()
               showAddPlan = true
             } label: {
               Text("手动补充")
@@ -218,6 +298,8 @@ struct PlansView: View {
 
           VStack(spacing: 10) {
             Button {
+              let impact = UIImpactFeedbackGenerator(style: .medium)
+              impact.impactOccurred()
               launchMaxCustomization()
             } label: {
               HStack(spacing: 8) {
@@ -233,6 +315,8 @@ struct PlansView: View {
             .disabled(isPreparingMaxChat)
 
             Button {
+              let impact = UIImpactFeedbackGenerator(style: .light)
+              impact.impactOccurred()
               showAddPlan = true
             } label: {
               Text("手动补充")
@@ -246,7 +330,11 @@ struct PlansView: View {
   }
 
   private var goalsEntry: some View {
-    NavigationLink(destination: GoalsView()) {
+    Button {
+      let impact = UIImpactFeedbackGenerator(style: .light)
+      impact.impactOccurred()
+      lightweightEntrySheet = .goals
+    } label: {
       quickEntryCard(
         icon: "target",
         iconColor: .liquidGlassAccent,
@@ -532,6 +620,7 @@ struct EmptyPlansView: View {
 
 struct AddPlanSheet: View {
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.colorScheme) private var colorScheme
   @State private var title = ""
   @State private var description = ""
   @State private var category: PlanCategory = .general
@@ -543,8 +632,7 @@ struct AddPlanSheet: View {
   var body: some View {
     NavigationStack {
       ZStack {
-        // 深色背景
-        Color.bgPrimary.ignoresSafeArea()
+        AuroraBackground()
         
         ScrollView {
           VStack(spacing: 20) {
@@ -569,13 +657,13 @@ struct AddPlanSheet: View {
                     TextEditor(text: $description)
                       .frame(minHeight: 80)
                       .padding(12)
-                      .background(Color.bgSecondary.opacity(0.6))
+                      .background(Color.surfaceGlass(for: colorScheme))
                       .clipShape(RoundedRectangle(cornerRadius: 14))
                       .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                          .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                          .stroke(Color.white.opacity(0.2), lineWidth: 1)
                       )
-                      .foregroundColor(.white)
+                      .foregroundColor(.textPrimary)
                       .scrollContentBackground(.hidden)
                   }
                 }
@@ -603,13 +691,13 @@ struct AddPlanSheet: View {
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.bgSecondary.opacity(0.6))
+                        .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .overlay(
                           RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
                         )
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                       
                       if items.count > 1 {
                         Button {
@@ -675,7 +763,7 @@ struct AddPlanSheet: View {
                       .background(
                         category == cat
                           ? cat.color
-                          : Color.white.opacity(0.05)
+                          : Color.surfaceGlass(for: colorScheme)
                       )
                       .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
@@ -690,6 +778,7 @@ struct AddPlanSheet: View {
       }
       .navigationTitle("添加计划")
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(.hidden, for: .navigationBar)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("取消") { 
@@ -711,8 +800,6 @@ struct AddPlanSheet: View {
           .disabled(!isFormValid)
         }
       }
-      .toolbarBackground(Color.bgPrimary, for: .navigationBar)
-      .toolbarBackground(.visible, for: .navigationBar)
     }
   }
 
@@ -749,6 +836,61 @@ enum PlanCategory: String, CaseIterable {
     case .sleep: return .indigo
     case .mental: return .purple
     }
+  }
+}
+
+private struct PlanGuideSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    ZStack {
+      AuroraBackground()
+        .ignoresSafeArea()
+
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Text("行动页说明")
+            .font(GlassTypography.cnLovi(22, weight: .semibold))
+            .foregroundColor(.textPrimary)
+          Spacer()
+          Button {
+            dismiss()
+          } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundColor(.textSecondary)
+              .padding(10)
+              .background(Color.surfaceGlass(for: colorScheme))
+              .clipShape(Circle())
+          }
+          .buttonStyle(.plain)
+        }
+
+        planBullet("优先让 Max 生成行动，再根据你实际情况手动微调。")
+        planBullet("每个计划保持 3-5 步，执行门槛最低时完成率最高。")
+        planBullet("完成后回到对话页复盘，系统会自动更新下一步建议。")
+
+        Spacer(minLength: 0)
+      }
+      .padding(20)
+    }
+  }
+
+  private func planBullet(_ text: String) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Circle()
+        .fill(Color.liquidGlassAccent)
+        .frame(width: 6, height: 6)
+        .padding(.top, 7)
+      Text(text)
+        .font(GlassTypography.cnLovi(15, weight: .regular))
+        .foregroundColor(.textSecondary)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(12)
+    .background(Color.surfaceGlass(for: colorScheme))
+    .clipShape(RoundedRectangle(cornerRadius: 12))
   }
 }
 

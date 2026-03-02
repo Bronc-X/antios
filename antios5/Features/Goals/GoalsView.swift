@@ -7,16 +7,17 @@ struct GoalsView: View {
     @StateObject private var viewModel = GoalsViewModel()
     @State private var showAddGoal = false
     @State private var showCompletedGoals = false
+    @State private var showGoalGuide = false
     @State private var digitalTwin: DigitalTwinAnalysis?
     @State private var isLoadingTwin = false
     @State private var twinError: String?
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // 深渊背景
-                AbyssBackground()
+                AuroraBackground()
                 
                 ScrollView {
                     VStack(spacing: metrics.sectionSpacing) {
@@ -56,7 +57,20 @@ struct GoalsView: View {
             }
             .navigationTitle("目标")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        let impact = UIImpactFeedbackGenerator(style: .soft)
+                        impact.impactOccurred()
+                        showGoalGuide = true
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.liquidGlassAccent)
+                            .liquidGlassCircleBadge(padding: 6)
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         let impact = UIImpactFeedbackGenerator(style: .light)
@@ -68,6 +82,11 @@ struct GoalsView: View {
                             .foregroundColor(.liquidGlassAccent)
                     }
                 }
+            }
+            .sheet(isPresented: $showGoalGuide) {
+                GoalGuideSheet()
+                    .presentationDetents([.fraction(0.4), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
             }
             .sheet(isPresented: $showAddGoal) {
                 AddGoalSheet { input in
@@ -107,7 +126,7 @@ struct GoalsView: View {
                 .frame(maxWidth: .infinity)
                 
                 Divider()
-                    .background(Color.white.opacity(0.1))
+                    .background(Color.textPrimary.opacity(0.1))
                     .frame(height: dividerHeight)
                 
                 // 已完成目标
@@ -125,7 +144,7 @@ struct GoalsView: View {
                 .frame(maxWidth: .infinity)
                 
                 Divider()
-                    .background(Color.white.opacity(0.1))
+                    .background(Color.textPrimary.opacity(0.1))
                     .frame(height: dividerHeight)
                 
                 // 完成率
@@ -161,7 +180,7 @@ struct GoalsView: View {
             VStack(spacing: 8) {
                 Text("还没有目标")
                     .font(.title3.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(.textPrimary)
                 
                 Text("设定一个小目标，开始你的改变之旅")
                     .font(.subheadline)
@@ -209,7 +228,7 @@ struct GoalsView: View {
                         .foregroundColor(.liquidGlassAccent)
                     Text("AI 动态目标")
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                     Spacer()
                     if isLoadingTwin {
                         ProgressView()
@@ -381,7 +400,7 @@ struct GoalCard: View {
                 }) {
                     ZStack {
                         Circle()
-                            .stroke(goal.isCompleted ? Color.statusSuccess : Color.white.opacity(0.3), lineWidth: 2)
+                            .stroke(goal.isCompleted ? Color.statusSuccess : Color.textPrimary.opacity(0.22), lineWidth: 2)
                             .frame(width: 28, height: 28)
                         
                         if goal.isCompleted {
@@ -400,7 +419,7 @@ struct GoalCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(goal.title)
                         .font(.subheadline.bold())
-                        .foregroundColor(goal.isCompleted ? .textSecondary : .white)
+                        .foregroundColor(goal.isCompleted ? .textSecondary : .textPrimary)
                         .strikethrough(goal.isCompleted)
                     
                     if let description = goal.description, !description.isEmpty {
@@ -450,6 +469,7 @@ struct GoalCard: View {
 
 struct AddGoalSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @State private var title = ""
     @State private var description = ""
     @State private var category = "general"
@@ -468,7 +488,7 @@ struct AddGoalSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.bgPrimary.ignoresSafeArea()
+                AuroraBackground()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -493,13 +513,13 @@ struct AddGoalSheet: View {
                                         TextEditor(text: $description)
                                             .frame(minHeight: 60)
                                             .padding(12)
-                                            .background(Color.bgSecondary.opacity(0.6))
+                                            .background(Color.surfaceGlass(for: colorScheme))
                                             .clipShape(RoundedRectangle(cornerRadius: 14))
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 14)
-                                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
                                             )
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.textPrimary)
                                             .scrollContentBackground(.hidden)
                                     }
                                 }
@@ -531,7 +551,7 @@ struct AddGoalSheet: View {
                                             .background(
                                                 category == cat.0
                                                     ? cat.2
-                                                    : Color.white.opacity(0.05)
+                                                    : Color.surfaceGlass(for: colorScheme)
                                             )
                                             .clipShape(RoundedRectangle(cornerRadius: 12))
                                         }
@@ -546,6 +566,7 @@ struct AddGoalSheet: View {
             }
             .navigationTitle("添加目标")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
@@ -573,13 +594,66 @@ struct AddGoalSheet: View {
                     .disabled(!isFormValid)
                 }
             }
-            .toolbarBackground(Color.bgPrimary, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
         }
     }
     
     private var isFormValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+private struct GoalGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("目标页说明")
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                goalBullet("建议把目标写成可执行动作，不要写抽象愿望。")
+                goalBullet("优先保留 1-3 个活跃目标，完成率会明显提升。")
+                goalBullet("每日校准后回到这里更新状态，系统会持续优化建议。")
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func goalBullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

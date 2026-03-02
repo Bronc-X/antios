@@ -272,6 +272,19 @@ struct DashboardData {
     var profile: UnifiedProfile?
     var weeklyLogs: [WellnessLog]
     var hardwareData: HardwareData?
+    var clinicalScaleScores: [String: Int]? = nil
+
+    init(
+        profile: UnifiedProfile?,
+        weeklyLogs: [WellnessLog],
+        hardwareData: HardwareData?,
+        clinicalScaleScores: [String: Int]? = nil
+    ) {
+        self.profile = profile
+        self.weeklyLogs = weeklyLogs
+        self.hardwareData = hardwareData
+        self.clinicalScaleScores = clinicalScaleScores
+    }
     
     // 计算属性：今日日志
     var todayLog: WellnessLog? {
@@ -314,7 +327,7 @@ enum AntiAnxietyLoopStep: String, Codable, CaseIterable, Identifiable {
         case .scientificExplanation:
             return "科学解释"
         case .actionClosure:
-            return "行动闭环"
+            return "行动跟进"
         }
     }
 }

@@ -1,5 +1,5 @@
 // DashboardView.swift
-// 反焦虑闭环首页：弱约束节奏 + 个性化解释 + 行动跟进
+// 反焦虑进展首页：弱约束节奏 + 个性化解释 + 行动跟进
 
 import SwiftUI
 
@@ -10,14 +10,18 @@ struct DashboardView: View {
     @EnvironmentObject private var appSettings: AppSettings
 
     @State private var showLoopDetails = false
+    @State private var showInsightSheet = false
+    @State private var showGuideSheet = false
+    @State private var showScienceFeedSheet = false
     var body: some View {
         NavigationStack {
             ZStack {
-                AbyssBackground()
+                AuroraBackground()
                     .ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: metrics.sectionSpacing) {
+                        headerSection
                         heroSection
                         stateBarSection
                         rhythmSection
@@ -49,7 +53,7 @@ struct DashboardView: View {
                 }
             }
             .alert(
-                "提示",
+                t("提示", "Notice"),
                 isPresented: Binding(
                     get: { viewModel.error != nil },
                     set: { newValue in
@@ -57,11 +61,61 @@ struct DashboardView: View {
                     }
                 )
             ) {
-                Button("知道了") { viewModel.error = nil }
+                Button(t("知道了", "Got it")) { viewModel.error = nil }
             } message: {
                 Text(viewModel.error ?? "")
             }
+            .sheet(isPresented: $showInsightSheet) {
+                DashboardInsightSheet(
+                    score: viewModel.overallScore,
+                    progress: loopProgress,
+                    streak: calibrationStreakDays,
+                    feedback: positiveFeedbackText
+                )
+                .presentationDetents([.fraction(0.46), .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
+            }
+            .sheet(isPresented: $showGuideSheet) {
+                DashboardGuideSheet()
+                    .presentationDetents([.fraction(0.42), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
+            }
+            .sheet(isPresented: $showScienceFeedSheet) {
+                NavigationStack {
+                    ScienceFeedView()
+                }
+                .presentationDetents([.medium, .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
+            }
         }
+    }
+
+    private var headerSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(t("进展", "Progress"))
+                    .font(GlassTypography.cnLovi(30, weight: .semibold))
+                    .foregroundColor(.textPrimary)
+                Text(t("弱约束节奏 · 个性化解释 · 行动跟进", "Weak constraint rhythm · Personalized explanation · Action follow-up"))
+                    .font(GlassTypography.cnLovi(14, weight: .regular))
+                    .foregroundColor(.textSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                let haptic = UIImpactFeedbackGenerator(style: .soft)
+                haptic.impactOccurred()
+                showGuideSheet = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.liquidGlassAccent)
+                    .liquidGlassCircleBadge(padding: 8)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var heroSection: some View {
@@ -76,9 +130,9 @@ struct DashboardView: View {
                         .rotationEffect(.degrees(90))
                         .frame(width: 208, height: 208)
                     
-                    // Progress
+                    // Score progress (0...100 mapped to 0...1)
                     Circle()
-                        .trim(from: 0.15, to: 0.15 + (0.7 * loopProgress)) // 0.7 is the span (0.85 - 0.15)
+                        .trim(from: 0.15, to: 0.15 + (0.7 * scoreProgress)) // 0.7 is the span (0.85 - 0.15)
                         .stroke(
                             LinearGradient(
                                 colors: [Color.bioGlow(for: colorScheme), Color.bioluminPink(for: colorScheme)],
@@ -109,10 +163,10 @@ struct DashboardView: View {
                             .blur(radius: 8)
                         
                         VStack(spacing: 4) {
-                            Text(viewModel.overallScore.map { "\($0)" } ?? "0")
-                                .font(.system(size: 56, weight: .bold, design: .serif))
+                            Text(viewModel.overallScore.map { "\($0)" } ?? "—")
+                                .font(GlassTypography.loviTitle(56, weight: .semibold))
                                 .foregroundColor(.textPrimary)
-                            Text("/100")
+                            Text(t("稳定度 /100", "Stability /100"))
                                 .font(.caption)
                                 .foregroundColor(.textTertiary)
                         }
@@ -123,20 +177,21 @@ struct DashboardView: View {
                 // 2. Greeting & Status
                 VStack(spacing: 8) {
                     Text(viewModel.greeting)
-                        .font(.title3)
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     
                     Text(positiveFeedbackText)
-                        .font(.subheadline)
+                        .font(GlassTypography.cnLovi(15, weight: .regular))
                         .foregroundColor(.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 10)
                     
                     Button {
-                        // Action for "See details"
-                        withAnimation { showLoopDetails.toggle() }
+                        let feedback = UIImpactFeedbackGenerator(style: .soft)
+                        feedback.impactOccurred()
+                        showInsightSheet = true
                     } label: {
-                        Text("查看今日洞察")
+                        Text(t("查看今日洞察", "View today's insights"))
                             .font(.caption.bold())
                             .foregroundColor(.liquidGlassAccent)
                             .padding(.vertical, 8)
@@ -158,21 +213,21 @@ struct DashboardView: View {
         return LiquidGlassCard(style: .elevated, padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("今日状态栏")
-                        .font(.headline)
+                    Text(t("今日状态栏", "Today's status bar"))
+                        .font(GlassTypography.cnLovi(19, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     Spacer()
                     if viewModel.isOffline {
-                        Label("本地模式", systemImage: "wifi.slash")
+                        Label(t("本地模式", "Local mode"), systemImage: "wifi.slash")
                             .font(.caption2)
                             .foregroundColor(.statusWarning)
                     }
                 }
 
                 HStack(spacing: 8) {
-                    statusChip(title: "稳定度", value: scoreText)
-                    statusChip(title: "连续", value: "\(calibrationStreakDays)天")
-                    statusChip(title: "节奏完成", value: "\(completion)%")
+                    statusChip(title: t("稳定度", "Stability"), value: scoreText)
+                    statusChip(title: t("连续", "Streak"), value: t("\(calibrationStreakDays)天", "\(calibrationStreakDays) days"))
+                    statusChip(title: t("节奏完成", "Rhythm completion"), value: "\(completion)%")
                 }
 
                 Text(positiveFeedbackText)
@@ -188,11 +243,11 @@ struct DashboardView: View {
         return LiquidGlassCard(style: .standard, padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("今日建议（可选）")
-                        .font(.headline)
+                    Text(t("今日建议（可选）", "Today's tip (optional)"))
+                        .font(GlassTypography.cnLovi(19, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     Spacer()
-                    Text("你可以优先：\(status.currentStep.title)")
+                    Text("\(t("你可以优先：", "You can prioritize:")) \(r(status.currentStep.title))")
                         .font(.caption)
                         .foregroundColor(.liquidGlassAccent)
                 }
@@ -201,12 +256,14 @@ struct DashboardView: View {
                     .tint(.liquidGlassAccent)
 
                 Button {
+                    let haptic = UIImpactFeedbackGenerator(style: .light)
+                    haptic.impactOccurred()
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showLoopDetails.toggle()
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Text(showLoopDetails ? "收起闭环详情" : "展开闭环详情")
+                        Text(showLoopDetails ? t("收起进展详情", "Collapse progress details") : t("展开进展详情", "Expand progress details"))
                         Image(systemName: showLoopDetails ? "chevron.up" : "chevron.down")
                     }
                     .font(.caption)
@@ -222,13 +279,13 @@ struct DashboardView: View {
                                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
                                     .font(.caption)
                                     .foregroundColor(done ? .statusSuccess : .textTertiary)
-                                Text(step.title)
+                                Text(r(step.title))
                                     .font(.caption2)
                                     .foregroundColor(done ? .textPrimary : .textSecondary)
                             }
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
-                            .background(Color.surfaceGlass(for: .dark))
+                            .background(Color.surfaceGlass(for: colorScheme))
                             .clipShape(Capsule())
                         }
                     }
@@ -249,7 +306,7 @@ struct DashboardView: View {
             LiquidGlassCard(style: .standard, padding: 16) {
                 HStack(spacing: 12) {
                     ProgressView().tint(.liquidGlassAccent)
-                    Text("Max 正在整理下一条关注点…")
+                    Text(t("Max 正在整理下一条关注点…", "Max is preparing your next focus point…"))
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                 }
@@ -257,39 +314,41 @@ struct DashboardView: View {
         } else if let inquiry = viewModel.inquiry {
             LiquidGlassCard(style: .elevated, padding: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    sectionHeader(title: "Max 关注点", icon: "sparkles")
+                    sectionHeader(title: t("Max 关注点", "Max focus"), icon: "sparkles")
 
-                    Text(inquiry.questionText)
-                        .font(.subheadline)
+                    Text(r(inquiry.questionText))
+                        .font(GlassTypography.cnLovi(16, weight: .medium))
                         .foregroundColor(.textPrimary)
 
                     if let feed = inquiry.feedContent {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("相关证据")
+                            Text(t("相关证据", "Related evidence"))
                                 .font(.caption)
                                 .foregroundColor(.textTertiary)
-                            Text(feed.title)
-                                .font(.subheadline)
+                            Text(r(feed.title))
+                                .font(GlassTypography.cnLovi(15, weight: .medium))
                                 .foregroundColor(.textPrimary)
-                            Text(feed.source)
+                            Text(r(feed.source))
                                 .font(.caption2)
                                 .foregroundColor(.textSecondary)
                         }
                         .padding(10)
-                        .background(Color.surfaceGlass(for: .dark))
+                        .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
 
                     VStack(spacing: 8) {
                         ForEach(resolvedInquiryOptions(inquiry), id: \.value) { option in
                             Button {
+                                let haptic = UIImpactFeedbackGenerator(style: .light)
+                                haptic.impactOccurred()
                                 Task {
                                     await viewModel.respondInquiry(option: option)
                                     await viewModel.loadDailyRecommendations(language: appSettings.language.apiCode, force: true)
                                 }
                             } label: {
                                 HStack {
-                                    Text(option.label)
+                                    Text(r(option.label))
                                         .foregroundColor(.textPrimary)
                                     Spacer()
                                     Image(systemName: "chevron.right")
@@ -298,7 +357,7 @@ struct DashboardView: View {
                                 }
                                 .padding(.vertical, 10)
                                 .padding(.horizontal, 12)
-                                .background(Color.surfaceGlass(for: .dark))
+                                .background(Color.surfaceGlass(for: colorScheme))
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                             .buttonStyle(.plain)
@@ -312,10 +371,10 @@ struct DashboardView: View {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundColor(.statusSuccess)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Max 关注点")
-                            .font(.headline)
+                        Text(t("Max 关注点", "Max focus"))
+                            .font(GlassTypography.cnLovi(18, weight: .semibold))
                             .foregroundColor(.textPrimary)
-                        Text("当前没有待回答问题，你可以直接看解释或执行动作。")
+                        Text(t("当前没有待回答问题，你可以直接看解释或执行动作。", "No pending questions. You can go straight to explanation or action."))
                             .font(.caption)
                             .foregroundColor(.textSecondary)
                     }
@@ -333,10 +392,12 @@ struct DashboardView: View {
                         .font(.title3)
                         .foregroundColor(.liquidGlassWarm)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("今日校准（可选）")
-                            .font(.headline)
+                        Text(t("今日校准（可选）", "Calibrate today (optional)"))
+                            .font(GlassTypography.cnLovi(18, weight: .semibold))
                             .foregroundColor(.textPrimary)
-                        Text(viewModel.todayLog == nil ? "如果愿意，记录今天状态，建议会更贴合你。" : "今日已完成校准，做得很好。")
+                        Text(viewModel.todayLog == nil
+                             ? t("如果愿意，记录今天状态，建议会更贴合你。", "If you like, record today's status and recommendations will be more relevant.")
+                             : t("今日已完成校准，做得很好。", "Calibration completed today, great job."))
                             .font(.caption)
                             .foregroundColor(.textSecondary)
                     }
@@ -352,6 +413,7 @@ struct DashboardView: View {
     private var scientificExplanationSection: some View {
         let recommendation = viewModel.aiRecommendations.first
         let featured = viewModel.featuredScienceArticle
+        let proactive = viewModel.proactiveCareBrief
         let mechanism = (featured?.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? (recommendation?.summary ?? defaultMechanismExplanation)
             : (featured?.summary ?? defaultMechanismExplanation)
@@ -361,16 +423,68 @@ struct DashboardView: View {
 
         return LiquidGlassCard(style: .elevated, padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader(title: "科学解释", icon: "books.vertical.fill")
+                sectionHeader(title: t("科学解释", "Scientific explanation"), icon: "books.vertical.fill")
 
-                if viewModel.hasVerifiedScienceEvidence, let featured {
-                    explanationRow(title: "理解结论", value: featured.title)
-                    explanationRow(title: "机制解释", value: mechanism)
-                    explanationRow(title: "个性化关联", value: personalizedReason.isEmpty ? "已匹配你的真实健康数据" : personalizedReason)
-                    explanationRow(title: "证据来源", value: featured.sourceType ?? "个性化科学证据库")
-                    explanationRow(title: "数据依据", value: viewModel.scienceEvidenceSnapshot)
-                    explanationRow(title: "可执行动作", value: action)
-                    explanationRow(title: "跟进问题", value: "执行后你的体感变化有多大（0-10）？")
+                if let proactive {
+                    explanationRow(title: t("理解结论", "Conclusion"), value: r(proactive.understanding))
+                    explanationRow(title: t("机制解释", "Mechanistic explanation"), value: r(proactive.mechanism))
+                    explanationRow(title: t("可执行动作", "Action"), value: r(proactive.microAction))
+                    explanationRow(title: t("跟进问题", "Follow-up question"), value: r(proactive.followUpQuestion))
+
+                    if let evidenceTitle = proactive.evidenceTitle, !evidenceTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        explanationRow(title: t("证据来源", "Source of evidence"), value: r(evidenceTitle))
+                    }
+                    if let confidence = proactive.confidence {
+                        explanationRow(
+                            title: t("解释置信度", "Confidence"),
+                            value: "\(Int((min(max(confidence, 0), 1) * 100).rounded()))%"
+                        )
+                    }
+
+                    HStack(spacing: 10) {
+                        if let sourceUrl = proactive.evidenceURL,
+                           let url = URL(string: sourceUrl),
+                           !sourceUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Link(destination: url) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "link")
+                                    Text(t("打开证据原文", "Open source evidence"))
+                                }
+                                .font(.caption)
+                                .foregroundColor(.liquidGlassAccent)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 10)
+                                .background(Color.surfaceGlass(for: colorScheme))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+
+                        Button {
+                            let haptic = UIImpactFeedbackGenerator(style: .soft)
+                            haptic.impactOccurred()
+                            showScienceFeedSheet = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "newspaper.fill")
+                                Text(t("进入个性化科学期刊", "Open personalized science journal"))
+                            }
+                            .font(.caption)
+                            .foregroundColor(.liquidGlassAccent)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 10)
+                                .background(Color.surfaceGlass(for: colorScheme))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else if viewModel.hasVerifiedScienceEvidence, let featured {
+                    explanationRow(title: t("理解结论", "Conclusion"), value: r(featured.title))
+                    explanationRow(title: t("机制解释", "Mechanistic explanation"), value: r(mechanism))
+                    explanationRow(title: t("个性化关联", "Personalized relevance"), value: personalizedReason.isEmpty ? t("已匹配你的真实健康数据", "Matched to your real health data") : r(personalizedReason))
+                    explanationRow(title: t("证据来源", "Source of evidence"), value: r(featured.sourceType ?? t("个性化科学证据库", "Personalized evidence library")))
+                    explanationRow(title: t("数据依据", "Data basis"), value: r(viewModel.scienceEvidenceSnapshot))
+                    explanationRow(title: t("可执行动作", "Action"), value: r(action))
+                    explanationRow(title: t("跟进问题", "Follow-up question"), value: t("执行后你的体感变化有多大（0-10）？", "After completing the action, how much did your body sensation change (0-10)?"))
 
                     HStack(spacing: 10) {
                         if let sourceUrl = featured.sourceUrl,
@@ -378,50 +492,62 @@ struct DashboardView: View {
                             Link(destination: url) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "link")
-                                    Text("打开证据原文")
+                                    Text(t("打开证据原文", "Open source evidence"))
                                 }
                                 .font(.caption)
                                 .foregroundColor(.liquidGlassAccent)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 10)
-                                .background(Color.surfaceGlass(for: .dark))
+                                .background(Color.surfaceGlass(for: colorScheme))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
                         }
 
-                        NavigationLink(destination: ScienceFeedView().edgeSwipeBack()) {
+                        Button {
+                            let haptic = UIImpactFeedbackGenerator(style: .soft)
+                            haptic.impactOccurred()
+                            showScienceFeedSheet = true
+                        } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "newspaper.fill")
-                                Text("进入个性化科学期刊")
+                                Text(t("进入个性化科学期刊", "Open personalized science journal"))
                             }
                             .font(.caption)
                             .foregroundColor(.liquidGlassAccent)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 10)
-                            .background(Color.surfaceGlass(for: .dark))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .background(Color.surfaceGlass(for: colorScheme))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
                         .buttonStyle(.plain)
                     }
                 } else {
-                    Text(viewModel.hasSufficientHealthSignalsForScience ? "个性化科学解释暂未就绪" : "等待真实健康数据")
-                        .font(.headline)
+                    Text(viewModel.hasSufficientHealthSignalsForScience
+                         ? t("个性化科学解释暂未就绪", "Personalized scientific explanation is not ready yet")
+                         : t("等待真实健康数据", "Waiting for real health data"))
+                        .font(GlassTypography.cnLovi(18, weight: .semibold))
                         .foregroundColor(.textPrimary)
-                    Text(viewModel.hasSufficientHealthSignalsForScience ? "仅在云端证据可用且已匹配你的真实健康数据时展示。" : "请先完成今日校准或同步 Apple Watch/HealthKit，系统才会生成真实个性化解释。")
+                    Text(viewModel.hasSufficientHealthSignalsForScience
+                         ? t("仅在云端证据可用且已匹配你的真实健康数据时展示。", "Shown only when cloud evidence is available and matched to your real health data.")
+                         : t("请先完成今日校准或同步 Apple Watch/HealthKit，系统才会生成真实个性化解释。", "Please complete today's calibration or sync Apple Watch/HealthKit before personalized explanations can be generated."))
                         .font(.caption)
                         .foregroundColor(.textSecondary)
-                    explanationRow(title: "当前数据状态", value: viewModel.scienceEvidenceSnapshot)
+                    explanationRow(title: t("当前数据状态", "Current data status"), value: r(viewModel.scienceEvidenceSnapshot))
 
-                    NavigationLink(destination: ScienceFeedView().edgeSwipeBack()) {
+                    Button {
+                        let haptic = UIImpactFeedbackGenerator(style: .soft)
+                        haptic.impactOccurred()
+                        showScienceFeedSheet = true
+                    } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.clockwise")
-                            Text("查看并刷新科学期刊")
+                            Text(t("查看并刷新科学期刊", "View and refresh scientific journals"))
                         }
                         .font(.caption)
                         .foregroundColor(.liquidGlassAccent)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 10)
-                        .background(Color.surfaceGlass(for: .dark))
+                        .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
@@ -434,10 +560,12 @@ struct DashboardView: View {
     private var actionClosureSection: some View {
         let topActions = Array(viewModel.aiRecommendations.prefix(3))
         let fallbackActions = defaultActionFallbacks
+        let proactiveAction = viewModel.proactiveCareBrief?.microAction
+        let proactiveFollowUp = viewModel.proactiveCareBrief?.followUpQuestion
 
         return LiquidGlassCard(style: .standard, padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader(title: "行动建议", icon: "checkmark.seal")
+                sectionHeader(title: t("行动建议", "Action suggestions"), icon: "checkmark.seal")
 
                 if topActions.isEmpty {
                     ForEach(Array(fallbackActions.enumerated()), id: \.offset) { index, item in
@@ -447,8 +575,8 @@ struct DashboardView: View {
                                 .foregroundColor(.liquidGlassAccent)
                                 .frame(width: 18, height: 18)
                                 .background(Circle().fill(Color.liquidGlassAccent.opacity(0.18)))
-                            Text(item)
-                                .font(.subheadline)
+                            Text(r(item))
+                                .font(GlassTypography.cnLovi(15, weight: .regular))
                                 .foregroundColor(.textSecondary)
                             Spacer()
                         }
@@ -461,10 +589,10 @@ struct DashboardView: View {
                                 .foregroundColor(.liquidGlassAccent)
                                 .padding(.top, 6)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(item.action)
-                                    .font(.subheadline)
+                                Text(r(item.action))
+                                    .font(GlassTypography.cnLovi(16, weight: .medium))
                                     .foregroundColor(.textPrimary)
-                                Text(item.reason ?? item.summary)
+                                Text(r(item.reason ?? item.summary))
                                     .font(.caption)
                                     .foregroundColor(.textSecondary)
                             }
@@ -474,16 +602,37 @@ struct DashboardView: View {
                 }
 
                 Button {
-                    let followUp = topActions.first?.action ?? defaultAction
+                    let haptic = UIImpactFeedbackGenerator(style: .light)
+                    haptic.impactOccurred()
+                    let followUp = proactiveAction ?? topActions.first?.action ?? defaultAction
+                    let prompt: String
+                    if appSettings.language == .en {
+                        let followUpQuestion = proactiveFollowUp ?? "What changed in your body sensation after this step (0-10)?"
+                        prompt = "I just completed: \(followUp). Please give me the next best step and use this follow-up question: \(followUpQuestion)"
+                    } else {
+                        let followUpQuestion = proactiveFollowUp ?? "执行后你的体感变化有多大（0-10）？"
+                        prompt = "我刚执行了：\(followUp)。请给我一个下一步，并用这个问题跟进：\(followUpQuestion)"
+                    }
+                    Task {
+                        await SupabaseManager.shared.captureUserSignal(
+                            domain: "dashboard",
+                            action: "follow_up_requested",
+                            summary: followUp,
+                            metadata: [
+                                "source": "action_closure_button",
+                                "has_proactive_brief": viewModel.proactiveCareBrief != nil
+                            ]
+                        )
+                    }
                     NotificationCenter.default.post(
                         name: .askMax,
                         object: nil,
-                        userInfo: ["question": "我刚执行了：\(followUp)。请给我一个下一步和一个复盘问题。"]
+                        userInfo: ["question": prompt]
                     )
                 } label: {
                     HStack {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
-                        Text("让 Max 继续跟进")
+                        Text(t("让 Max 继续跟进", "Let Max follow up"))
                         Spacer()
                         Image(systemName: "arrow.right")
                     }
@@ -491,7 +640,7 @@ struct DashboardView: View {
                     .foregroundColor(.textPrimary)
                     .padding(.vertical, 10)
                     .padding(.horizontal, 12)
-                    .background(Color.surfaceGlass(for: .dark))
+                    .background(Color.surfaceGlass(for: colorScheme))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
@@ -499,18 +648,26 @@ struct DashboardView: View {
         }
     }
 
+    private var language: AppLanguage { appSettings.language }
+
+    private func t(_ zh: String, _ en: String) -> String {
+        L10n.text(zh, en, language: language)
+    }
+
+    private func r(_ text: String) -> String {
+        L10n.runtime(text, language: language)
+    }
+
     private func bootstrapLoop(force: Bool) async {
-        async let dataTask: Void = viewModel.loadData(force: force)
-        async let inquiryTask: Void = viewModel.loadInquiry(language: appSettings.language.apiCode, force: force)
-        await dataTask
-        await inquiryTask
+        await viewModel.loadData(force: force)
+        await viewModel.loadInquiry(language: appSettings.language.apiCode, force: force)
         await viewModel.loadDailyRecommendations(language: appSettings.language.apiCode, force: force)
     }
 
     private func resolvedInquiryOptions(_ inquiry: InquiryQuestion) -> [InquiryOption] {
         inquiry.options ?? [
-            InquiryOption(label: "是", value: "yes"),
-            InquiryOption(label: "否", value: "no")
+            InquiryOption(label: t("是", "Yes"), value: "yes"),
+            InquiryOption(label: t("否", "No"), value: "no")
         ]
     }
 
@@ -518,34 +675,34 @@ struct DashboardView: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .foregroundColor(.liquidGlassAccent)
-            Text(title)
-                .font(.headline)
+            Text(r(title))
+                .font(GlassTypography.cnLovi(18, weight: .semibold))
                 .foregroundColor(.textPrimary)
         }
     }
 
     private func explanationRow(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title)
+            Text(r(title))
                 .font(.caption)
                 .foregroundColor(.textTertiary)
-            Text(value)
-                .font(.subheadline)
+            Text(r(value))
+                .font(GlassTypography.cnLovi(15, weight: .regular))
                 .foregroundColor(.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color.surfaceGlass(for: .dark))
+        .background(Color.surfaceGlass(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func statusChip(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(r(title))
                 .font(.caption2)
                 .foregroundColor(.textTertiary)
-            Text(value)
-                .font(.headline)
+            Text(r(value))
+                .font(GlassTypography.cnLovi(17, weight: .semibold))
                 .foregroundColor(.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -553,7 +710,7 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
-        .background(Color.surfaceGlass(for: .dark))
+        .background(Color.surfaceGlass(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -561,6 +718,11 @@ struct DashboardView: View {
         let total = Double(AntiAnxietyLoopStep.allCases.count)
         guard total > 0 else { return 0 }
         return Double(viewModel.antiAnxietyLoopStatus.completedSteps.count) / total
+    }
+
+    private var scoreProgress: Double {
+        guard let score = viewModel.overallScore else { return 0 }
+        return min(max(Double(score) / 100.0, 0), 1)
     }
 
     private var calibrationStreakDays: Int {
@@ -587,38 +749,188 @@ struct DashboardView: View {
     private var positiveFeedbackText: String {
         if let score = viewModel.overallScore {
             if score >= 80 {
-                return "你当前稳定度很好，继续维持节奏就可以。"
+                return t("你当前稳定度很好，继续维持节奏就可以。", "Your stability is strong today. Keep your current rhythm.")
             }
             if score >= 60 {
-                return "你已经在稳步改善，今天再完成一个小动作就足够。"
+                return t("你已经在稳步改善，今天再完成一个小动作就足够。", "You're improving steadily. One small action today is enough.")
             }
-            return "状态在恢复中，先从最容易的一步开始，不需要全做完。"
+            return t("状态在恢复中，先从最容易的一步开始，不需要全做完。", "You're recovering. Start with the easiest step, no need to finish everything.")
         }
-        return "先做一个低负担动作，系统会根据你的反馈继续优化建议。"
+        return t("先做一个低负担动作，系统会根据你的反馈继续优化建议。", "Start with a low-burden action. The system will keep optimizing based on your feedback.")
     }
 
     private var defaultMechanismExplanation: String {
         if let stress = viewModel.todayLog?.stress_level, stress >= 7 {
-            return "当前更像‘高唤醒-高警觉’状态，先降生理唤醒，再处理想法会更有效。"
+            return t("当前更像‘高唤醒-高警觉’状态，先降生理唤醒，再处理想法会更有效。", "Your current state looks like high arousal and vigilance. Reducing physiological arousal first is more effective.")
         }
         if viewModel.averageSleepHours > 0, viewModel.averageSleepHours < 6.5 {
-            return "睡眠偏短会放大威胁感知，白天小压力也会更容易引发焦虑波动。"
+            return t("睡眠偏短会放大威胁感知，白天小压力也会更容易引发焦虑波动。", "Short sleep amplifies threat perception, making daytime stress more likely to trigger anxiety swings.")
         }
-        return "焦虑是可调节的神经-行为回路反应，稳定节律和小步行动能降低波动。"
+        return t("焦虑是可调节的神经-行为回路反应，稳定节律和小步行动能降低波动。", "Anxiety is a regulatable neuro-behavioral loop. Stable rhythm and small actions can reduce fluctuations.")
     }
 
     private var defaultAction: String {
         if let stress = viewModel.todayLog?.stress_level, stress >= 7 {
-            return "先做 3 分钟慢呼吸（吸4秒-呼6秒），然后散步 8 分钟"
+            return t("先做 3 分钟慢呼吸（吸4秒-呼6秒），然后散步 8 分钟", "Do 3 minutes of slow breathing (inhale 4s, exhale 6s), then walk for 8 minutes.")
         }
-        return "先做 2 分钟呼吸 + 记录一个触发场景"
+        return t("先做 2 分钟呼吸 + 记录一个触发场景", "Do 2 minutes of breathing, then record one trigger scenario.")
     }
 
     private var defaultActionFallbacks: [String] {
         [
             defaultAction,
-            "把当前焦虑强度打分（0-10），并写下最主要触发点",
-            "完成后告诉 Max：哪一步最有帮助"
+            t("把当前焦虑强度打分（0-10），并写下最主要触发点", "Rate your current anxiety (0-10) and write down the main trigger."),
+            t("完成后告诉 Max：哪一步最有帮助", "After completion, tell Max which step helped the most.")
         ]
+    }
+}
+
+private struct DashboardInsightSheet: View {
+    let score: Int?
+    let progress: Double
+    let streak: Int
+    let feedback: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var language: AppLanguage { L10n.currentLanguage() }
+    private func t(_ zh: String, _ en: String) -> String { L10n.text(zh, en, language: language) }
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(t("今日洞察", "Today's insights"))
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack(spacing: 8) {
+                    sheetChip(title: t("稳定度", "Stability"), value: score.map(String.init) ?? "—")
+                    sheetChip(title: t("跟进进度", "Progress"), value: "\(Int(progress * 100))%")
+                    sheetChip(title: t("连续", "Streak"), value: t("\(streak)天", "\(streak) days"))
+                }
+
+                Text(feedback)
+                    .font(GlassTypography.cnLovi(14, weight: .regular))
+                    .foregroundColor(.textSecondary)
+
+                HStack(spacing: 10) {
+                    Button {
+                        dismiss()
+                        NotificationCenter.default.post(name: .startCalibration, object: nil)
+                    } label: {
+                        Text(t("开始今日校准", "Start calibration today"))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
+
+                    Button {
+                        dismiss()
+                        NotificationCenter.default.post(
+                            name: .askMax,
+                            object: nil,
+                            userInfo: ["question": "请基于我今天的状态，给我一个最小可执行动作和一个复盘问题。"]
+                        )
+                    } label: {
+                        Text(t("让 Max 解读", "Let Max interpret"))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiquidGlassButtonStyle(isProminent: false))
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func sheetChip(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.textTertiary)
+            Text(value)
+                .font(GlassTypography.cnLovi(17, weight: .semibold))
+                .foregroundColor(.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct DashboardGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var language: AppLanguage { L10n.currentLanguage() }
+    private func t(_ zh: String, _ en: String) -> String { L10n.text(zh, en, language: language) }
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(t("进展页说明", "Progress page guide"))
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                point(t("先看稳定度，再做一个动作：今天只需要完成最小一步。", "Check stability first, then do one action: today only needs the smallest step."))
+                point(t("每个卡片都可以中断再回来，系统会记住你的节奏。", "Each card can be paused and resumed; the system remembers your rhythm."))
+                point(t("完成动作后点“让 Max 继续跟进”，会自动给你复盘问题。", "After finishing, tap 'Let Max follow up' and you'll get a review question automatically."))
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func point(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

@@ -59,7 +59,8 @@ struct ScreenMetrics {
     }
 
     var maxContentWidth: CGFloat {
-        max(0, min(safeWidth - horizontalPadding * 2, 560))
+        // iOS 26 下左右 safe-area 可能出现轻微不对称，使用 fixedScreenWidth 作为列宽基准可避免整页横向漂移。
+        max(0, min(fixedScreenWidth - horizontalPadding * 2, 560))
     }
 
     var ringLarge: CGFloat { isCompactHeight ? 140 : 160 }
@@ -119,20 +120,66 @@ enum GlassShadow {
 }
 
 enum GlassTypography {
+    private static func latinFontName(weight: Font.Weight) -> String {
+        switch weight {
+        case .ultraLight, .thin, .light:
+            return "AvenirNext-Regular"
+        case .regular:
+            return "AvenirNext-Regular"
+        case .medium:
+            return "AvenirNext-Medium"
+        case .semibold:
+            return "AvenirNext-DemiBold"
+        case .bold, .heavy, .black:
+            return "AvenirNext-Bold"
+        default:
+            return "AvenirNext-Regular"
+        }
+    }
+
+    private static func cnFontName(weight: Font.Weight) -> String {
+        switch weight {
+        case .ultraLight, .thin, .light:
+            return "PingFangSC-Light"
+        case .regular:
+            return "PingFangSC-Regular"
+        case .medium:
+            return "PingFangSC-Medium"
+        case .semibold:
+            return "PingFangSC-Semibold"
+        case .bold, .heavy, .black:
+            return "PingFangSC-Bold"
+        default:
+            return "PingFangSC-Regular"
+        }
+    }
+
     static func display(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+        .system(size: size, weight: weight, design: .rounded)
     }
 
     static func title(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+        .system(size: size, weight: weight, design: .rounded)
     }
 
     static func body(_ size: CGFloat = 16, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .default)
+        .system(size: size, weight: weight, design: .rounded)
     }
 
     static func caption(_ size: CGFloat = 12, weight: Font.Weight = .medium) -> Font {
         .system(size: size, weight: weight, design: .rounded)
+    }
+
+    static func loviTitle(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
+        .custom(latinFontName(weight: weight), size: size)
+    }
+
+    static func loviBody(_ size: CGFloat = 16, weight: Font.Weight = .regular) -> Font {
+        .custom(latinFontName(weight: weight), size: size)
+    }
+
+    static func cnLovi(_ size: CGFloat = 16, weight: Font.Weight = .regular) -> Font {
+        .custom(cnFontName(weight: weight), size: size)
     }
 }
 
@@ -156,79 +203,90 @@ extension View {
 // MARK: - Palette
 extension Color {
     // 基础色板 (Base Palette - Static)
-    static let deepGreen = Color(hex: "#0B3D2E")
-    static let deepGreenDarker = Color(hex: "#0A2F24") // 更深的绿色用于深色模式背景
-    static let paperWhite = Color(hex: "#FAF6EF") // 燕麦色/纸张白
-    static let sageGreen = Color(hex: "#9CAF88")  // 鼠尾草绿
-    static let lightGrey = Color(hex: "#F2EFE9")  // 浅灰/沙色
-    static let softBlack = Color(hex: "#2C2C2C")
+    static let deepGreen = Color(hex: "#6C4A97")
+    static let deepGreenDarker = Color(hex: "#221338")
+    static let paperWhite = Color(hex: "#FDFBFF")
+    static let sageGreen = Color(hex: "#A5EFC6")
+    static let lightGrey = Color(hex: "#FDF3FF")
+    static let softBlack = Color(hex: "#34244B")
     
     // 语义色 (Semantic - Dynamic)
     static let bgPrimary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#0B3D2E") : UIColor(hex: "#FAF6EF")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#1A102A") : UIColor(hex: "#FFF9FE")
     })
-    
+
     static let bgSecondary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#0F4636") : UIColor(hex: "#F2EFE9")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#291A3D") : UIColor(hex: "#FDF1FF")
     })
-    
+
     static let bgTertiary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#143F33") : UIColor(hex: "#E8E4DC")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#33214C") : UIColor(hex: "#F9EEFF")
     })
 
     // Logo & Brand Colors
     static let brandDeepGreen = Color.deepGreen
     static let brandPaper = Color.paperWhite
     static let brandMoss = Color.sageGreen
-    static let brandSage = Color(hex: "#B8C7A6")
+    static let brandSage = Color(hex: "#ECFFF4")
     
     // Liquid Glass Specifics
     static let liquidGlassPrimary = Color.bgPrimary
-    static let liquidGlassAccent = Color.sageGreen
+    static let liquidGlassAccent = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#F5B8FF") : UIColor(hex: "#E8A4FF")
+    })
     static let liquidGlassPurple = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#9CAF88") : UIColor(hex: "#7A8F70")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#FFC1E9") : UIColor(hex: "#F8C8EB")
     })
     static let liquidGlassSecondary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#A78BFA") : UIColor(hex: "#7C3AED")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#C8D8FF") : UIColor(hex: "#D4DEFF")
     })
     static let liquidGlassWarm = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#FBBF24") : UIColor(hex: "#D97706")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#FFA5CF") : UIColor(hex: "#FCC2DD")
+    })
+    static let liquidGlassFreshGreen = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#83EDB8") : UIColor(hex: "#5EDCA2")
     })
 
     // Status Colors
-    static let statusSuccess = Color(hex: "#7AA88A")
-    static let statusWarning = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#D4B26E") : UIColor(hex: "#B89655")
+    static let statusSuccess = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#73E4AE") : UIColor(hex: "#43CF88")
     })
-    static let statusError = Color(hex: "#C97A6D")
+    static let statusWarning = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#D5B578") : UIColor(hex: "#BE9A58")
+    })
+    static let statusError = Color(hex: "#D27795")
 
     // Text Colors (Dynamic)
     static let textPrimary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#FAF6EF") : UIColor(hex: "#0B3D2E")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#F8F3FF") : UIColor(hex: "#30254A")
     })
-    
+
     static let textSecondary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#D8D1C6") : UIColor(hex: "#4A665A")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#DDD4EC") : UIColor(hex: "#7E70A0")
     })
-    
+
     static let textTertiary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#B9B1A6") : UIColor(hex: "#7A8F70")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#BDADD8") : UIColor(hex: "#A394C2")
     })
 
     static func textPrimary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#FAF6EF") : Color(hex: "#0B3D2E")
+        scheme == .dark ? Color(hex: "#F8F3FF") : Color(hex: "#34264D")
     }
 
     static func textSecondary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#D8D1C6") : Color(hex: "#4A665A")
+        scheme == .dark ? Color(hex: "#D9D0E8") : Color(hex: "#796A95")
     }
 
     static func textTertiary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#B9B1A6") : Color(hex: "#7A8F70")
+        scheme == .dark ? Color(hex: "#B9ABD1") : Color(hex: "#9A8BB6")
     }
 
     static func surfaceGlass(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#0F4636").opacity(0.6) : Color.brandPaper.opacity(0.75)
+        if scheme == .dark {
+            return Color(hex: "#31244D").opacity(0.62)
+        }
+        // Light mode: keep translucency but add subtle chroma depth for better surface separation.
+        return Color(hex: "#F3ECFF").opacity(0.9)
     }
 }
 
@@ -260,8 +318,8 @@ extension LinearGradient {
     static var mossVeil: LinearGradient {
         LinearGradient(
             colors: [
-                Color.brandMoss.opacity(0.22),
-                Color.brandSage.opacity(0.10),
+                Color.brandMoss.opacity(0.28),
+                Color.brandSage.opacity(0.14),
                 Color.brandPaper.opacity(0.0)
             ],
             startPoint: .topLeading,
@@ -272,9 +330,9 @@ extension LinearGradient {
     static var glassSheen: LinearGradient {
         LinearGradient(
             colors: [
-                Color.textPrimary.opacity(0.15), // Light Mode 下用文字色(深色)做反光会太黑，应该用白色反光或根据模式调整
-                Color.textPrimary.opacity(0.05),
-                Color.textPrimary.opacity(0.01)
+                Color.white.opacity(0.42),
+                Color.white.opacity(0.14),
+                Color.white.opacity(0.02)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -292,17 +350,17 @@ struct AuroraBackground: View {
         ZStack {
             // Dynamic Background
             if colorScheme == .dark {
-                // Dark Mode: Deep Ink Gradient (less aggressive than pure black)
+                // Dark Mode: Plum-black gradient
                 LinearGradient(
-                    colors: [Color(hex: "#050B09"), Color(hex: "#101922")],
+                    colors: [Color(hex: "#140A21"), Color(hex: "#2A1341")],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
             } else {
-                // Light Mode: Porcelain Silk Gradient
+                // Light Mode: Soft lilac silk
                 LinearGradient(
-                    colors: [Color(hex: "#FAFAF8"), Color(hex: "#F5F5F0")],
+                    colors: [Color(hex: "#FFFDFE"), Color(hex: "#FCEFFF")],
                     startPoint: .top,
                     endPoint: .bottom
                 ).ignoresSafeArea()
@@ -310,17 +368,32 @@ struct AuroraBackground: View {
 
             // Orb 1 (Top Left) - Breathing
             Circle()
-                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.19 : 0.2))
+                .fill(Color.bioGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.19 : 0.16))
                 .frame(width: 320, height: 320)
                 .blur(radius: colorScheme == .dark ? 94 : 78)
                 .offset(x: animate ? -120 : -160, y: -180)
 
             // Orb 2 (Bottom Right) - Flowing
             Circle()
-                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.14 : 0.16))
+                .fill(Color.bioluminPink(for: colorScheme).opacity(colorScheme == .dark ? 0.18 : 0.16))
                 .frame(width: 420, height: 420)
                 .blur(radius: colorScheme == .dark ? 100 : 88)
                 .offset(x: animate ? 100 : 140, y: 260)
+
+            // Orb 2.5 (Green Accent) - Energy signal
+            Circle()
+                .fill(Color.liquidGlassFreshGreen.opacity(colorScheme == .dark ? 0.14 : 0.12))
+                .frame(width: colorScheme == .dark ? 230 : 180, height: colorScheme == .dark ? 230 : 180)
+                .blur(radius: colorScheme == .dark ? 68 : 54)
+                .offset(x: animate ? 112 : 72, y: animate ? -92 : -126)
+
+            if colorScheme == .light {
+                Circle()
+                    .fill(Color(hex: "#CBD4FF").opacity(0.18))
+                    .frame(width: 260, height: 260)
+                    .blur(radius: 64)
+                    .offset(x: animate ? 60 : 20, y: 40)
+            }
             
             // Orb 3 (Center Accent) - Pulse
             if colorScheme == .dark {
@@ -377,18 +450,57 @@ struct LiquidGlassCard<Content: View>: View {
         }
     }
 
-    private var tintStyle: AnyShapeStyle {
-        // Material 上方的色调层 (Tint)
+    private var materialStyle: Material {
+        if colorScheme == .dark {
+            return style == .elevated ? .thinMaterial : .ultraThinMaterial
+        }
+
+        switch style {
+        case .elevated:
+            return .regularMaterial
+        case .standard, .sunk:
+            return .thinMaterial
+        case .concave:
+            return .ultraThinMaterial
+        }
+    }
+
+    private var tintStyle: LinearGradient {
+        // Material 上方的色调层 (Tint)：
+        // light 模式提高 1 级明暗分离，仍保持玻璃通透，不走实色卡片。
         switch style {
         case .sunk:
-            return AnyShapeStyle(colorScheme == .dark ? Color.bgSecondary.opacity(0.6) : Color.white.opacity(0.4))
+            return LinearGradient(
+                colors: colorScheme == .dark
+                    ? [Color.bgSecondary.opacity(0.56), Color.black.opacity(0.22)]
+                    : [Color.white.opacity(0.28), Color(hex: "#EDE3FA").opacity(0.2)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         case .concave:
-            return AnyShapeStyle(colorScheme == .dark ? Color.black.opacity(0.2) : Color.black.opacity(0.02))
+            return LinearGradient(
+                colors: colorScheme == .dark
+                    ? [Color.black.opacity(0.2), Color.black.opacity(0.08)]
+                    : [Color.white.opacity(0.2), Color(hex: "#E9DDF8").opacity(0.16)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         case .elevated:
-            return AnyShapeStyle(colorScheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.6))
+            return LinearGradient(
+                colors: colorScheme == .dark
+                    ? [Color.white.opacity(0.08), Color.white.opacity(0.02)]
+                    : [Color.white.opacity(0.44), Color(hex: "#F2E8FF").opacity(0.3)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         case .standard:
-            // Dark: 微弱的白色提升亮度; Light: 白色增强通透感
-            return AnyShapeStyle(colorScheme == .dark ? Color.white.opacity(0.03) : Color.white.opacity(0.3))
+            return LinearGradient(
+                colors: colorScheme == .dark
+                    ? [Color.white.opacity(0.05), Color.white.opacity(0.01)]
+                    : [Color.white.opacity(0.34), Color(hex: "#F0E5FF").opacity(0.24)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
     
@@ -405,43 +517,59 @@ struct LiquidGlassCard<Content: View>: View {
         )
     }
     
-    private var shadowColor: Color {
-        colorScheme == .dark ? GlassShadow.softColor : Color.black.opacity(0.1)
+    private var shadowOpacity: Double {
+        if colorScheme == .dark {
+            return style == .elevated ? 0.18 : 0.1
+        }
+        return style == .elevated ? 0.12 : 0.07
+    }
+
+    private var shadowRadius: CGFloat {
+        style == .elevated ? 24 : 14
+    }
+
+    private var shadowY: CGFloat {
+        style == .elevated ? 10 : 6
     }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             // 1. 色调层 (Tint)
             .background {
-                RoundedRectangle(cornerRadius: cornerRadius)
+                shape
                     .fill(tintStyle)
             }
             // 2. 物理材质层 (Physical Material - Blur)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .background(materialStyle, in: shape)
             // 3. 边缘光与内描边 (Rim Light)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
+                shape
                     .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(colorScheme == .dark ? 0.15 : 0.4),
-                                Color.white.opacity(colorScheme == .dark ? 0.02 : 0.1)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: colorScheme == .dark ? 0.5 : 0.5
+                        borderGradient,
+                        lineWidth: colorScheme == .dark ? 0.8 : 1
                     )
             )
+            .overlay(
+                shape
+                    .stroke(Color.black.opacity(colorScheme == .dark ? 0.26 : 0.06), lineWidth: 0.5)
+                    .blendMode(.multiply)
+            )
+            .clipShape(shape)
             // 4. 投影 (Shadow)
             .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.0 : 0.05), // Dark mode relies on glow/contrast, Light mode needs soft shadow
-                radius: style == .elevated ? 20 : 10,
-                y: style == .elevated ? 8 : 4
+                color: Color.black.opacity(shadowOpacity),
+                radius: shadowRadius,
+                y: shadowY
             )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .shadow(
+                color: colorScheme == .light ? Color.white.opacity(0.3) : .clear,
+                radius: style == .elevated ? 10 : 6,
+                y: -1
+            )
     }
 }
 

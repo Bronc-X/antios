@@ -136,12 +136,104 @@ extension View {
     }
 }
 
+// MARK: - iOS26 Glass Chrome
+private struct LiquidGlassCircleBadgeModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    var padding: CGFloat
+
+    private var materialStyle: AnyShapeStyle {
+        colorScheme == .dark ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.thinMaterial)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .background {
+                Circle()
+                    .fill(Color.surfaceGlass(for: colorScheme))
+                    .background(materialStyle, in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(colorScheme == .dark ? 0.36 : 0.56), lineWidth: 1)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.black.opacity(colorScheme == .dark ? 0.22 : 0.06), lineWidth: 0.5)
+                            .blendMode(.multiply)
+                    )
+            }
+    }
+}
+
+private struct LiquidGlassRoundedChromeModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    var cornerRadius: CGFloat
+    var shadow: Bool
+
+    private var materialStyle: AnyShapeStyle {
+        colorScheme == .dark ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial)
+    }
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return content
+            .background {
+                shape
+                    .fill(Color.surfaceGlass(for: colorScheme))
+                    .background(materialStyle, in: shape)
+                    .overlay(
+                        shape
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(colorScheme == .dark ? 0.36 : 0.58),
+                                        Color.white.opacity(colorScheme == .dark ? 0.08 : 0.14)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .overlay(
+                        shape
+                            .stroke(Color.black.opacity(colorScheme == .dark ? 0.24 : 0.06), lineWidth: 0.5)
+                            .blendMode(.multiply)
+                    )
+            }
+            .shadow(
+                color: shadow ? Color.black.opacity(colorScheme == .dark ? 0.22 : 0.12) : .clear,
+                radius: shadow ? (colorScheme == .dark ? 20 : 14) : 0,
+                y: shadow ? (colorScheme == .dark ? 10 : 7) : 0
+            )
+    }
+}
+
+extension View {
+    func liquidGlassCircleBadge(padding: CGFloat = 8) -> some View {
+        modifier(LiquidGlassCircleBadgeModifier(padding: padding))
+    }
+
+    func liquidGlassRoundedChrome(cornerRadius: CGFloat = GlassRadius.xl, shadow: Bool = false) -> some View {
+        modifier(LiquidGlassRoundedChromeModifier(cornerRadius: cornerRadius, shadow: shadow))
+    }
+
+    func liquidGlassSheetChrome(cornerRadius: CGFloat = 28) -> some View {
+        self
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(cornerRadius)
+            .presentationBackground(.thinMaterial)
+    }
+}
+
 // MARK: - LinearGradient 扩展
 extension LinearGradient {
     static let accentFlow = LinearGradient(
         colors: [
-            Color.brandMoss,
-            Color.brandSage
+            Color.liquidGlassAccent,
+            Color.liquidGlassSecondary,
+            Color.liquidGlassPurple,
+            Color.liquidGlassFreshGreen.opacity(0.92)
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -173,20 +265,36 @@ struct GlassButtonStyle: ButtonStyle {
         let background: AnyShapeStyle
         let foreground: Color
         let strokeColor: Color
+        let shadowColor: Color
 
         switch kind {
         case .primary:
-            background = AnyShapeStyle(Color.brandDeepGreen)
-            foreground = Color.brandPaper
-            strokeColor = Color.brandDeepGreen.opacity(0.2)
+            background = AnyShapeStyle(
+                LinearGradient(
+                    colors: [Color(hex: "#E09BFF"), Color(hex: "#F3B4E9"), Color(hex: "#8DE8BC")],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            foreground = .white.opacity(0.96)
+            strokeColor = Color.white.opacity(0.42)
+            shadowColor = Color(hex: "#D892FF").opacity(0.36)
         case .secondary:
             background = AnyShapeStyle(.ultraThinMaterial)
             foreground = Color.textPrimary
-            strokeColor = Color.brandDeepGreen.opacity(0.12)
+            strokeColor = Color.liquidGlassAccent.opacity(0.18)
+            shadowColor = Color.black.opacity(0.08)
         case .danger:
-            background = AnyShapeStyle(Color.statusError)
-            foreground = Color.brandPaper
-            strokeColor = Color.statusError.opacity(0.2)
+            background = AnyShapeStyle(
+                LinearGradient(
+                    colors: [Color.statusError, Color.liquidGlassWarm],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            foreground = .white.opacity(0.96)
+            strokeColor = Color.white.opacity(0.2)
+            shadowColor = Color.statusError.opacity(0.28)
         }
 
         return configuration.label
@@ -207,8 +315,9 @@ struct GlassButtonStyle: ButtonStyle {
                     )
             }
             .foregroundColor(foreground)
-            .shadow(color: GlassShadow.softColor, radius: GlassShadow.softRadius, y: GlassShadow.softY)
-            .scaleEffect(isPressed ? 0.97 : 1.0)
+            .shadow(color: shadowColor, radius: kind == .primary ? 14 : 10, y: kind == .primary ? 8 : 5)
+            .brightness(kind == .primary && isPressed ? -0.04 : 0)
+            .scaleEffect(isPressed ? 0.972 : 1.0)
             .animation(.easeOut(duration: 0.18), value: isPressed)
     }
 }
@@ -267,7 +376,7 @@ struct GlassTextField: View {
             TextField(L10n.localized(placeholder), text: $text)
                 .textFieldStyle(.plain)
                 .foregroundColor(Color.textPrimary(for: colorScheme))
-                .accentColor(.liquidGlassPrimary)
+                .accentColor(.liquidGlassAccent)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -279,7 +388,7 @@ struct GlassTextField: View {
                         .stroke(
                             colorScheme == .dark
                                 ? Color.brandPaper.opacity(0.22)
-                                : Color.brandDeepGreen.opacity(0.12),
+                                : Color.liquidGlassAccent.opacity(0.24),
                             lineWidth: 1
                         )
                 )
@@ -380,7 +489,7 @@ struct GlassTabBar: View {
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: GlassRadius.md)
-                            .fill(selection == index ? Color.brandMoss.opacity(0.25) : Color.clear)
+                            .fill(selection == index ? Color.liquidGlassAccent.opacity(0.18) : Color.clear)
                     )
                 }
                 .buttonStyle(.plain)
@@ -410,15 +519,7 @@ struct GlassSheet<Content: View>: View {
     var body: some View {
         content
             .padding(GlassSpacing.lg)
-            .background(
-                RoundedRectangle(cornerRadius: GlassRadius.xl)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: GlassRadius.xl)
-                            .stroke(LinearGradient.glassBorder, lineWidth: 1)
-                            .opacity(0.35)
-                    )
-            )
+            .liquidGlassRoundedChrome(cornerRadius: GlassRadius.xl)
     }
 }
 
@@ -477,7 +578,7 @@ struct LiquidGlassSlider: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color.brandDeepGreen.opacity(0.08))
+                        .fill(Color.textTertiary.opacity(0.2))
                         .frame(height: 6)
 
                     Capsule()
@@ -541,11 +642,10 @@ struct LiquidGlassPageWidthModifier: ViewModifier {
     var alignment: Alignment
 
     func body(content: Content) -> some View {
-        // 回到基线布局：全宽对齐 + 对称内边距 + 最大宽度限制
+        // 显式固定列宽并居中，避免「maxWidth + padding」在某些系统版本下引发的横向偏移。
         content
-            .frame(maxWidth: metrics.maxContentWidth, alignment: alignment)
-            .padding(.horizontal, metrics.horizontalPadding)
-            .frame(maxWidth: .infinity, alignment: alignment)
+            .frame(width: metrics.maxContentWidth, alignment: alignment)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
@@ -563,11 +663,11 @@ struct LiquidGlassToggleStyle: ToggleStyle {
             Spacer()
             ZStack {
                 Capsule()
-                    .fill(configuration.isOn ? Color.brandMoss.opacity(0.6) : Color.brandDeepGreen.opacity(0.08))
+                    .fill(configuration.isOn ? Color.liquidGlassAccent.opacity(0.42) : Color.white.opacity(0.24))
                     .frame(width: 50, height: 30)
                     .overlay(
                         Capsule()
-                            .stroke(Color.brandDeepGreen.opacity(0.12), lineWidth: 1)
+                            .stroke(configuration.isOn ? Color.white.opacity(0.45) : Color.liquidGlassAccent.opacity(0.22), lineWidth: 1)
                     )
 
                 Circle()

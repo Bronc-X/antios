@@ -78,9 +78,9 @@ extension Color {
     // ==========================================
     // ==========================================
     static func bgAbyss(for scheme: ColorScheme) -> Color {
-        // Light Mode = Porcelain Silk
-        // Dark Mode  = Ink Green Black (less harsh than pure black)
-        scheme == .dark ? Color(hex: "#06110F") : Color(hex: "#FAFAF8")
+        // Light Mode = Soft lavender mist
+        // Dark Mode  = Plum-black base
+        scheme == .dark ? Color(hex: "#100A1D") : Color(hex: "#FDFBFF")
     }
     
     static func bgMist(for scheme: ColorScheme) -> Color {
@@ -92,20 +92,20 @@ extension Color {
     // 情绪流光色 (Emotional Flux / Bioluminescent)
     // ==========================================
     static func bioGlow(for scheme: ColorScheme) -> Color {
-        // Light: Airy Periwinkle
-        // Dark:  Mint Cyan (restrained techno)
-        scheme == .dark ? Color(hex: "#4CC7BB") : Color(hex: "#A8BDE8")
+        // Light: Pink-lilac glow
+        // Dark:  Electric pink-violet
+        scheme == .dark ? Color(hex: "#F1B8FF") : Color(hex: "#E2A8FF")
     }
     
     static func bioluminPink(for scheme: ColorScheme) -> Color {
-        // Light: Soft Sky
-        // Dark:  Soft Violet Blue (replace neon magenta)
-        scheme == .dark ? Color(hex: "#8FA2E6") : Color(hex: "#9EC8E7")
+        // Light: Blush pink
+        // Dark:  Neon rose pink
+        scheme == .dark ? Color(hex: "#FFB5E3") : Color(hex: "#F8C7EC")
     }
     
     static func deepViolet(for scheme: ColorScheme) -> Color {
         // Deep accent background
-        scheme == .dark ? Color(hex: "#101A2A") : Color(hex: "#F5F5F7")
+        scheme == .dark ? Color(hex: "#1F1735") : Color(hex: "#F1E9FF")
     }
     
     // ==========================================
@@ -113,10 +113,10 @@ extension Color {
     // ==========================================
     static var chromaticColors: [Color] {
         [
-            Color(hex: "#4CC7BB"), // Mint Cyan
-            Color(hex: "#8FA2E6"), // Violet Blue
-            Color(hex: "#C5A56E"), // Warm Gold
-            Color(hex: "#6DBA7B")  // Sage Green
+            Color(hex: "#C89CFF"),
+            Color(hex: "#EFB3FF"),
+            Color(hex: "#FFC6EA"),
+            Color(hex: "#85E7B8")
         ]
     }
     
@@ -133,11 +133,11 @@ extension Color {
     // ==========================================
     static func bioTextPrimary(for scheme: ColorScheme) -> Color {
         // High Contrast but less glaring
-        scheme == .dark ? Color(hex: "#F2F4EF") : Color(hex: "#1A1A1A")
+        scheme == .dark ? Color(hex: "#F8F3FF") : Color(hex: "#2F2842")
     }
     
     static func bioTextSecondary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#D8DDD4").opacity(0.72) : Color(hex: "#4A4A4A").opacity(0.7)
+        scheme == .dark ? Color(hex: "#D9D0E8").opacity(0.74) : Color(hex: "#7B6C96").opacity(0.76)
     }
 }
 

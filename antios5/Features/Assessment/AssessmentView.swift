@@ -79,7 +79,7 @@ struct AssessmentView: View {
                     .tracking(4)
                     .foregroundColor(.liquidGlassAccent)
                 
-                Text("正在初始化反焦虑评估协议。\n闭环引擎待命中。")
+                Text("正在初始化反焦虑评估协议。\n个性化建议引擎待命中。")
                     .font(.system(size: 14, design: .monospaced))
                     .foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)
@@ -247,7 +247,7 @@ struct AssessmentView: View {
                     .neuroFont(24, weight: .bold)
                     .foregroundColor(.white)
                 
-                Text(viewModel.message ?? "数据已进入反焦虑闭环模型。")
+                Text(viewModel.message ?? "数据已进入个性化建议模型。")
                     .font(.subheadline)
                     .foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)

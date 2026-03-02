@@ -133,7 +133,7 @@ struct CoreHubView: View {
                     .padding(.vertical, metrics.verticalPadding)
                 }
             }
-            .navigationTitle("闭环工作台")
+            .navigationTitle("进展工作台")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -200,7 +200,7 @@ struct CoreHubView: View {
             Text("Loop Hub")
                 .font(GlassTypography.display(26, weight: .bold))
                 .foregroundColor(.textPrimary)
-            Text("连接关键能力，支撑反焦虑闭环执行")
+            Text("连接关键能力，支撑反焦虑计划执行")
                 .font(GlassTypography.caption(13))
                 .foregroundColor(.textSecondary)
             Text("常用能力优先展示，扩展模块按需展开")

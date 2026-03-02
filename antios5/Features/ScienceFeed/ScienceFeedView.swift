@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ScienceFeedView: View {
     @StateObject private var viewModel = ScienceFeedViewModel()
+    @State private var showFeedGuideSheet = false
     @Environment(\.screenMetrics) private var metrics
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -14,7 +15,8 @@ struct ScienceFeedView: View {
     
     var body: some View {
         ZStack {
-            Color.bgPrimary.ignoresSafeArea()
+            AuroraBackground()
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 centerAxisHeader
@@ -82,6 +84,11 @@ struct ScienceFeedView: View {
         .task {
             await viewModel.loadFeed(language: language)
         }
+        .sheet(isPresented: $showFeedGuideSheet) {
+            FeedGuideSheet()
+                .presentationDetents([.fraction(0.42), .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
+        }
         .onChange(of: language) { _, newLanguage in
             Task { await viewModel.refresh(language: newLanguage) }
         }
@@ -92,19 +99,28 @@ struct ScienceFeedView: View {
         return ZStack {
             HStack(spacing: 0) {
                 Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.textPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.surfaceGlass(for: colorScheme))
-                        .clipShape(Circle())
+                        .liquidGlassCircleBadge(padding: 8)
                 }
                 .frame(width: sideSlotWidth, alignment: .leading)
                 Spacer()
-                Color.clear
-                    .frame(width: sideSlotWidth, height: sideSlotWidth)
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .soft)
+                    impact.impactOccurred()
+                    showFeedGuideSheet = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.liquidGlassAccent)
+                        .liquidGlassCircleBadge(padding: 8)
+                }
+                .frame(width: sideSlotWidth, alignment: .trailing)
             }
 
             Text(L10n.text("科学期刊", "Science Journal", language: language))
@@ -143,7 +159,11 @@ struct FeedHeaderView: View {
                 
                 Spacer()
                 
-                Button(action: onRefresh) {
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    onRefresh()
+                } label: {
                     HStack(spacing: 4) {
                         if isRefreshing {
                             ProgressView()
@@ -188,7 +208,11 @@ struct FeedCategoryTabs: View {
             HStack(spacing: 10) {
                 ForEach(ScienceFeedCategory.allCases) { category in
                     Button {
-                        onSelect(category)
+                        let feedback = UISelectionFeedbackGenerator()
+                        feedback.selectionChanged()
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                            onSelect(category)
+                        }
                     } label: {
                         Text(category.title(language: language))
                             .font(.subheadline.weight(.semibold))
@@ -246,7 +270,7 @@ struct ArticleCard: View {
     
     private var isLight: Bool { index % 2 == 0 }
     private var platform: PlatformInfo { PlatformInfo.forType(article.sourceType) }
-    private var cardBackground: Color { isLight ? Color.brandPaper : Color(hex: "#0F4A37") }
+    private var cardBackground: Color { isLight ? Color.brandPaper : Color(hex: "#241B3F") }
     private var cardPrimaryText: Color { isLight ? Color.deepGreen : Color.brandPaper }
     private var cardSecondaryText: Color { isLight ? Color(hex: "#4A665A") : Color.brandPaper.opacity(0.75) }
     private var cardTertiaryText: Color { isLight ? Color(hex: "#7A8F70") : Color.brandPaper.opacity(0.55) }
@@ -616,7 +640,11 @@ struct RefreshButton: View {
     let onRefresh: () -> Void
     
     var body: some View {
-        Button(action: onRefresh) {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            onRefresh()
+        } label: {
             HStack(spacing: 8) {
                 if isRefreshing {
                     ProgressView()
@@ -639,6 +667,61 @@ struct RefreshButton: View {
             )
         }
         .disabled(isRefreshing)
+    }
+}
+
+private struct FeedGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("科学期刊说明")
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                feedBullet("优先查看“为什么推荐给你”，它和你最近状态直接相关。")
+                feedBullet("每次阅读后做正负反馈，下一批推荐会更精准。")
+                feedBullet("建议每天只看 1-2 篇并执行一个可落地动作。")
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func feedBullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
