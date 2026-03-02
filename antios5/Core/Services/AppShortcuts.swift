@@ -31,11 +31,11 @@ struct StartCalibrationIntent: AppIntent {
     }
 }
 
-// MARK: - 查看闭环状态
+// MARK: - 查看今日进展
 
 struct ViewHealthDataIntent: AppIntent {
-    static var title: LocalizedStringResource = "查看闭环状态"
-    static var description = IntentDescription("查看今日反焦虑闭环进度")
+    static var title: LocalizedStringResource = "查看今日进展"
+    static var description = IntentDescription("查看今日反焦虑进展")
     static var openAppWhenRun: Bool = true
     
     func perform() async throws -> some IntentResult {
@@ -119,10 +119,10 @@ struct AntiAnxietyShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: ViewHealthDataIntent(),
             phrases: [
-                "查看 \(.applicationName) 闭环状态",
+                "查看 \(.applicationName) 今日进展",
                 "在 \(.applicationName) 中显示我的焦虑指数"
             ],
-            shortTitle: "查看闭环",
+            shortTitle: "今日进展",
             systemImageName: "chart.bar.fill"
         )
         

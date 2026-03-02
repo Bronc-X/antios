@@ -86,4 +86,11 @@ protocol SupabaseManaging: AnyObject {
     func getStarterQuestions() async throws -> [String]
     func getScienceFeed(language: String) async throws -> ScienceFeedResponse
     func submitFeedFeedback(_ feedback: FeedFeedbackInput) async throws
+    func generateProactiveCareBrief(language: String, forceRefresh: Bool) async throws -> ProactiveCareBrief
+    func captureUserSignal(
+        domain: String,
+        action: String,
+        summary: String,
+        metadata: [String: Any]?
+    ) async
 }

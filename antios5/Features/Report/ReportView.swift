@@ -7,8 +7,15 @@ struct ReportView: View {
     @StateObject private var dashboardViewModel = DashboardViewModel()
     @StateObject private var understandingViewModel = UnderstandingScoreViewModel()
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appSettings: AppSettings
     @State private var hasAutoTriggeredAnalysis = false
+    @State private var showMethodSheet = false
+    @State private var showScienceFeedSheet = false
+
+    private var language: AppLanguage { appSettings.language }
+    private func t(_ zh: String, _ en: String) -> String { L10n.text(zh, en, language: language) }
+    private func r(_ value: String) -> String { L10n.runtime(value, language: language) }
 
     var body: some View {
         NavigationStack {
@@ -44,6 +51,18 @@ struct ReportView: View {
             }
             .refreshable {
                 await refreshData()
+            }
+            .sheet(isPresented: $showMethodSheet) {
+                ReportMethodSheet(hasEvidence: dashboardViewModel.hasVerifiedScienceEvidence)
+                    .presentationDetents([.fraction(0.45), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
+            }
+            .sheet(isPresented: $showScienceFeedSheet) {
+                NavigationStack {
+                    ScienceFeedView()
+                }
+                .presentationDetents([.medium, .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
             }
         }
     }
@@ -92,13 +111,27 @@ struct ReportView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("科学解释")
-                .font(GlassTypography.display(28, weight: .bold))
-                .foregroundColor(.textPrimary)
-            Text("机制解释 · 证据来源 · 跟进策略")
-                .font(GlassTypography.caption(13))
-                .foregroundColor(.textSecondary)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(t("科学解释", "Scientific explanation"))
+                    .font(GlassTypography.cnLovi(30, weight: .semibold))
+                    .foregroundColor(.textPrimary)
+                Text(t("机制解释 · 证据来源 · 跟进策略", "Mechanistic explanation · Source of evidence · Follow-up strategy"))
+                    .font(GlassTypography.cnLovi(14, weight: .regular))
+                    .foregroundColor(.textSecondary)
+            }
+            Spacer()
+            Button {
+                let haptic = UIImpactFeedbackGenerator(style: .soft)
+                haptic.impactOccurred()
+                showMethodSheet = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.liquidGlassAccent)
+                    .liquidGlassCircleBadge(padding: 8)
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, metrics.isCompactHeight ? 8 : 16)
@@ -111,21 +144,21 @@ struct ReportView: View {
         return LiquidGlassCard(style: .standard, padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("今日状态栏")
-                        .font(.headline)
+                    Text(t("今日状态栏", "Today's status bar"))
+                        .font(GlassTypography.cnLovi(19, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     Spacer()
                     if dashboardViewModel.isOffline {
-                        Label("本地模式", systemImage: "wifi.slash")
+                        Label(t("本地模式", "Local mode"), systemImage: "wifi.slash")
                             .font(.caption2)
                             .foregroundColor(.statusWarning)
                     }
                 }
 
                 HStack(spacing: 8) {
-                    statusChip(title: "稳定度", value: scoreText)
-                    statusChip(title: "连续", value: "\(calibrationStreakDays)天")
-                    statusChip(title: "闭环节奏", value: "\(completion)%")
+                    statusChip(title: t("稳定度", "Stability"), value: scoreText)
+                    statusChip(title: t("连续", "Streak"), value: t("\(calibrationStreakDays)天", "\(calibrationStreakDays) days"))
+                    statusChip(title: t("执行节奏", "Execution rhythm"), value: "\(completion)%")
                 }
 
                 Text(statusFeedbackText)
@@ -143,15 +176,15 @@ struct ReportView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "books.vertical.fill")
                         .foregroundColor(.liquidGlassAccent)
-                    Text("个性化科学解释")
-                        .font(.headline)
+                    Text(t("个性化科学解释", "Personalized scientific explanation"))
+                        .font(GlassTypography.cnLovi(19, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     Spacer()
                 }
 
                 if dashboardViewModel.hasVerifiedScienceEvidence, let article {
                     Text(article.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(GlassTypography.cnLovi(16, weight: .semibold))
                         .foregroundColor(.textPrimary)
 
                     Text(article.summary ?? "")
@@ -159,37 +192,37 @@ struct ReportView: View {
                         .foregroundColor(.textSecondary)
 
                     if let reason = article.whyRecommended, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("个性化关联：\(reason)")
+                        Text("\(t("个性化关联：", "Personalized relevance:"))\(r(reason))")
                             .font(.caption2)
                             .foregroundColor(.textSecondary)
                     }
 
                     if let action = article.actionableInsight, !action.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("建议动作：\(action)")
+                        Text("\(t("建议动作：", "Suggested action:"))\(r(action))")
                             .font(.caption2)
                             .foregroundColor(.textSecondary)
                     }
 
-                    Text("数据依据：\(dashboardViewModel.scienceEvidenceSnapshot)")
+                    Text("\(t("数据依据：", "Data basis:"))\(r(dashboardViewModel.scienceEvidenceSnapshot))")
                         .font(.caption2)
                         .foregroundColor(.textTertiary)
 
                     HStack(spacing: 10) {
                         if let score = article.matchPercentage {
-                            Label("匹配 \(score)%", systemImage: "target")
+                            Label("\(t("匹配", "Match")) \(score)%", systemImage: "target")
                                 .font(.caption2)
                                 .foregroundColor(.liquidGlassAccent)
                         }
 
-                        Text(article.sourceType ?? "个性化证据库")
+                        Text(r(article.sourceType ?? t("个性化证据库", "Personalized evidence library")))
                             .font(.caption2)
                             .foregroundColor(.textTertiary)
                     }
                 } else {
-                    Text("科学解释仅在真实证据匹配完成后展示。")
+                    Text(t("科学解释仅在真实证据匹配完成后展示。", "Scientific explanations are shown only after real evidence matching is completed."))
                         .font(.caption)
                         .foregroundColor(.textSecondary)
-                    Text(dashboardViewModel.scienceEvidenceSnapshot)
+                    Text(r(dashboardViewModel.scienceEvidenceSnapshot))
                         .font(.caption2)
                         .foregroundColor(.textTertiary)
                 }
@@ -201,28 +234,32 @@ struct ReportView: View {
                         Link(destination: url) {
                             HStack(spacing: 6) {
                                 Image(systemName: "link")
-                                Text("打开证据原文")
+                                Text(t("打开证据原文", "Open source evidence"))
                             }
                             .font(.caption)
                             .foregroundColor(.liquidGlassAccent)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 10)
-                            .background(Color.surfaceGlass(for: .dark))
+                            .background(Color.surfaceGlass(for: colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
                     }
 
-                    NavigationLink(destination: ScienceFeedView()) {
+                    Button {
+                        let feedback = UIImpactFeedbackGenerator(style: .soft)
+                        feedback.impactOccurred()
+                        showScienceFeedSheet = true
+                    } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "newspaper.fill")
-                            Text("进入科学期刊")
+                            Text(t("进入科学期刊", "Open scientific journals"))
                         }
                         .font(.caption)
                         .foregroundColor(.liquidGlassAccent)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 10)
-                        .background(Color.surfaceGlass(for: .dark))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
                 }
@@ -261,14 +298,14 @@ struct ReportView: View {
     private var statusFeedbackText: String {
         if let score = dashboardViewModel.overallScore {
             if score >= 80 {
-                return "你当前状态稳定，保持现在的节奏就很好。"
+                return t("你当前状态稳定，保持现在的节奏就很好。", "Your state is stable. Keep your current rhythm.")
             }
             if score >= 60 {
-                return "你在持续改善，今天完成一个小动作就够了。"
+                return t("你在持续改善，今天完成一个小动作就够了。", "You're steadily improving. One small action today is enough.")
             }
-            return "你已经开始恢复，不用全做完，先做最容易的一步。"
+            return t("你已经开始恢复，不用全做完，先做最容易的一步。", "Recovery has started. Start with the easiest step first.")
         }
-        return "先执行一个低负担动作，系统会继续给你个性化解释。"
+        return t("先执行一个低负担动作，系统会继续给你个性化解释。", "Start with a low-burden action. The system will continue improving personalized explanations.")
     }
 
     private var digitalTwinCard: some View {
@@ -276,8 +313,8 @@ struct ReportView: View {
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("数字孪生")
-                            .font(.headline)
+                        Text(t("数字孪生", "Digital twin"))
+                            .font(GlassTypography.cnLovi(18, weight: .semibold))
                             .foregroundColor(.textPrimary)
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -287,7 +324,7 @@ struct ReportView: View {
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                     if let status = dashboardViewModel.digitalTwinStatus {
-                        Text("状态：\(status)")
+                        Text("\(t("状态：", "Status:"))\(r(status))")
                             .font(.caption2)
                             .foregroundColor(.textTertiary)
                     }
@@ -302,19 +339,19 @@ struct ReportView: View {
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("AI 身体分析")
-                            .font(.headline)
+                        Text(t("AI 身体分析", "AI body analysis"))
+                            .font(GlassTypography.cnLovi(18, weight: .semibold))
                             .foregroundColor(.textPrimary)
                         Spacer()
                         Image(systemName: "sparkles")
                             .foregroundColor(.liquidGlassAccent)
                     }
                     let scoreText = understandingViewModel.score?.current.map { String(format: "%.0f", $0) } ?? "—"
-                    Text("理解度：\(scoreText)")
+                    Text("\(t("理解度：", "Understanding:"))\(scoreText)")
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                     if let delta = understandingViewModel.latestDelta {
-                        Text("近次变化：\(delta >= 0 ? "+" : "")\(String(format: "%.0f", delta))")
+                        Text("\(t("近次变化：", "Recent change:"))\(delta >= 0 ? "+" : "")\(String(format: "%.0f", delta))")
                             .font(.caption2)
                             .foregroundColor(delta >= 0 ? .statusSuccess : .statusWarning)
                     }
@@ -329,14 +366,14 @@ struct ReportView: View {
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Apple Watch / HealthKit 证据")
-                            .font(.headline)
+                        Text(t("Apple Watch / HealthKit 证据", "Apple Watch / HealthKit Evidence"))
+                            .font(GlassTypography.cnLovi(18, weight: .semibold))
                             .foregroundColor(.textPrimary)
                         Spacer()
                         Image(systemName: "applewatch")
                             .foregroundColor(.liquidGlassAccent)
                     }
-                    Text(dashboardViewModel.scienceEvidenceSnapshot)
+                    Text(r(dashboardViewModel.scienceEvidenceSnapshot))
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                 }
@@ -348,19 +385,19 @@ struct ReportView: View {
     private var feedbackLoopCard: some View {
         LiquidGlassCard(style: .standard, padding: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("行动反馈闭环")
-                    .font(.headline)
+                Text(t("行动反馈", "Action feedback"))
+                    .font(GlassTypography.cnLovi(18, weight: .semibold))
                     .foregroundColor(.textPrimary)
-                Text("完成动作后，把体感变化告诉 Max（0-10），系统会在下一轮自动校准解释和建议。")
+                Text(t("完成动作后，把体感变化告诉 Max（0-10），系统会在下一轮自动校准解释和建议。", "After completing an action, tell Max your body sensation change (0-10); the next round will auto-calibrate explanations and suggestions."))
                     .font(.caption)
                     .foregroundColor(.textSecondary)
                 NavigationLink(destination: MaxChatView().edgeSwipeBack()) {
-                    Text("去和 Max 复盘")
+                    Text(t("去和 Max 复盘", "Review with Max"))
                         .font(.caption)
                         .foregroundColor(.liquidGlassAccent)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 10)
-                        .background(Color.surfaceGlass(for: .dark))
+                        .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
@@ -373,17 +410,17 @@ struct ReportView: View {
 
         return LiquidGlassCard(style: .standard, padding: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("关键洞察")
-                    .font(.headline)
+                Text(t("关键洞察", "Key insights"))
+                    .font(GlassTypography.cnLovi(18, weight: .semibold))
                     .foregroundColor(.textPrimary)
 
                 if insights.isEmpty {
-                    Text("同步完成后会展示你的个性化趋势洞察。")
+                    Text(t("同步完成后会展示你的个性化趋势洞察。", "Your personalized trend insights will appear after sync completes."))
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                 } else {
                     ForEach(insights.prefix(3), id: \.self) { item in
-                        Text("• \(item)")
+                        Text("• \(r(item))")
                             .font(.caption)
                             .foregroundColor(.textSecondary)
                     }
@@ -394,17 +431,17 @@ struct ReportView: View {
 
     private func statusChip(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(r(title))
                 .font(.caption2)
                 .foregroundColor(.textTertiary)
-            Text(value)
-                .font(.subheadline.weight(.semibold))
+            Text(r(value))
+                .font(GlassTypography.cnLovi(17, weight: .semibold))
                 .foregroundColor(.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.surfaceGlass(for: .dark))
+        .background(Color.surfaceGlass(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -415,9 +452,67 @@ struct ReportView: View {
     }
 }
 
+private struct ReportMethodSheet: View {
+    let hasEvidence: Bool
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    private var language: AppLanguage { L10n.currentLanguage() }
+    private func t(_ zh: String, _ en: String) -> String { L10n.text(zh, en, language: language) }
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(t("解释方法", "How this explanation works"))
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                methodRow(title: t("① 机制解释", "① Mechanistic explanation"), text: t("根据你最近的睡眠、压力和节律信号，先给出最可能机制。", "Based on your recent sleep, stress, and rhythm signals, we present the most likely mechanism first."))
+                methodRow(title: t("② 证据来源", "② Evidence source"), text: hasEvidence ? t("已匹配到真实个性化证据，展示来源与关联原因。", "Real personalized evidence is matched, so source and relevance are shown.") : t("当前证据仍在匹配中，先给保守建议。", "Evidence is still being matched, so conservative guidance is shown first."))
+                methodRow(title: t("③ 跟进策略", "③ Follow-up strategy"), text: t("每条建议都配一个可执行动作 + 一个复盘问题，用于下一轮校准。", "Each recommendation includes one executable action and one review question for the next calibration cycle."))
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func methodRow(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(GlassTypography.cnLovi(16, weight: .semibold))
+                .foregroundColor(.textPrimary)
+            Text(text)
+                .font(GlassTypography.cnLovi(14, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 struct ReportMetricView: View {
     let title: String
     let value: String
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -425,12 +520,12 @@ struct ReportMetricView: View {
                 .font(.caption2)
                 .foregroundColor(.textTertiary)
             Text(L10n.runtime(value))
-                .font(.headline)
+                .font(GlassTypography.cnLovi(17, weight: .semibold))
                 .foregroundColor(.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.surfaceGlass(for: .dark))
+        .background(Color.surfaceGlass(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
@@ -803,6 +898,54 @@ struct WearableConnectView: View {
         return L10n.runtime("\(display)\(suffix)")
     }
 }
+
+// MARK: - Vibrant Mesh Background
+struct MeshVibrantBackground: View {
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            // Base: Warm Peach / Orange
+            Color(hex: "#FFD580").ignoresSafeArea()
+            
+            // Mesh 1: Violet Purple
+            RadialGradient(
+                colors: [Color(hex: "#8A2BE2").opacity(0.6), .clear],
+                center: .topLeading,
+                startRadius: 100,
+                endRadius: 800
+            )
+            .offset(x: animate ? -100 : 0, y: animate ? -100 : 0)
+            
+            // Mesh 2: Emerald Green
+            RadialGradient(
+                colors: [Color(hex: "#50C878").opacity(0.5), .clear],
+                center: .bottomTrailing,
+                startRadius: 50,
+                endRadius: 600
+            )
+            .offset(x: animate ? 100 : 0, y: animate ? 100 : 0)
+            
+            // Mesh 3: Soft Pink Overlay
+            RadialGradient(
+                colors: [Color(hex: "#FFB6C1").opacity(0.4), .clear],
+                center: .center,
+                startRadius: 0,
+                endRadius: 500
+            )
+            .scaleEffect(animate ? 1.2 : 1.0)
+            
+            // Blur it all to mesh
+            .blur(radius: 60)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
+                animate.toggle()
+            }
+        }
+    }
+}
+
 
 struct FeedbackLoopDetailView: View {
     @ObservedObject var viewModel: UnderstandingScoreViewModel

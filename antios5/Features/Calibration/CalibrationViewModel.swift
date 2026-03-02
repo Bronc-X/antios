@@ -342,6 +342,21 @@ class CalibrationViewModel: ObservableObject {
       saved = false
     }
 
+    await supabase.captureUserSignal(
+      domain: "calibration",
+      action: "daily_completed",
+      summary: "dailyIndex=\(dailyIndex), gad2=\(gad2Score), stress=\(stressScore), sleepDurationScore=\(sleepDurationScore), sleepQuality=\(sleepQualityScore)",
+      metadata: [
+        "daily_index": dailyIndex,
+        "gad2_score": gad2Score,
+        "stress_score": stressScore,
+        "sleep_duration_score": sleepDurationScore,
+        "sleep_quality_score": sleepQualityScore,
+        "safety_triggered": safetyTriggered,
+        "trigger_full_scale": triggerFullScale ?? "none"
+      ]
+    )
+
     // Trigger digital twin analysis (non-blocking)
     Task {
       _ = await supabase.triggerDigitalTwinAnalysis(forceRefresh: false)

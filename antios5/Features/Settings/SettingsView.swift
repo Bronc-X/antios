@@ -6,17 +6,30 @@ import UserNotifications
 import LocalAuthentication
 
 struct SettingsView: View {
+    private enum LightweightSheet: String, Identifiable {
+        case dataExport
+        case privacyPolicy
+        case helpCenter
+        case debugSession
+
+        var id: String { rawValue }
+    }
+
     @StateObject private var viewModel = SettingsViewModel()
     @ObservedObject var supabase = SupabaseManager.shared
     @ObservedObject var themeManager = ThemeManager.shared
     @EnvironmentObject var appSettings: AppSettings
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var showWhatsNewSheet = false
+    @State private var showSettingsGuide = false
+    @State private var lightweightSheet: LightweightSheet?
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // 深渊背景
-                AbyssBackground()
+                // 统一背景体系
+                AuroraBackground()
                     .ignoresSafeArea()
                 
                 ScrollView {
@@ -67,17 +80,29 @@ struct SettingsView: View {
                         logoutButton
                     }
                     .liquidGlassPageWidth()
-                    .padding(.top, 24)  // 增加顶部间距，避免被导航栏截断
-                    .padding(.bottom, metrics.verticalPadding)
+                    .padding(.top, metrics.isCompactHeight ? 8 : 12)
+                    .padding(.bottom, metrics.bottomContentInset)
                 }
             }
-            .navigationTitle("闭环设置")
+            .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.bgPrimary, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        let haptic = UIImpactFeedbackGenerator(style: .soft)
+                        haptic.impactOccurred()
+                        showSettingsGuide = true
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.liquidGlassAccent)
+                            .liquidGlassCircleBadge(padding: 6)
+                    }
+                    .buttonStyle(.plain)
+                }
                 ToolbarItem(placement: .principal) {
-                    Text("闭环设置")
+                    Text("设置")
                     
                         .font(.headline)
                         .foregroundColor(.textPrimary)
@@ -105,6 +130,34 @@ struct SettingsView: View {
             }
             .task {
                 await viewModel.load()
+            }
+            .sheet(isPresented: $showWhatsNewSheet) {
+                WhatsNewSheet()
+                    .presentationDetents([.fraction(0.42), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
+            }
+            .sheet(isPresented: $showSettingsGuide) {
+                SettingsGuideSheet()
+                    .presentationDetents([.fraction(0.42), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
+            }
+            .sheet(item: $lightweightSheet) { sheet in
+                NavigationStack {
+                    Group {
+                        switch sheet {
+                        case .dataExport:
+                            DataExportView()
+                        case .privacyPolicy:
+                            PrivacyPolicyView()
+                        case .helpCenter:
+                            HelpCenterView()
+                        case .debugSession:
+                            DebugSessionView()
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
             }
         }
     }
@@ -206,7 +259,7 @@ struct SettingsView: View {
     
     private var notificationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LiquidGlassSectionHeader(title: "闭环提醒", icon: "bell.fill")
+            LiquidGlassSectionHeader(title: "跟进提醒", icon: "bell.fill")
             
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(spacing: 16) {
@@ -220,7 +273,7 @@ struct SettingsView: View {
                                 .foregroundColor(.statusSuccess)
                         }
                         
-                        Text("闭环推送")
+                        Text("跟进提醒")
                             .font(.subheadline)
                             .foregroundColor(.textPrimary)
                         
@@ -296,24 +349,28 @@ struct SettingsView: View {
                         .padding(.leading, 46)
                         .padding(.vertical, 12)
                     
-                    LiquidGlassSettingsRow(
+                    LightweightActionRow(
                         icon: "square.and.arrow.up",
                         iconColor: .liquidGlassAccent,
                         title: "导出数据"
                     ) {
-                        DataExportView()
+                        let feedback = UIImpactFeedbackGenerator(style: .soft)
+                        feedback.impactOccurred()
+                        lightweightSheet = .dataExport
                     }
                     
                     Divider()
                         .background(Color.textPrimary.opacity(0.1))
                         .padding(.leading, 46)
                     
-                    LiquidGlassSettingsRow(
+                    LightweightActionRow(
                         icon: "hand.raised.fill",
                         iconColor: .liquidGlassSecondary,
                         title: "隐私政策"
                     ) {
-                        PrivacyPolicyView()
+                        let feedback = UIImpactFeedbackGenerator(style: .soft)
+                        feedback.impactOccurred()
+                        lightweightSheet = .privacyPolicy
                     }
                 }
             }
@@ -432,38 +489,64 @@ struct SettingsView: View {
             
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(spacing: 0) {
-                    HStack(spacing: 14) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.textSecondary.opacity(0.15))
-                                .frame(width: 32, height: 32)
-                            Image(systemName: "app.badge")
-                                .font(.system(size: 14))
-                                .foregroundColor(.textSecondary)
+                    Button {
+                        let feedback = UIImpactFeedbackGenerator(style: .soft)
+                        feedback.impactOccurred()
+                        showWhatsNewSheet = true
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.textSecondary.opacity(0.15))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "app.badge")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.textSecondary)
+                            }
+                            
+                            Text("版本")
+                                .font(.subheadline)
+                                .foregroundColor(.textPrimary)
+                            
+                            Spacer()
+                            
+                            Text(AppVersion.label)
+                                .font(.caption)
+                                .foregroundColor(.textTertiary)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.textTertiary)
                         }
-                        
-                        Text("版本")
-                            .font(.subheadline)
-                            .foregroundColor(.textPrimary)
-                        
-                        Spacer()
-                        
-                        Text(AppVersion.label)
-                            .font(.caption)
-                            .foregroundColor(.textTertiary)
                     }
+                    .buttonStyle(.plain)
                     
                     Divider()
                         .background(Color.textPrimary.opacity(0.1))
                         .padding(.leading, 46)
                         .padding(.vertical, 12)
                     
-                    LiquidGlassSettingsRow(
+                    LightweightActionRow(
                         icon: "questionmark.circle",
                         iconColor: .liquidGlassAccent,
                         title: "反馈与帮助"
                     ) {
-                        HelpCenterView()
+                        let feedback = UIImpactFeedbackGenerator(style: .soft)
+                        feedback.impactOccurred()
+                        lightweightSheet = .helpCenter
+                    }
+
+                    Divider()
+                        .background(Color.textPrimary.opacity(0.1))
+                        .padding(.leading, 46)
+
+                    LightweightActionRow(
+                        icon: "ladybug.fill",
+                        iconColor: .textSecondary,
+                        title: "调试会话"
+                    ) {
+                        let feedback = UIImpactFeedbackGenerator(style: .light)
+                        feedback.impactOccurred()
+                        lightweightSheet = .debugSession
                     }
 
                     Divider()
@@ -471,11 +554,12 @@ struct SettingsView: View {
                         .padding(.leading, 46)
 
                     LiquidGlassSettingsRow(
-                        icon: "ladybug.fill",
-                        iconColor: .textSecondary,
-                        title: "调试会话"
+                        icon: "wand.and.stars.inverse",
+                        iconColor: .liquidGlassAccent,
+                        title: "设计系统容器",
+                        subtitle: "规范、组件与复刻样机"
                     ) {
-                        DebugSessionView()
+                        DesignSystemContainerView()
                     }
                 }
             }
@@ -486,7 +570,7 @@ struct SettingsView: View {
 
     private var membershipSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LiquidGlassSectionHeader(title: "闭环权限", icon: "crown.fill")
+            LiquidGlassSectionHeader(title: "关键权限", icon: "crown.fill")
 
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(spacing: 0) {
@@ -549,6 +633,49 @@ struct SettingsView: View {
     }
 }
 
+private struct LightweightActionRow: View {
+    let icon: String
+    var iconColor: Color = .liquidGlassAccent
+    let title: String
+    var subtitle: String? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(iconColor.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundColor(iconColor)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.localized(title))
+                        .font(GlassTypography.body(14, weight: .medium))
+                        .foregroundColor(.textPrimary)
+
+                    if let subtitle = subtitle {
+                        Text(L10n.localized(subtitle))
+                            .font(GlassTypography.caption(11))
+                            .foregroundColor(.textTertiary)
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.textTertiary)
+            }
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - HealthKit 设置视图 (新版)
 
 struct HealthKitSettingsViewNew: View {
@@ -557,7 +684,7 @@ struct HealthKitSettingsViewNew: View {
     
     var body: some View {
         ZStack {
-            AbyssBackground()
+            AuroraBackground()
             
             ScrollView {
                 VStack(spacing: 20) {
@@ -579,7 +706,7 @@ struct HealthKitSettingsViewNew: View {
                                     .font(.headline)
                                     .foregroundColor(.textPrimary)
                                 
-                                Text(healthKit.isAuthorized ? "闭环数据同步已开启" : "需要授权以同步闭环数据")
+                                Text(healthKit.isAuthorized ? "健康数据同步已开启" : "需要授权以同步健康数据")
                                     .font(.caption)
                                     .foregroundColor(.textSecondary)
                             }
@@ -1214,5 +1341,783 @@ struct HelpCenterView: View {
         }
         .navigationTitle("帮助中心")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Design System Container
+
+private enum LabStylePreset: String, CaseIterable, Identifiable {
+    case purplePink
+    case forestGreen
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .purplePink: return "淡紫流光"
+        case .forestGreen: return "森氧深绿"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .purplePink: return "浅色体系 + 情绪疗愈感"
+        case .forestGreen: return "稳态感 + 训练恢复风"
+        }
+    }
+
+    var primary: Color {
+        switch self {
+        case .purplePink: return Color(hex: "#E3A2FF")
+        case .forestGreen: return Color(hex: "#33CB7D")
+        }
+    }
+
+    var secondary: Color {
+        switch self {
+        case .purplePink: return Color(hex: "#F6BDE9")
+        case .forestGreen: return Color(hex: "#7BDFAB")
+        }
+    }
+
+    var tertiary: Color {
+        switch self {
+        case .purplePink: return Color(hex: "#D6C3FF")
+        case .forestGreen: return Color(hex: "#9ADDFD")
+        }
+    }
+
+    var deepBackground: Color {
+        switch self {
+        case .purplePink: return Color(hex: "#291A36")
+        case .forestGreen: return Color(hex: "#08110E")
+        }
+    }
+
+    var lightBackground: Color {
+        switch self {
+        case .purplePink: return Color(hex: "#FFF9FE")
+        case .forestGreen: return Color(hex: "#F3FAF5")
+        }
+    }
+
+    var gradient: LinearGradient {
+        switch self {
+        case .purplePink:
+            return LinearGradient(
+                colors: [Color(hex: "#E4A5FF"), Color(hex: "#F8C1EA"), Color(hex: "#90E8BC")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .forestGreen:
+            return LinearGradient(
+                colors: [Color(hex: "#0B4A34"), Color(hex: "#1C9262"), Color(hex: "#0B2D25")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+
+private struct DesignRoleDecision: Identifiable {
+    let id = UUID()
+    let role: String
+    let decision: String
+}
+
+struct DesignSystemContainerView: View {
+    @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("design_lab_style_preset") private var stylePresetRaw = LabStylePreset.purplePink.rawValue
+
+    @State private var email = ""
+    @State private var showSheetDemo = false
+    @State private var runTypewriterToken = UUID()
+
+    private var preset: LabStylePreset {
+        get { LabStylePreset(rawValue: stylePresetRaw) ?? .purplePink }
+        nonmutating set { stylePresetRaw = newValue.rawValue }
+    }
+
+    private var roleDecisions: [DesignRoleDecision] {
+        [
+            DesignRoleDecision(role: "角色A · 顶级前端设计师", decision: "建立可维护 token 与组件规范，避免页面硬编码"),
+            DesignRoleDecision(role: "角色B · 顶级时尚设计师", decision: "保留品牌情绪锚点：渐变、人格化图标、高识别CTA"),
+            DesignRoleDecision(role: "角色C · 前端设计师", decision: "把借鉴点拆到按钮/输入/卡片/图表/动效节奏"),
+            DesignRoleDecision(role: "角色D · 前端代码工程师", decision: "保证 SwiftUI 可复刻、可测试、可集成到容器")
+        ]
+    }
+
+    var body: some View {
+        ZStack {
+            preset.gradient
+                .opacity(colorScheme == .dark ? 0.35 : 0.22)
+                .blur(radius: 40)
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: metrics.sectionSpacing) {
+                    containerHeader
+                    roleAlignmentSection
+                    brandToneSection
+                    typographySection
+                    buttonInputCardSection
+                    typewriterSection
+                    outsidersChartSection
+                    interactionSection
+                }
+                .liquidGlassPageWidth()
+                .padding(.top, metrics.verticalPadding)
+                .padding(.bottom, metrics.bottomContentInset)
+            }
+        }
+        .navigationTitle("设计系统容器")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showSheetDemo) {
+            DesignBottomSheetDemoView(preset: preset)
+                .presentationDetents([.height(280), .height(420), .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
+                .presentationBackground(.ultraThinMaterial)
+        }
+    }
+
+    private var containerHeader: some View {
+        LiquidGlassCard(style: .elevated, padding: 18) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("UI 定型容器")
+                    .font(GlassTypography.display(28, weight: .bold))
+                    .foregroundColor(.textPrimary)
+                Text("规范先行，再做复刻。先把底座稳定，再把视觉拉满。")
+                    .font(.subheadline)
+                    .foregroundColor(.textSecondary)
+                Text("当前容器包含：色调对比、排版标尺、核心组件、Lovi逐字问句、Outsiders图表。")
+                    .font(.caption)
+                    .foregroundColor(.textTertiary)
+            }
+        }
+    }
+
+    private var roleAlignmentSection: some View {
+        LiquidGlassCard(style: .standard, padding: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                LiquidGlassSectionHeader(title: "四角色协同结论", icon: "person.3.sequence.fill")
+                ForEach(roleDecisions) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.role)
+                            .font(.caption.bold())
+                            .foregroundColor(.textPrimary)
+                        Text(item.decision)
+                            .font(.caption)
+                            .foregroundColor(.textSecondary)
+                    }
+                    .padding(.vertical, 6)
+                }
+            }
+        }
+    }
+
+    private var brandToneSection: some View {
+        LiquidGlassCard(style: .standard, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                LiquidGlassSectionHeader(title: "品牌色调 A/B", icon: "paintpalette.fill")
+
+                HStack(spacing: 8) {
+                    ForEach(LabStylePreset.allCases) { style in
+                        Button {
+                            UISelectionFeedbackGenerator().selectionChanged()
+                            preset = style
+                            runTypewriterToken = UUID()
+                        } label: {
+                            VStack(spacing: 6) {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(style.gradient)
+                                    .frame(height: 56)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(style == preset ? Color.white.opacity(0.8) : Color.white.opacity(0.2), lineWidth: style == preset ? 2 : 1)
+                                    )
+                                Text(style.title)
+                                    .font(.caption.bold())
+                                    .foregroundColor(.textPrimary)
+                                Text(style.subtitle)
+                                    .font(.caption2)
+                                    .foregroundColor(.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    colorChip("主色", color: preset.primary)
+                    colorChip("强调", color: preset.secondary)
+                    colorChip("辅助", color: preset.tertiary)
+                }
+            }
+        }
+    }
+
+    private var typographySection: some View {
+        LiquidGlassCard(style: .standard, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                LiquidGlassSectionHeader(title: "排版标尺", icon: "textformat.size")
+                Text("Lovi 风格中文推荐：PingFang SC（系统内置）")
+                    .font(GlassTypography.cnLovi(13, weight: .medium))
+                    .foregroundColor(.textTertiary)
+                Text("Display 34 · New York/SF Serif")
+                    .font(.system(size: 34, weight: .semibold, design: .serif))
+                    .foregroundColor(.textPrimary)
+                Text("Lovi CN 28 · PingFangSC-Semibold")
+                    .font(GlassTypography.cnLovi(28, weight: .semibold))
+                    .foregroundColor(.textPrimary)
+                Text("Title 22 · Semibold")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.textPrimary)
+                Text("Body 17 · Regular。用于主要说明文本。")
+                    .font(.system(size: 17))
+                    .foregroundColor(.textSecondary)
+                Text("Caption 13 · Medium。用于辅助标签和状态。")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.textTertiary)
+            }
+        }
+    }
+
+    private var buttonInputCardSection: some View {
+        LiquidGlassCard(style: .elevated, padding: 16) {
+            VStack(alignment: .leading, spacing: 14) {
+                LiquidGlassSectionHeader(title: "核心组件规范样机", icon: "square.grid.2x2.fill")
+
+                HStack(spacing: 10) {
+                    Button("Primary CTA") {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                    .buttonStyle(LabGlowButtonStyle(preset: preset, kind: .primary))
+
+                    Button("Secondary") {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                    .buttonStyle(LabGlowButtonStyle(preset: preset, kind: .secondary))
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("输入样式（44高 + 16圆角 + 语义边框）")
+                        .font(.caption)
+                        .foregroundColor(.textTertiary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "envelope")
+                            .foregroundColor(.textTertiary)
+                        TextField("请输入邮箱", text: $email)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color.surfaceGlass(for: colorScheme))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(email.isEmpty ? Color.white.opacity(0.16) : preset.primary.opacity(0.65), lineWidth: 1)
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("卡片样式（16圆角 / 16内边距）")
+                        .font(.caption)
+                        .foregroundColor(.textTertiary)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Smart Savings")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.textPrimary)
+                            Text("Reliable performance, everyday affordability.")
+                                .font(.caption)
+                                .foregroundColor(.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.textTertiary)
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(preset.secondary.opacity(0.45), lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+
+    private var typewriterSection: some View {
+        LoviTypewriterQuestionLabView(
+            preset: preset,
+            replayToken: runTypewriterToken
+        )
+    }
+
+    private var outsidersChartSection: some View {
+        LiquidGlassCard(style: .standard, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                LiquidGlassSectionHeader(title: "Outsiders 图表形态复刻", icon: "chart.xyaxis.line")
+                OutsidersChartLabView(preset: preset)
+            }
+        }
+    }
+
+    private var interactionSection: some View {
+        LiquidGlassCard(style: .standard, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                LiquidGlassSectionHeader(title: "交互容器", icon: "sparkles")
+                Text("包含：Tab 点击反馈 + 底部弹窗尺寸规范（280/420/Large）")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+
+                TabMicroInteractionLabView(preset: preset)
+
+                Button("弹出窗口尺寸样机") {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    showSheetDemo = true
+                }
+                .buttonStyle(LabGlowButtonStyle(preset: preset, kind: .primary))
+            }
+        }
+    }
+
+    private func colorChip(_ title: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 14, height: 14)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.textSecondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(Capsule())
+    }
+}
+
+private struct LabGlowButtonStyle: ButtonStyle {
+    enum Kind { case primary, secondary }
+
+    let preset: LabStylePreset
+    let kind: Kind
+
+    func makeBody(configuration: Configuration) -> some View {
+        let isPrimary = kind == .primary
+        return configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(isPrimary ? .white : .textPrimary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        isPrimary
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [preset.primary, preset.tertiary],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            : AnyShapeStyle(Color.surfaceGlass(for: .dark))
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isPrimary ? Color.white.opacity(0.35) : Color.white.opacity(0.2), lineWidth: 1)
+            )
+            .shadow(color: isPrimary ? preset.primary.opacity(0.45) : .clear, radius: isPrimary ? 10 : 0, y: isPrimary ? 3 : 0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+    }
+}
+
+private struct LoviTypewriterQuestionLabView: View {
+    let preset: LabStylePreset
+    let replayToken: UUID
+
+    @State private var renderedQuestion = ""
+    @State private var task: Task<Void, Never>?
+
+    private let fullQuestion = "How much do you typically spend on a skincare item like a moisturizer?"
+
+    var body: some View {
+        LiquidGlassCard(style: .elevated, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                LiquidGlassSectionHeader(title: "Lovi 逐字问句复刻", icon: "character.cursor.ibeam")
+                Text("每 45-65ms 出现一个字符，每 2-3 个字符给一次轻震反馈。")
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(renderedQuestion)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                        .minimumScaleFactor(0.8)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Choose your budget for everyday skincare products. Note: Prices for advanced treatments may vary.")
+                        .font(.caption)
+                        .foregroundColor(.textSecondary)
+                }
+                .padding(14)
+                .background(Color.white.opacity(0.66))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(spacing: 8) {
+                    optionRow(title: "Smart Savings ($19 and less)", subtitle: "Reliable performance, everyday affordability.", icon: "lightbulb.max")
+                    optionRow(title: "Balanced Value ($20...$49)", subtitle: "Great balance of efficacy and cost.", icon: "scalemass")
+                    optionRow(title: "Professional & Innovative ($50...$99)", subtitle: "Advanced technology and ingredients.", icon: "diamond")
+                }
+
+                Button("重播逐字动效") {
+                    runTypewriter()
+                }
+                .buttonStyle(LabGlowButtonStyle(preset: preset, kind: .secondary))
+            }
+        }
+        .onAppear { runTypewriter() }
+        .onChange(of: replayToken) { _, _ in runTypewriter() }
+        .onDisappear { task?.cancel() }
+    }
+
+    private func optionRow(title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundColor(preset.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundColor(.textPrimary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(preset.secondary.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private func runTypewriter() {
+        task?.cancel()
+        renderedQuestion = ""
+
+        task = Task {
+            for (index, scalar) in fullQuestion.enumerated() {
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    renderedQuestion.append(scalar)
+                    if index.isMultiple(of: 3) {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 55_000_000)
+            }
+        }
+    }
+}
+
+private struct OutsidersChartLabView: View {
+    let preset: LabStylePreset
+    @State private var selectedIndex = 5
+
+    private let values: [Double] = [0.8, 1.2, 1.0, 2.4, 2.1, 3.2, 2.6]
+    private let days = ["周一", "周二", "周三", "周四", "周五", "今天", "周日"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            GeometryReader { proxy in
+                let chartSize = proxy.size
+                let maxValue = max(values.max() ?? 1, 1)
+                let stepX = chartSize.width / CGFloat(max(values.count - 1, 1))
+                let selectedX = CGFloat(selectedIndex) * stepX
+                let selectedY = yPosition(value: values[selectedIndex], maxValue: maxValue, height: chartSize.height)
+
+                ZStack {
+                    ForEach(0..<5, id: \.self) { line in
+                        let y = CGFloat(line) / 4 * chartSize.height
+                        Path { p in
+                            p.move(to: CGPoint(x: 0, y: y))
+                            p.addLine(to: CGPoint(x: chartSize.width, y: y))
+                        }
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    }
+
+                    Path { p in
+                        for (idx, value) in values.enumerated() {
+                            let x = CGFloat(idx) * stepX
+                            let y = yPosition(value: value, maxValue: maxValue, height: chartSize.height)
+                            if idx == 0 {
+                                p.move(to: CGPoint(x: x, y: y))
+                            } else {
+                                p.addLine(to: CGPoint(x: x, y: y))
+                            }
+                        }
+                    }
+                    .stroke(preset.tertiary, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+                    Path { p in
+                        p.move(to: CGPoint(x: selectedX, y: selectedY))
+                        p.addLine(to: CGPoint(x: selectedX, y: chartSize.height))
+                    }
+                    .stroke(Color.white.opacity(0.28), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+
+                    Circle()
+                        .fill(preset.primary)
+                        .frame(width: 9, height: 9)
+                        .position(x: selectedX, y: selectedY)
+                        .shadow(color: preset.primary.opacity(0.45), radius: 6)
+                }
+            }
+            .frame(height: 180)
+            .padding(12)
+            .background(preset.deepBackground.opacity(0.82))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            HStack {
+                ForEach(days.indices, id: \.self) { idx in
+                    Button(days[idx]) {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedIndex = idx
+                        }
+                    }
+                    .font(.caption2.weight(selectedIndex == idx ? .bold : .medium))
+                    .foregroundColor(selectedIndex == idx ? .textPrimary : .textTertiary)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+
+            HStack(spacing: 10) {
+                metricCard(title: "训练负荷", value: String(format: "%.1f", values[selectedIndex]), color: preset.primary)
+                metricCard(title: "时长", value: "\(Int(values[selectedIndex] * 15)) 分钟", color: preset.secondary)
+            }
+        }
+    }
+
+    private func yPosition(value: Double, maxValue: Double, height: CGFloat) -> CGFloat {
+        guard maxValue > 0 else { return height }
+        return height - CGFloat(value / maxValue) * height
+    }
+
+    private func metricCard(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.textTertiary)
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.surfaceGlass(for: .dark))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(color.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct TabMicroInteractionLabView: View {
+    let preset: LabStylePreset
+    @State private var selected = 0
+
+    private let items: [(String, String)] = [
+        ("今日", "calendar"),
+        ("进度", "chart.line.uptrend.xyaxis"),
+        ("训练", "figure.run"),
+        ("洞察", "sparkles")
+    ]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(items.indices, id: \.self) { idx in
+                let item = items[idx]
+                Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.78)) {
+                        selected = idx
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: item.1)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(item.0)
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(selected == idx ? .white : .textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(selected == idx ? preset.secondary : Color.clear)
+                    )
+                    .scaleEffect(selected == idx ? 1.02 : 1.0)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+        .background(Color.surfaceGlass(for: .dark))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct DesignBottomSheetDemoView: View {
+    let preset: LabStylePreset
+    @State private var intensity = 0.62
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("弹窗尺寸规范")
+                .font(.headline)
+                .foregroundColor(.textPrimary)
+            Text("推荐 Detents：280 / 420 / Large。用于提醒卡、支付卡、解释卡。")
+                .font(.caption)
+                .foregroundColor(.textSecondary)
+
+            HStack {
+                Circle().fill(preset.primary).frame(width: 12, height: 12)
+                Text("主强调色强度")
+                    .font(.caption)
+                    .foregroundColor(.textTertiary)
+            }
+
+            Slider(value: $intensity, in: 0.2...1)
+                .tint(preset.primary)
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(preset.gradient.opacity(intensity))
+                .frame(height: 120)
+                .overlay(
+                    Text("Bottom Sheet Surface")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                )
+        }
+        .padding(20)
+    }
+}
+
+private struct WhatsNewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("本次视觉更新")
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .liquidGlassCircleBadge(padding: 10)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                bullet("启动页改为 Lovi 风格的淡紫流体质感。")
+                bullet("按钮、输入、开关统一到 Light Lilac Glass 语义。")
+                bullet("新增底部弹层：今日洞察、解释方法、版本更新。")
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func bullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct SettingsGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("设置页说明")
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .liquidGlassCircleBadge(padding: 10)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                guideRow("先连 HealthKit，再开提醒。建议质量提升最快。")
+                guideRow("外观和语言会即时生效，便于你快速预览新 UI。")
+                guideRow("隐私与登录操作都放在同页底部，减少跳转成本。")
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func guideRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

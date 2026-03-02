@@ -4,6 +4,14 @@
 <dict>
 	<key>APP_API_BASE_URL</key>
 	<string>$(APP_API_BASE_URL)</string>
+	<key>APP_API_CIRCUIT_TTL_SEC</key>
+	<string>$(APP_API_CIRCUIT_TTL_SEC)</string>
+	<key>APP_API_FAILURE_THRESHOLD</key>
+	<string>$(APP_API_FAILURE_THRESHOLD)</string>
+	<key>APP_API_HEALTH_COOLDOWN_SEC</key>
+	<string>$(APP_API_HEALTH_COOLDOWN_SEC)</string>
+	<key>APP_API_HEALTH_TIMEOUT_SEC</key>
+	<string>$(APP_API_HEALTH_TIMEOUT_SEC)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -22,6 +30,116 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>COHERE_RERANK_CACHE_MAX_ENTRIES</key>
+	<string>$(COHERE_RERANK_CACHE_MAX_ENTRIES)</string>
+	<key>COHERE_RERANK_CACHE_TTL_SEC</key>
+	<string>$(COHERE_RERANK_CACHE_TTL_SEC)</string>
+	<key>COHERE_RERANK_ENABLED</key>
+	<string>$(COHERE_RERANK_ENABLED)</string>
+	<key>COHERE_RERANK_MIN_DOCUMENTS</key>
+	<string>$(COHERE_RERANK_MIN_DOCUMENTS)</string>
+	<key>COHERE_RERANK_TIMEOUT_SEC</key>
+	<string>$(COHERE_RERANK_TIMEOUT_SEC)</string>
+	<key>MAX_CHAT_CLOUD_TIMEOUT_FAST_SEC</key>
+	<string>$(MAX_CHAT_CLOUD_TIMEOUT_FAST_SEC)</string>
+	<key>MAX_CHAT_CLOUD_TIMEOUT_THINK_SEC</key>
+	<string>$(MAX_CHAT_CLOUD_TIMEOUT_THINK_SEC)</string>
+	<key>MAX_CHAT_CONVERSATION_CREATE_TIMEOUT_SEC</key>
+	<string>$(MAX_CHAT_CONVERSATION_CREATE_TIMEOUT_SEC)</string>
+	<key>MAX_CHAT_LOCAL_TIMEOUT_DEGRADED_SEC</key>
+	<string>$(MAX_CHAT_LOCAL_TIMEOUT_DEGRADED_SEC)</string>
+	<key>MAX_CHAT_LOCAL_TIMEOUT_FAST_SEC</key>
+	<string>$(MAX_CHAT_LOCAL_TIMEOUT_FAST_SEC)</string>
+	<key>MAX_CHAT_LOCAL_TIMEOUT_THINK_SEC</key>
+	<string>$(MAX_CHAT_LOCAL_TIMEOUT_THINK_SEC)</string>
+	<key>MAX_CHAT_MESSAGE_PERSIST_MAX_RETRIES</key>
+	<string>$(MAX_CHAT_MESSAGE_PERSIST_MAX_RETRIES)</string>
+	<key>MAX_CHAT_MESSAGE_RETRY_BASE_DELAY_MS</key>
+	<string>$(MAX_CHAT_MESSAGE_RETRY_BASE_DELAY_MS)</string>
+	<key>MAX_CHAT_REMOTE_COOLDOWN_SEC</key>
+	<string>$(MAX_CHAT_REMOTE_COOLDOWN_SEC)</string>
+	<key>MAX_CHAT_REMOTE_FAILURE_THRESHOLD</key>
+	<string>$(MAX_CHAT_REMOTE_FAILURE_THRESHOLD)</string>
+	<key>MAX_CHAT_REMOTE_TIMEOUT_FAST_SEC</key>
+	<string>$(MAX_CHAT_REMOTE_TIMEOUT_FAST_SEC)</string>
+	<key>MAX_CHAT_REMOTE_TIMEOUT_LEGACY_SEC</key>
+	<string>$(MAX_CHAT_REMOTE_TIMEOUT_LEGACY_SEC)</string>
+	<key>MAX_CHAT_REMOTE_TIMEOUT_THINK_SEC</key>
+	<string>$(MAX_CHAT_REMOTE_TIMEOUT_THINK_SEC)</string>
+	<key>MAX_CHAT_SESSION_STATS_DEBOUNCE_MS</key>
+	<string>$(MAX_CHAT_SESSION_STATS_DEBOUNCE_MS)</string>
+	<key>MAX_DASHBOARD_CACHE_TTL_SEC</key>
+	<string>$(MAX_DASHBOARD_CACHE_TTL_SEC)</string>
+	<key>MAX_INQUIRY_CACHE_TTL_SEC</key>
+	<string>$(MAX_INQUIRY_CACHE_TTL_SEC)</string>
+	<key>MAX_MEMORY_CONVERSATION_FALLBACK_LIMIT</key>
+	<string>$(MAX_MEMORY_CONVERSATION_FALLBACK_LIMIT)</string>
+	<key>MAX_MEMORY_ALLOW_LEXICAL_FALLBACK</key>
+	<string>$(MAX_MEMORY_ALLOW_LEXICAL_FALLBACK)</string>
+	<key>MAX_MEMORY_EMBED_ASSISTANT</key>
+	<string>$(MAX_MEMORY_EMBED_ASSISTANT)</string>
+	<key>MAX_MEMORY_MATCH_THRESHOLD</key>
+	<string>$(MAX_MEMORY_MATCH_THRESHOLD)</string>
+	<key>MAX_MEMORY_RELAXED_MATCH_THRESHOLD</key>
+	<string>$(MAX_MEMORY_RELAXED_MATCH_THRESHOLD)</string>
+	<key>MAX_MEMORY_MAX_CHARS</key>
+	<string>$(MAX_MEMORY_MAX_CHARS)</string>
+	<key>MAX_MEMORY_MIN_USER_CHARS_CJK</key>
+	<string>$(MAX_MEMORY_MIN_USER_CHARS_CJK)</string>
+	<key>MAX_MEMORY_MIN_USER_CHARS_LATIN</key>
+	<string>$(MAX_MEMORY_MIN_USER_CHARS_LATIN)</string>
+	<key>MAX_MEMORY_PENDING_FLUSH_BATCH_SIZE</key>
+	<string>$(MAX_MEMORY_PENDING_FLUSH_BATCH_SIZE)</string>
+	<key>MAX_MEMORY_PENDING_FLUSH_MAX_BATCHES</key>
+	<string>$(MAX_MEMORY_PENDING_FLUSH_MAX_BATCHES)</string>
+	<key>MAX_MEMORY_PENDING_QUEUE_LIMIT</key>
+	<string>$(MAX_MEMORY_PENDING_QUEUE_LIMIT)</string>
+	<key>MAX_MEMORY_RETRIEVAL_EMBED_TIMEOUT_SEC</key>
+	<string>$(MAX_MEMORY_RETRIEVAL_EMBED_TIMEOUT_SEC)</string>
+	<key>MAX_MEMORY_STORAGE_EMBED_TIMEOUT_SEC</key>
+	<string>$(MAX_MEMORY_STORAGE_EMBED_TIMEOUT_SEC)</string>
+	<key>MAX_MEMORY_STORE_RETRY_ATTEMPTS</key>
+	<string>$(MAX_MEMORY_STORE_RETRY_ATTEMPTS)</string>
+	<key>MAX_MEMORY_STORE_RETRY_BASE_DELAY_MS</key>
+	<string>$(MAX_MEMORY_STORE_RETRY_BASE_DELAY_MS)</string>
+	<key>MAX_PROFILE_CACHE_TTL_SEC</key>
+	<string>$(MAX_PROFILE_CACHE_TTL_SEC)</string>
+	<key>MAX_RAG_CACHE_TTL_SEC</key>
+	<string>$(MAX_RAG_CACHE_TTL_SEC)</string>
+	<key>MAX_RAG_EMBED_TIMEOUT_SEC</key>
+	<string>$(MAX_RAG_EMBED_TIMEOUT_SEC)</string>
+	<key>MAX_RAG_FULL_KNOWLEDGE_LIMIT</key>
+	<string>$(MAX_RAG_FULL_KNOWLEDGE_LIMIT)</string>
+	<key>MAX_RAG_FULL_MEMORY_LIMIT</key>
+	<string>$(MAX_RAG_FULL_MEMORY_LIMIT)</string>
+	<key>MAX_RAG_KNOWLEDGE_BLOCK_TOPN</key>
+	<string>$(MAX_RAG_KNOWLEDGE_BLOCK_TOPN)</string>
+	<key>MAX_RAG_LITE_MEMORY_LIMIT</key>
+	<string>$(MAX_RAG_LITE_MEMORY_LIMIT)</string>
+	<key>MAX_RAG_MEMORY_BLOCK_TOPN</key>
+	<string>$(MAX_RAG_MEMORY_BLOCK_TOPN)</string>
+	<key>MAX_RAG_RERANK_ENABLED</key>
+	<string>$(MAX_RAG_RERANK_ENABLED)</string>
+	<key>MAX_RAG_RERANK_MIN_DOCS</key>
+	<string>$(MAX_RAG_RERANK_MIN_DOCS)</string>
+	<key>MAX_RAG_RERANK_TOPN</key>
+	<string>$(MAX_RAG_RERANK_TOPN)</string>
+	<key>MAX_RAG_WEARABLE_TIMEOUT_SEC</key>
+	<string>$(MAX_RAG_WEARABLE_TIMEOUT_SEC)</string>
+	<key>MAX_SCIENCE_BLOCK_CACHE_TTL_SEC</key>
+	<string>$(MAX_SCIENCE_BLOCK_CACHE_TTL_SEC)</string>
+	<key>MAX_TELEMETRY_ENABLED</key>
+	<string>$(MAX_TELEMETRY_ENABLED)</string>
+	<key>MAX_TELEMETRY_FLUSH_INTERVAL_SEC</key>
+	<string>$(MAX_TELEMETRY_FLUSH_INTERVAL_SEC)</string>
+	<key>MAX_TELEMETRY_FLUSH_MIN_EVENTS</key>
+	<string>$(MAX_TELEMETRY_FLUSH_MIN_EVENTS)</string>
+	<key>MAX_TELEMETRY_LATENCY_SAMPLE_LIMIT</key>
+	<string>$(MAX_TELEMETRY_LATENCY_SAMPLE_LIMIT)</string>
+	<key>MAX_USER_CONTEXT_CACHE_TTL_SEC</key>
+	<string>$(MAX_USER_CONTEXT_CACHE_TTL_SEC)</string>
+	<key>MAX_WEARABLE_CACHE_TTL_SEC</key>
+	<string>$(MAX_WEARABLE_CACHE_TTL_SEC)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -47,7 +165,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>用于生物识别锁，保护你的数据安全。</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>AntiAnxiety 需要读取 Apple Watch/HealthKit 数据，用于反焦虑闭环的校准、解释与行动跟进。</string>
+	<string>AntiAnxiety 需要读取 Apple Watch/HealthKit 数据，用于反焦虑进展的校准、解释与行动建议。</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>AntiAnxiety 需要写入 HealthKit 数据以记录恢复动作，并持续优化你的反焦虑模型。</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -58,14 +176,54 @@
 	<string>$(OPENAI_API_BASE)</string>
 	<key>OPENAI_API_KEY</key>
 	<string>$(OPENAI_API_KEY)</string>
-	<key>OPENAI_MODEL</key>
-	<string>$(OPENAI_MODEL)</string>
+	<key>OPENAI_EMBEDDING_API_BASE</key>
+	<string>$(OPENAI_EMBEDDING_API_BASE)</string>
+	<key>OPENAI_EMBEDDING_API_KEY</key>
+	<string>$(OPENAI_EMBEDDING_API_KEY)</string>
 	<key>OPENAI_EMBEDDING_API_URL</key>
 	<string>$(OPENAI_EMBEDDING_API_URL)</string>
+	<key>OPENAI_EMBEDDING_CACHE_MAX_ENTRIES</key>
+	<string>$(OPENAI_EMBEDDING_CACHE_MAX_ENTRIES)</string>
+	<key>OPENAI_EMBEDDING_CACHE_TTL_SEC</key>
+	<string>$(OPENAI_EMBEDDING_CACHE_TTL_SEC)</string>
+	<key>OPENAI_EMBEDDING_ENABLED</key>
+	<string>$(OPENAI_EMBEDDING_ENABLED)</string>
+	<key>OPENAI_EMBEDDING_NO_CHANNEL_COOLDOWN_SEC</key>
+	<string>$(OPENAI_EMBEDDING_NO_CHANNEL_COOLDOWN_SEC)</string>
 	<key>OPENAI_EMBEDDING_MODEL</key>
 	<string>$(OPENAI_EMBEDDING_MODEL)</string>
+	<key>OPENAI_EMBEDDING_TIMEOUT_SEC</key>
+	<string>$(OPENAI_EMBEDDING_TIMEOUT_SEC)</string>
+	<key>OPENAI_MODEL</key>
+	<string>$(OPENAI_MODEL)</string>
+	<key>OPENAI_MODEL_FALLBACK_CHAIN</key>
+	<string>$(OPENAI_MODEL_FALLBACK_CHAIN)</string>
+	<key>OPENAI_REQUEST_TIMEOUT_SEC</key>
+	<string>$(OPENAI_REQUEST_TIMEOUT_SEC)</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SUPABASE_APP_API_TIMEOUT_SEC</key>
+	<string>$(SUPABASE_APP_API_TIMEOUT_SEC)</string>
+	<key>SUPABASE_AUTH_TIMEOUT_SEC</key>
+	<string>$(SUPABASE_AUTH_TIMEOUT_SEC)</string>
+	<key>SUPABASE_NETWORK_HARD_TIMEOUT_PADDING_SEC</key>
+	<string>$(SUPABASE_NETWORK_HARD_TIMEOUT_PADDING_SEC)</string>
+	<key>SUPABASE_NETWORK_RETRY_ATTEMPTS</key>
+	<string>$(SUPABASE_NETWORK_RETRY_ATTEMPTS)</string>
+	<key>SUPABASE_NETWORK_RETRY_BACKOFF_MULTIPLIER</key>
+	<string>$(SUPABASE_NETWORK_RETRY_BACKOFF_MULTIPLIER)</string>
+	<key>SUPABASE_NETWORK_RETRY_DELAY_MS</key>
+	<string>$(SUPABASE_NETWORK_RETRY_DELAY_MS)</string>
+	<key>SUPABASE_NETWORK_RETRY_JITTER_RATIO</key>
+	<string>$(SUPABASE_NETWORK_RETRY_JITTER_RATIO)</string>
+	<key>SUPABASE_NETWORK_RETRY_MAX_DELAY_MS</key>
+	<string>$(SUPABASE_NETWORK_RETRY_MAX_DELAY_MS)</string>
+	<key>SUPABASE_REST_TIMEOUT_READ_SEC</key>
+	<string>$(SUPABASE_REST_TIMEOUT_READ_SEC)</string>
+	<key>SUPABASE_REST_TIMEOUT_WRITE_SEC</key>
+	<string>$(SUPABASE_REST_TIMEOUT_WRITE_SEC)</string>
+	<key>SUPABASE_UPLOAD_TIMEOUT_SEC</key>
+	<string>$(SUPABASE_UPLOAD_TIMEOUT_SEC)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
 	<key>UIApplicationSceneManifest</key>

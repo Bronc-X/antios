@@ -88,6 +88,8 @@ final class AppSettings: ObservableObject {
             language = storedLanguage
         }
 
+        // Keep persisted language aligned with in-memory state.
+        defaults.set(language.rawValue, forKey: appLanguageKey)
         defaults.set(currentSystemLanguage.rawValue, forKey: lastSystemLanguageKey)
 
         localeDidChangeObserver = NotificationCenter.default.addObserver(
@@ -111,6 +113,8 @@ final class AppSettings: ObservableObject {
         defaults.set(currentSystemLanguage.rawValue, forKey: lastSystemLanguageKey)
         if language != currentSystemLanguage {
             language = currentSystemLanguage
+        } else {
+            defaults.set(language.rawValue, forKey: appLanguageKey)
         }
     }
 }
@@ -150,7 +154,8 @@ struct L10n {
         case .zh, .zhHans:
             return bundle(for: .zhHans).localizedString(forKey: key, value: key, table: nil)
         case .en:
-            return bundle(for: .en).localizedString(forKey: key, value: key, table: nil)
+            let resolved = bundle(for: .en).localizedString(forKey: key, value: key, table: nil)
+            return resolved == key ? convertCommonChineseToEnglish(key) : resolved
         }
     }
 
@@ -203,6 +208,9 @@ struct L10n {
             "上升": "Rising",
             "下降": "Falling",
             "改善": "Improved",
+            "早上好": "Good morning",
+            "下午好": "Good afternoon",
+            "晚上好": "Good evening",
             "需关注": "Needs attention",
             "需要关注": "Needs attention",
             "规则版本": "Rule version",
@@ -220,10 +228,33 @@ struct L10n {
             "睡眠建议": "Sleep recommendation",
             "呼吸练习": "Breathing exercise",
             "数据来源": "Data source",
+            "今日状态栏": "Today's status bar",
+            "今日建议（可选）": "Today's tip (optional)",
+            "今日校准（可选）": "Calibrate today (optional)",
+            "Max 关注点": "Max focus",
+            "科学解释": "Scientific explanation",
+            "个性化科学解释": "Personalized scientific explanation",
+            "行动建议": "Action suggestions",
+            "关键洞察": "Key insights",
+            "去和 Max 复盘": "Review with Max",
+            "等待真实健康数据": "Waiting for real health data",
+            "很轻松": "Very relaxed",
+            "有点紧张": "A little tense",
+            "压力很大": "Very stressed",
+            "今天感觉压力大吗？": "Do you feel stressed today?",
             "整体改善趋势": "Overall improvement trend",
             "说明恢复方向正在建立。": "This indicates recovery momentum is being established.",
             "规律性是当前最关键的增长点。": "Consistency is the most important growth lever right now.",
             "建议重点关注情绪与睡眠节律。": "Focus on emotional state and sleep rhythm.",
+            "你当前状态稳定，保持现在的节奏就很好。": "Your state is stable. Keep your current rhythm.",
+            "你在持续改善，今天完成一个小动作就够了。": "You're steadily improving. One small action today is enough.",
+            "你已经开始恢复，不用全做完，先做最容易的一步。": "Recovery has started. Start with the easiest step.",
+            "先执行一个低负担动作，系统会继续给你个性化解释。": "Start with a low-burden action. The system will keep refining your personalized explanation.",
+            "当前没有待回答问题，你可以直接看解释或执行动作。": "No pending questions. You can go straight to explanation or action.",
+            "如果愿意，记录今天状态，建议会更贴合你。": "If you like, log today's state and recommendations will fit you better.",
+            "今日已完成校准，做得很好。": "Calibration completed today. Nice work.",
+            "科学解释仅在真实证据匹配完成后展示。": "Scientific explanations are shown only after real evidence is matched.",
+            "暂无可用于个性化解释的健康数据（请先完成校准并同步 Apple Watch/HealthKit）": "No health data available for personalized explanation yet (complete calibration and sync Apple Watch/HealthKit first).",
             "已生成本地数字孪生分析": "Local digital twin analysis generated",
             "数据已就绪": "Data is ready",
             "缺少基线评估": "Baseline assessment missing",
@@ -249,6 +280,24 @@ struct L10n {
             ("趋势：稳定", "Trend: Stable"),
             ("趋势：上升", "Trend: Rising"),
             ("趋势：下降", "Trend: Falling"),
+            ("你可以优先：", "You can prioritize: "),
+            ("个性化关联：", "Personalized relevance: "),
+            ("建议动作：", "Suggested action: "),
+            ("数据依据：", "Data basis: "),
+            ("状态：", "Status: "),
+            ("理解度：", "Understanding: "),
+            ("近次变化：", "Recent change: "),
+            ("上次同步：", "Last sync: "),
+            ("完成率：", "Completion: "),
+            ("建议频率：", "Suggested frequency: "),
+            ("风险提示：", "Risk note: "),
+            ("记录次数：", "Records: "),
+            ("已记录 ", "Recorded "),
+            ("累计记录：", "Total records: "),
+            ("校准结果：", "Calibration result: "),
+            ("当前恐惧值：", "Current fear: "),
+            ("目标强度：", "Goal intensity: "),
+            ("夸大倍数 ", "Magnification "),
             ("缺少基线量表:", "Missing baseline scales:"),
             ("连续记录三日每日校准, 准确率增加15%", "Log daily calibration for 3 consecutive days to improve accuracy by 15%"),
             ("整体状态稳健，恢复节奏良好，可继续保持当前节律。", "Overall condition is stable and recovery rhythm is good. Keep the current routine."),

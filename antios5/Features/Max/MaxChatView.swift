@@ -10,7 +10,9 @@ struct MaxChatView: View {
     @Environment(\.screenMetrics) private var metrics
     @Environment(\.dismiss) private var dismiss
     @Environment(\.presentationMode) private var presentationMode
+    @EnvironmentObject private var appSettings: AppSettings
     @State private var isHistoryOpen = false
+    @State private var showChatGuide = false
     @State private var animateAura = false
     
     var body: some View {
@@ -64,7 +66,7 @@ struct MaxChatView: View {
                                     }
                                     .id(message.id)
                                 }
-                                if viewModel.isTyping { TypingIndicator() }
+                                if viewModel.isTyping { TypingIndicator(language: appSettings.language) }
                             }
                             .liquidGlassPageWidth(alignment: .leading)
                             .padding(.vertical, metrics.verticalPadding)
@@ -131,6 +133,11 @@ struct MaxChatView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isHistoryOpen)
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showChatGuide) {
+                MaxGuideSheet()
+                    .presentationDetents([.fraction(0.42), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
+            }
             .onReceive(NotificationCenter.default.publisher(for: .askMax)) { notification in
                 guard let question = notification.userInfo?["question"] as? String,
                       !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -178,14 +185,21 @@ struct MaxChatView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.textPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.surfaceGlass(for: colorScheme))
-                        .clipShape(Circle())
+                        .liquidGlassCircleBadge(padding: 8)
                 }
                 .frame(width: sideSlotWidth, alignment: .leading)
                 Spacer()
-                Color.clear
-                    .frame(width: sideSlotWidth, height: sideSlotWidth)
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .soft)
+                    impact.impactOccurred()
+                    showChatGuide = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.liquidGlassAccent)
+                        .liquidGlassCircleBadge(padding: 8)
+                }
+                .frame(width: sideSlotWidth, alignment: .trailing)
             }
 
             Text("Max")
@@ -221,6 +235,8 @@ struct MaxChatView: View {
     }
 
     private func handleBack() {
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.impactOccurred()
         if presentationMode.wrappedValue.isPresented {
             dismiss()
         } else {
@@ -229,10 +245,66 @@ struct MaxChatView: View {
     }
 }
 
+private struct MaxGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Max 对话说明")
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                maxBullet("先描述“今天最明显的不适”，再让 Max 给一个最小动作。")
+                maxBullet("动作执行后直接反馈体感变化（0-10），会触发下一轮优化。")
+                maxBullet("如果只想快问快答，单条问题控制在 1 个目标。")
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func maxBullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 // MARK: - Message Bubble (🆕 支持 Markdown)
 struct MessageBubble: View {
     let message: ChatMessage
     var onPlanConfirm: ((PlanOption) -> Void)? = nil
+    @EnvironmentObject private var appSettings: AppSettings
     
     // 检测是否包含 plan-options JSON
     private var planOptions: [PlanOption]? {
@@ -270,7 +342,7 @@ struct MessageBubble: View {
                         onPlanConfirm?(selectedPlan)
                     }
                 } else if let soothing = scientificSoothing {
-                    ScientificSoothingCard(response: soothing)
+                    ScientificSoothingCard(response: soothing, language: appSettings.language)
                 } else {
                     // 🆕 使用 Markdown 渲染 AI 消息
                     Group {
@@ -302,7 +374,10 @@ struct MessageBubble: View {
                             let notification = UINotificationFeedbackGenerator()
                             notification.notificationOccurred(.success)
                         } label: {
-                            Label("复制消息", systemImage: "doc.on.doc")
+                            Label(
+                                L10n.text("复制消息", "Copy message", language: appSettings.language),
+                                systemImage: "doc.on.doc"
+                            )
                         }
                     }
                 }
@@ -437,14 +512,15 @@ struct MessageBubble: View {
 
 private struct ScientificSoothingCard: View {
     let response: ScientificSoothingResponse
+    let language: AppLanguage
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            soothingRow("理解结论", response.understandingConclusion)
-            soothingRow("机制解释", response.mechanismExplanation)
-            soothingRow("证据来源", response.evidenceSources.map { $0.title }.joined(separator: "；"))
-            soothingRow("可执行动作", response.executableActions.joined(separator: "；"))
-            soothingRow("跟进问题", response.followUpQuestion)
+            soothingRow(title("理解结论", "Understanding"), response.understandingConclusion)
+            soothingRow(title("机制解释", "Mechanism"), response.mechanismExplanation)
+            soothingRow(title("证据来源", "Evidence"), response.evidenceSources.map { $0.title }.joined(separator: "；"))
+            soothingRow(title("可执行动作", "Actions"), response.executableActions.joined(separator: "；"))
+            soothingRow(title("跟进问题", "Follow-up"), response.followUpQuestion)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -469,23 +545,29 @@ private struct ScientificSoothingCard: View {
                 .foregroundColor(.textPrimary)
         }
     }
+
+    private func title(_ zh: String, _ en: String) -> String {
+        L10n.text(zh, en, language: language)
+    }
 }
 
 // MARK: - 🆕 P3 思考过程动画
 struct TypingIndicator: View {
+    let language: AppLanguage
     @State private var dotOffset = 0.0
     @State private var pulseScale = 1.0
     @State private var rotation = 0.0
     @State private var thinkingPhase = 0
-    
-    // 思考阶段文字
-    private let thinkingTexts = [
-        "正在理解你的焦虑场景...",
-        "校准触发因素与身体信号...",
-        "检索科学证据...",
-        "生成机制解释与行动方案...",
-        "准备下一轮跟进问题..."
-    ]
+
+    private var thinkingTexts: [String] {
+        [
+            L10n.text("正在理解你的焦虑场景...", "Understanding your anxiety context...", language: language),
+            L10n.text("校准触发因素与身体信号...", "Calibrating triggers and body signals...", language: language),
+            L10n.text("检索科学证据...", "Retrieving scientific evidence...", language: language),
+            L10n.text("生成机制解释与行动方案...", "Generating mechanism explanation and action plan...", language: language),
+            L10n.text("准备下一轮跟进问题...", "Preparing next follow-up question...", language: language)
+        ]
+    }
     
     private let timer = Timer.publish(every: 2.5, on: .main, in: .common).autoconnect()
     

@@ -52,12 +52,21 @@ class MaxChatViewModel: ObservableObject {
     // 🆕 个性化上下文缓存
     private var cachedUserContext: String? = nil
     private var cachedUserContextAt: Date? = nil
+    private var localConversationBackfillInFlight: Set<String> = []
+    private var localConversationMessages: [String: [ChatMessage]] = [:]
 
     private enum MaxChatTimeoutError: LocalizedError {
         case cloudTimeout
+        case conversationUnavailable
 
         var errorDescription: String? {
-            "云端响应超时"
+            let isEn = AppLanguage.fromStored(UserDefaults.standard.string(forKey: "app_language")) == .en
+            switch self {
+            case .cloudTimeout:
+                return isEn ? "Cloud response timed out" : "云端响应超时"
+            case .conversationUnavailable:
+                return isEn ? "Conversation is temporarily unavailable. Try again shortly." : "会话暂不可用，请稍后重试"
+            }
         }
     }
     
@@ -76,14 +85,95 @@ class MaxChatViewModel: ObservableObject {
     }
 
     private let maxSystemPrompt = """
-    你是 Max，一个高效、直接、简洁的反焦虑闭环助手。
+    你是 Max，一个高效、直接、简洁的反焦虑跟进助手。
     - 中文回答，避免冗长铺垫
     - 输出结构化科学抚慰（理解/机制/证据/动作/跟进）
     - 不要编造数据；不确定就说不确定
     """
-    
-    private let userContextCacheTTL: TimeInterval = 300
-    private let remotePersistenceTimeout: TimeInterval = 2.5
+
+    private var userContextCacheTTL: TimeInterval {
+        max(60, runtimeDouble(for: "MAX_USER_CONTEXT_CACHE_TTL_SEC", fallback: 300))
+    }
+
+    private var conversationCreateTimeout: TimeInterval {
+        max(1, runtimeDouble(for: "MAX_CHAT_CONVERSATION_CREATE_TIMEOUT_SEC", fallback: 3))
+    }
+
+    private var messagePersistMaxRetries: Int {
+        max(1, runtimeInt(for: "MAX_CHAT_MESSAGE_PERSIST_MAX_RETRIES", fallback: 3))
+    }
+
+    private var messagePersistRetryBaseDelayNanos: UInt64 {
+        let millis = max(50, runtimeInt(for: "MAX_CHAT_MESSAGE_RETRY_BASE_DELAY_MS", fallback: 350))
+        return UInt64(millis) * 1_000_000
+    }
+
+    private var cloudResponseTimeoutFastSeconds: UInt64 {
+        UInt64(cloudTimeoutSeconds(mode: .fast))
+    }
+
+    private var cloudResponseTimeoutThinkSeconds: UInt64 {
+        UInt64(cloudTimeoutSeconds(mode: .think))
+    }
+
+    private func cloudTimeoutSeconds(mode: ModelMode) -> Int {
+        let remoteKey = (mode == .think) ? "MAX_CHAT_REMOTE_TIMEOUT_THINK_SEC" : "MAX_CHAT_REMOTE_TIMEOUT_FAST_SEC"
+        let localKey = (mode == .think) ? "MAX_CHAT_LOCAL_TIMEOUT_THINK_SEC" : "MAX_CHAT_LOCAL_TIMEOUT_FAST_SEC"
+        let cloudKey = (mode == .think) ? "MAX_CHAT_CLOUD_TIMEOUT_THINK_SEC" : "MAX_CHAT_CLOUD_TIMEOUT_FAST_SEC"
+
+        let remote = max(mode == .think ? 6 : 4, runtimeInt(for: remoteKey, fallback: mode == .think ? 14 : 9))
+        let local = max(mode == .think ? 8 : 6, runtimeInt(for: localKey, fallback: mode == .think ? 18 : 12))
+        let hardPadding = max(1, Int(ceil(runtimeDouble(for: "SUPABASE_NETWORK_HARD_TIMEOUT_PADDING_SEC", fallback: 1.2))))
+        let guardBand = mode == .think ? 8 : 6
+
+        // Budget must cover remote attempt + local fallback path to avoid false timeout downgrade.
+        let derivedFloor = remote + local + hardPadding + guardBand
+        let configured = runtimeInt(for: cloudKey, fallback: derivedFloor)
+        return max(derivedFloor, configured)
+    }
+
+    private func runtimeString(for key: String) -> String? {
+        if let env = ProcessInfo.processInfo.environment[key] {
+            let trimmed = env.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        if let raw = Bundle.main.infoDictionary?[key] as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !trimmed.hasPrefix("$(") {
+                return trimmed
+            }
+        }
+
+        if let number = Bundle.main.infoDictionary?[key] as? NSNumber {
+            return number.stringValue
+        }
+        return nil
+    }
+
+    private func runtimeInt(for key: String, fallback: Int) -> Int {
+        guard let raw = runtimeString(for: key), let value = Int(raw) else {
+            return fallback
+        }
+        return value
+    }
+
+    private func runtimeDouble(for key: String, fallback: Double) -> Double {
+        guard let raw = runtimeString(for: key), let value = Double(raw) else {
+            return fallback
+        }
+        return value
+    }
+
+    private var currentLanguage: AppLanguage {
+        AppLanguage.fromStored(UserDefaults.standard.string(forKey: "app_language"))
+    }
+
+    private func t(_ zh: String, _ en: String) -> String {
+        L10n.text(zh, en, language: currentLanguage)
+    }
     
     // MARK: - 🆕 P2 网络状态监听
     
@@ -109,12 +199,21 @@ class MaxChatViewModel: ObservableObject {
         let language = AppLanguage.fromStored(UserDefaults.standard.string(forKey: "app_language"))
         let questions = await MaxPlanQuestionGenerator.generateStarterQuestions(language: language)
         if questions.isEmpty {
-            starterQuestions = [
-                "帮我判断今天最需要先处理的焦虑触发点",
-                "基于我最近睡眠和压力，先给我一个低阻力动作",
-                "请用证据解释我最近紧张反复的原因",
-                "我已经完成一个动作了，下一步该怎么跟进？"
-            ]
+            if language == .en {
+                starterQuestions = [
+                    "Help me identify today's top anxiety trigger to handle first",
+                    "Based on my recent sleep and stress, give me one low-friction action",
+                    "Explain with evidence why my tension keeps recurring",
+                    "I completed one action already, what is the next step?"
+                ]
+            } else {
+                starterQuestions = [
+                    "帮我判断今天最需要先处理的焦虑触发点",
+                    "基于我最近睡眠和压力，先给我一个低阻力动作",
+                    "请用证据解释我最近紧张反复的原因",
+                    "我已经完成一个动作了，下一步该怎么跟进？"
+                ]
+            }
         } else {
             starterQuestions = questions
         }
@@ -138,7 +237,7 @@ class MaxChatViewModel: ObservableObject {
         
         // 更新最后一条 AI 消息
         if let lastIndex = messages.lastIndex(where: { $0.role == .assistant && $0.content.isEmpty }) {
-            messages[lastIndex].content = "（已取消）"
+            messages[lastIndex].content = t("（已取消）", "(Cancelled)")
         }
         print("⏹️ 已停止生成")
     }
@@ -153,7 +252,7 @@ class MaxChatViewModel: ObservableObject {
             print("✅ 加载了 \(conversations.count) 个对话")
         } catch {
             conversations = []
-            self.error = "加载对话失败: \(error.localizedDescription)"
+            self.error = t("加载对话失败", "Failed to load conversations") + ": \(error.localizedDescription)"
             print("❌ 加载对话列表失败: \(error)")
         }
         isLoading = false
@@ -163,6 +262,13 @@ class MaxChatViewModel: ObservableObject {
     func switchConversation(_ conversationId: String) async {
         currentConversationId = conversationId
         isLoading = true
+
+        if conversationId.hasPrefix("local-") {
+            messages = localConversationMessages[conversationId] ?? []
+            isLoading = false
+            print("✅ 加载本地会话消息: \(messages.count) 条")
+            return
+        }
         
         do {
             let history = try await SupabaseManager.shared.getChatHistory(conversationId: conversationId)
@@ -171,7 +277,7 @@ class MaxChatViewModel: ObservableObject {
         } catch {
             print("❌ 加载对话历史失败: \(error)")
             messages = []
-            self.error = "加载对话失败: \(error.localizedDescription)"
+            self.error = t("加载对话失败", "Failed to load conversation") + ": \(error.localizedDescription)"
         }
         
         isLoading = false
@@ -193,14 +299,43 @@ class MaxChatViewModel: ObservableObject {
                 // 重新加载 Starter Questions
                 await loadStarterQuestions()
             } catch {
-                print("❌ 创建对话失败: \(error)")
-                self.error = "创建对话失败: \(error.localizedDescription)"
+                let localConversationId = "local-\(UUID().uuidString)"
+                let now = ISO8601DateFormatter().string(from: Date())
+                let localConversation = Conversation(
+                    id: localConversationId,
+                    user_id: SupabaseManager.shared.currentUser?.id ?? "local-user",
+                    title: t("新对话", "New chat"),
+                    last_message_at: now,
+                    message_count: nil,
+                    created_at: now
+                )
+                conversations.insert(localConversation, at: 0)
+                currentConversationId = localConversationId
+                messages = []
+                localConversationMessages[localConversationId] = []
+                self.error = t(
+                    "云端会话不可用，已切换本地会话",
+                    "Cloud conversation is unavailable. Switched to local conversation."
+                )
+                print("[MaxChat] ⚠️ 创建远端会话失败，切换本地会话：\(error.localizedDescription)")
+                await loadStarterQuestions()
             }
         }
     }
     
     /// 删除对话
     func deleteConversation(_ conversationId: String) async -> Bool {
+        if conversationId.hasPrefix("local-") {
+            localConversationMessages.removeValue(forKey: conversationId)
+            conversations.removeAll { $0.id == conversationId }
+            if currentConversationId == conversationId {
+                currentConversationId = nil
+                messages = []
+            }
+            print("✅ 删除本地对话: \(conversationId)")
+            return true
+        }
+
         do {
             try await SupabaseManager.shared.deleteConversation(conversationId: conversationId)
             conversations.removeAll { $0.id == conversationId }
@@ -214,7 +349,7 @@ class MaxChatViewModel: ObservableObject {
             return true
         } catch {
             print("❌ 删除对话失败: \(error)")
-            self.error = "删除失败"
+            self.error = t("删除失败", "Delete failed")
             return false
         }
     }
@@ -233,6 +368,9 @@ class MaxChatViewModel: ObservableObject {
         // 乐观更新 UI
         let tempUserMessage = ChatMessage(role: .user, content: text)
         messages.append(tempUserMessage)
+        if let currentConversationId, currentConversationId.hasPrefix("local-") {
+            localConversationMessages[currentConversationId] = messages
+        }
         inputText = ""
         isTyping = true
 
@@ -245,9 +383,15 @@ class MaxChatViewModel: ObservableObject {
                     isTyping = false
                     messages.append(ChatMessage(
                         role: .assistant,
-                        content: buildLocalScientificSoothingResponse(for: text, fallbackReason: "网络离线")
+                        content: buildLocalScientificSoothingResponse(
+                            for: text,
+                            fallbackReason: t("网络离线", "offline network")
+                        )
                     ))
-                    self.error = "网络离线，已切换本地抚慰模式"
+                    self.error = t(
+                        "网络离线，已切换本地抚慰模式",
+                        "Network is offline. Switched to local soothing mode."
+                    )
                     return
                 }
 
@@ -255,9 +399,10 @@ class MaxChatViewModel: ObservableObject {
                 var conversationId = currentConversationId
                 let conversationTitle = deriveTitle(from: text)
                 var shouldPersistRemotely = true
+                var shouldBackfillLocalConversation = false
                 if conversationId == nil {
                     do {
-                        let conversation = try await runWithTimeout(seconds: remotePersistenceTimeout) {
+                        let conversation = try await runWithTimeout(seconds: conversationCreateTimeout) {
                             try await SupabaseManager.shared.createConversation(title: conversationTitle)
                         }
                         conversations.insert(conversation, at: 0)
@@ -278,14 +423,17 @@ class MaxChatViewModel: ObservableObject {
                         conversations.insert(localConversation, at: 0)
                         currentConversationId = localConversationId
                         conversationId = localConversationId
+                        localConversationMessages[localConversationId] = messages
                         print("[MaxChat] ⚠️ 远端会话创建失败，切换本地会话：\(error.localizedDescription)")
                     }
                 }
                 guard let convId = conversationId else {
-                    throw SupabaseError.requestFailed
+                    throw MaxChatTimeoutError.conversationUnavailable
                 }
                 if convId.hasPrefix("local-") {
                     shouldPersistRemotely = false
+                    shouldBackfillLocalConversation = true
+                    localConversationMessages[convId] = messages
                 }
 
                 guard generationId == currentGenId else { return }
@@ -296,19 +444,16 @@ class MaxChatViewModel: ObservableObject {
                     let userContent = text
                     Task { [weak self] in
                         guard let self else { return }
-                        do {
-                            let savedUserMsg = try await self.runWithTimeout(seconds: self.remotePersistenceTimeout) {
-                                try await SupabaseManager.shared.appendMessage(
-                                    conversationId: convId,
-                                    role: "user",
-                                    content: userContent
-                                )
-                            }
+                        if let remoteId = await self.persistMessageWithRetry(
+                            conversationId: convId,
+                            role: "user",
+                            content: userContent
+                        ) {
                             if let index = self.messages.firstIndex(where: { $0.id == userMessageId }) {
-                                self.messages[index].remoteId = savedUserMsg.id
+                                self.messages[index].remoteId = remoteId
                             }
-                        } catch {
-                            print("[MaxChat] ⚠️ 用户消息写入失败，继续请求回复：\(error.localizedDescription)")
+                        } else {
+                            print("[MaxChat] ⚠️ 用户消息写入失败（已重试）：\(convId)")
                         }
                     }
                 }
@@ -333,26 +478,37 @@ class MaxChatViewModel: ObservableObject {
                     content: responseText
                 )
                 messages.append(localAssistantMessage)
+                if convId.hasPrefix("local-") {
+                    localConversationMessages[convId] = messages
+                }
 
                 if shouldPersistRemotely {
                     let assistantMessageId = localAssistantMessage.id
                     let assistantContent = responseText
                     Task { [weak self] in
                         guard let self else { return }
-                        do {
-                            let savedAssistantMsg = try await self.runWithTimeout(seconds: self.remotePersistenceTimeout) {
-                                try await SupabaseManager.shared.appendMessage(
-                                    conversationId: convId,
-                                    role: "assistant",
-                                    content: assistantContent
-                                )
-                            }
+                        if let remoteId = await self.persistMessageWithRetry(
+                            conversationId: convId,
+                            role: "assistant",
+                            content: assistantContent
+                        ) {
                             if let index = self.messages.firstIndex(where: { $0.id == assistantMessageId }) {
-                                self.messages[index].remoteId = savedAssistantMsg.id
+                                self.messages[index].remoteId = remoteId
                             }
-                        } catch {
-                            print("[MaxChat] ⚠️ AI 回复写入失败，仅本地展示：\(error.localizedDescription)")
+                        } else {
+                            print("[MaxChat] ⚠️ AI 回复写入失败（已重试）：\(convId)")
                         }
+                    }
+                }
+
+                if shouldBackfillLocalConversation {
+                    let snapshotIds = messages.map(\.id)
+                    Task { [weak self] in
+                        await self?.backfillLocalConversationIfNeeded(
+                            localConversationId: convId,
+                            preferredTitle: conversationTitle,
+                            messageIDs: snapshotIds
+                        )
                     }
                 }
             } catch {
@@ -362,21 +518,147 @@ class MaxChatViewModel: ObservableObject {
                 let description = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 let fallback = buildLocalScientificSoothingResponse(for: text, fallbackReason: description)
                 messages.append(ChatMessage(role: .assistant, content: fallback))
+                if let currentConversationId, currentConversationId.hasPrefix("local-") {
+                    localConversationMessages[currentConversationId] = messages
+                }
 
                 if error is MaxChatTimeoutError {
-                    self.error = "云端响应超时，已切换本地抚慰模式（可稍后重试）"
+                    self.error = t(
+                        "云端响应超时，已切换本地抚慰模式（可稍后重试）",
+                        "Cloud response timed out. Switched to local soothing mode (retry later)."
+                    )
                 } else if isLikelyNetworkError(error) {
-                    self.error = "网络连接异常，已切换本地抚慰模式"
+                    self.error = t(
+                        "网络连接异常，已切换本地抚慰模式",
+                        "Network connection issue. Switched to local soothing mode."
+                    )
                 } else {
-                    self.error = "已使用本地模式回复，云端原因：\(description)"
+                    self.error = t(
+                        "已使用本地模式回复，云端原因：\(description)",
+                        "Responded in local mode. Cloud reason: \(description)"
+                    )
                 }
                 print("❌ MaxChat Error: \(error)")
             }
         }
     }
 
+    private func backfillLocalConversationIfNeeded(
+        localConversationId: String,
+        preferredTitle: String,
+        messageIDs: [UUID]
+    ) async {
+        guard localConversationId.hasPrefix("local-") else { return }
+        guard !localConversationBackfillInFlight.contains(localConversationId) else { return }
+        localConversationBackfillInFlight.insert(localConversationId)
+        defer {
+            localConversationBackfillInFlight.remove(localConversationId)
+        }
+
+        guard let sourceMessages = localConversationMessages[localConversationId] else { return }
+        let snapshotIdSet = Set(messageIDs)
+        let unsyncedMessages = sourceMessages.filter { message in
+            snapshotIdSet.contains(message.id)
+            && message.remoteId == nil
+            && !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !unsyncedMessages.isEmpty else { return }
+
+        do {
+            let remoteConversation = try await runWithTimeout(seconds: conversationCreateTimeout) {
+                try await SupabaseManager.shared.createConversation(title: preferredTitle)
+            }
+
+            let remoteIdsByLocalId = try await backfillMessagesToRemote(
+                remoteConversationId: remoteConversation.id,
+                unsyncedMessages: unsyncedMessages
+            )
+
+            if let index = conversations.firstIndex(where: { $0.id == localConversationId }) {
+                conversations[index] = remoteConversation
+            } else {
+                conversations.insert(remoteConversation, at: 0)
+            }
+            if currentConversationId == localConversationId {
+                currentConversationId = remoteConversation.id
+            }
+
+            localConversationMessages.removeValue(forKey: localConversationId)
+
+            for index in messages.indices {
+                if let remoteId = remoteIdsByLocalId[messages[index].id] {
+                    messages[index].remoteId = remoteId
+                }
+            }
+
+            print("[MaxChat] ✅ 本地会话回填成功: \(localConversationId) -> \(remoteConversation.id), messages=\(remoteIdsByLocalId.count)")
+        } catch {
+            print("[MaxChat] ⚠️ 本地会话回填失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func persistMessageWithRetry(
+        conversationId: String,
+        role: String,
+        content: String
+    ) async -> String? {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        for attempt in 1...messagePersistMaxRetries {
+            do {
+                let saved = try await SupabaseManager.shared.appendMessage(
+                    conversationId: conversationId,
+                    role: role,
+                    content: trimmed
+                )
+                return saved.id
+            } catch {
+                if attempt >= messagePersistMaxRetries {
+                    print("[MaxChat] persist failed role=\(role) attempt=\(attempt) error=\(error.localizedDescription)")
+                    return nil
+                }
+                let delay = messagePersistRetryBaseDelayNanos * UInt64(attempt)
+                try? await Task.sleep(nanoseconds: delay)
+            }
+        }
+        return nil
+    }
+
+    private func backfillMessagesToRemote(
+        remoteConversationId: String,
+        unsyncedMessages: [ChatMessage]
+    ) async throws -> [UUID: String] {
+        let batchPayload: [(role: String, content: String)] = unsyncedMessages.map { message in
+            (role: message.role == .user ? "user" : "assistant", content: message.content)
+        }
+
+        if let batchSaved = try? await SupabaseManager.shared.appendMessagesBatch(
+            conversationId: remoteConversationId,
+            messages: batchPayload
+        ), batchSaved.count == unsyncedMessages.count {
+            var idsByLocalId: [UUID: String] = [:]
+            for (local, remote) in zip(unsyncedMessages, batchSaved) {
+                idsByLocalId[local.id] = remote.id
+            }
+            return idsByLocalId
+        }
+
+        var idsByLocalId: [UUID: String] = [:]
+        for message in unsyncedMessages {
+            let role = message.role == .user ? "user" : "assistant"
+            let saved = try await SupabaseManager.shared.appendMessage(
+                conversationId: remoteConversationId,
+                role: role,
+                content: message.content
+            )
+            idsByLocalId[message.id] = saved.id
+        }
+        return idsByLocalId
+    }
+
     private func requestMaxResponseWithTimeout(messages: [ChatRequestMessage]) async throws -> String {
-        let timeoutSeconds: UInt64 = modelMode == .think ? 18 : 12
+        let timeoutSeconds = modelMode == .think ? cloudResponseTimeoutThinkSeconds : cloudResponseTimeoutFastSeconds
         let selectedMode = modelMode == .think ? "think" : "fast"
 
         return try await withThrowingTaskGroup(of: String.self) { group in
@@ -441,26 +723,88 @@ class MaxChatViewModel: ObservableObject {
 
     private func buildLocalScientificSoothingResponse(for userInput: String, fallbackReason: String) -> String {
         let input = userInput.lowercased()
+        let isEn = currentLanguage == .en
         let mechanism: String
         let action: String
+        let conclusion: String
+        let followUp: String
 
         if input.contains("睡") || input.contains("失眠") {
-            mechanism = "睡眠不足会放大大脑的威胁探测，让同样压力更容易被感知为危险。"
-            action = "今晚固定入睡时间，睡前 60 分钟降低屏幕刺激，并做 3 分钟慢呼吸。"
+            mechanism = isEn
+                ? "Short sleep amplifies threat sensitivity, so ordinary stress can feel more dangerous."
+                : "睡眠不足会放大大脑的威胁探测，让同样压力更容易被感知为危险。"
+            action = isEn
+                ? "Set a fixed bedtime tonight, reduce screen stimulation 60 minutes before bed, and do 3 minutes of slow breathing."
+                : "今晚固定入睡时间，睡前 60 分钟降低屏幕刺激，并做 3 分钟慢呼吸。"
+            conclusion = isEn
+                ? "You are not underperforming; your system is overloaded and needs stabilization first."
+                : "你并不是做得不够，而是当前神经系统负荷偏高，先稳住更关键。"
+            followUp = isEn
+                ? "Tomorrow morning, how restored do you feel on a 0-10 scale?"
+                : "明早你的恢复感是几分（0-10）？"
         } else if input.contains("心慌") || input.contains("紧张") || input.contains("焦") {
-            mechanism = "你现在更像处在高唤醒状态，先把生理唤醒降下来，再做认知整理会更有效。"
-            action = "先做 2 轮吸4秒-呼6秒呼吸，再走动 5-8 分钟。"
+            mechanism = isEn
+                ? "This looks like high arousal. Lowering physiological activation first is more effective than cognitive processing first."
+                : "你现在更像处在高唤醒状态，先把生理唤醒降下来，再做认知整理会更有效。"
+            action = isEn
+                ? "Do 2 rounds of inhale-4s/exhale-6s, then walk for 5-8 minutes."
+                : "先做 2 轮吸4秒-呼6秒呼吸，再走动 5-8 分钟。"
+            conclusion = isEn
+                ? "The priority now is to regain body-level control before solving everything."
+                : "当前优先级是先恢复身体层面的可控感，再处理问题本身。"
+            followUp = isEn
+                ? "After the action, how much did your tension drop (0-10)?"
+                : "动作后你的紧张度下降了几分（0-10）？"
         } else {
-            mechanism = "焦虑通常来自高唤醒与不确定感叠加，小步行动能快速重建可控感。"
-            action = "选一个 10 分钟内能完成的小动作，完成后打一个体感分（0-10）。"
+            mechanism = isEn
+                ? "Anxiety often comes from high arousal plus uncertainty; small actions quickly rebuild controllability."
+                : "焦虑通常来自高唤醒与不确定感叠加，小步行动能快速重建可控感。"
+            action = isEn
+                ? "Choose one action you can finish within 10 minutes, then rate your body sensation (0-10)."
+                : "选一个 10 分钟内能完成的小动作，完成后打一个体感分（0-10）。"
+            conclusion = isEn
+                ? "Stability before intensity is the right sequence for your state."
+                : "对你当前状态来说，先稳住再加码是正确顺序。"
+            followUp = isEn
+                ? "What is one measurable change after this action?"
+                : "执行后你能观察到哪一个可量化变化？"
         }
 
-        return """
-理解结论：你并不是做得不够，而是当前神经系统负荷偏高，先稳住是正确顺序。
+        let styleSelector = abs(userInput.hashValue) % 2
+        if isEn {
+            if styleSelector == 0 {
+                return """
+Conclusion: \(conclusion)
+Why this helps: \(mechanism)
+Evidence note: general psychophysiology evidence on behavioral activation and breath regulation; local mode due to \(fallbackReason).
+Next step: \(action)
+Follow-up: \(followUp)
+"""
+            }
+            return """
+\(conclusion)
+\(mechanism)
+Action for today: \(action)
+Check-in question: \(followUp)
+(Local mode reason: \(fallbackReason))
+"""
+        }
+
+        if styleSelector == 0 {
+            return """
+理解结论：\(conclusion)
 机制解释：\(mechanism)
-证据来源：行为激活与呼吸调节的通用心理生理证据；当前处于本地模式（\(fallbackReason)）。
-可执行动作：\(action)
-跟进问题：做完后你的紧张程度从几分降到几分（0-10）？
+证据说明：基于行为激活与呼吸调节的通用心理生理证据；当前处于本地模式（\(fallbackReason)）。
+今日动作：\(action)
+跟进问题：\(followUp)
+"""
+        }
+        return """
+\(conclusion)
+\(mechanism)
+先执行这一步：\(action)
+执行后复盘：\(followUp)
+（当前为本地模式：\(fallbackReason)）
 """
     }
     

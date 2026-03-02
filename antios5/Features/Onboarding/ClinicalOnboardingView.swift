@@ -619,7 +619,7 @@ struct ClinicalOnboardingView: View {
                 .font(.largeTitle.bold())
                 .foregroundColor(.white)
             
-            Text("你的基线数据已进入闭环模型。\n接下来 Max 会基于它进行主动问询与解释。")
+            Text("你的基线数据已进入个性化建议模型。\n接下来 Max 会基于它进行主动问询与解释。")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.textSecondary)

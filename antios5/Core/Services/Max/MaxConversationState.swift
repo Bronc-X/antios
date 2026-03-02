@@ -61,9 +61,14 @@ enum MaxConversationStateTracker {
             "考虑到你目前有【",
             "考虑到你的",
             "鉴于你有",
-            "由于你"
+            "由于你",
+            "considering your",
+            "given your",
+            "based on your",
+            "because you"
         ]
-        return patterns.contains { content.contains($0) }
+        let lowered = content.lowercased()
+        return patterns.contains { lowered.contains($0.lowercased()) }
     }
 
     static func extractCitedPapers(_ content: String) -> [String] {
@@ -101,7 +106,13 @@ enum MaxConversationStateTracker {
             content.contains("证据来源") &&
             content.contains("可执行动作") &&
             content.contains("跟进问题")
-        if hasLegacyStructured || hasClosedLoopStructured {
+        let hasClosedLoopStructuredEn =
+            content.contains("Understanding Conclusion") &&
+            content.contains("Mechanism Explanation") &&
+            content.contains("Evidence Sources") &&
+            content.contains("Executable Actions") &&
+            content.contains("Follow-up Question")
+        if hasLegacyStructured || hasClosedLoopStructured || hasClosedLoopStructuredEn {
             return "full_structured"
         }
         if content.contains("方案1") || content.contains("方案1：") {
@@ -117,8 +128,9 @@ enum MaxConversationStateTracker {
     }
 
     static func extractEndearment(_ content: String) -> String? {
-        let endearments = ["宝子", "亲爱的", "朋友", "小伙伴", "老铁", "兄弟", "姐妹"]
-        return endearments.first { content.contains($0) }
+        let endearments = ["宝子", "亲爱的", "朋友", "小伙伴", "老铁", "兄弟", "姐妹", "friend", "partner"]
+        let lowered = content.lowercased()
+        return endearments.first { lowered.contains($0.lowercased()) }
     }
 
     static func analyzeResponseStructure(_ content: String) -> MaxResponseStructure {
@@ -137,11 +149,14 @@ enum MaxConversationStateTracker {
         let patterns = [
             "我(有|出现|感觉|觉得)[^，。]+",
             "最近[^，。]+",
-            "我的[^，。]+(疼|痛|不舒服|问题)"
+            "我的[^，。]+(疼|痛|不舒服|问题)",
+            "i\\s+(feel|have|am|can't|cannot)[^\\.\\n]+",
+            "recently[^\\.\\n]+",
+            "my\\s+[^\\.\\n]+(pain|issue|problem|sleep|stress|anxiety)"
         ]
         var details: [String] = []
         for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
                 let range = NSRange(content.startIndex..<content.endIndex, in: content)
                 for match in regex.matches(in: content, options: [], range: range) {
                     if let matchRange = Range(match.range, in: content) {

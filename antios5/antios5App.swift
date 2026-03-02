@@ -3,9 +3,49 @@
 
 import SwiftUI
 import UIKit
+import UserNotifications
+
+final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = AppNotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        let route = (userInfo["route"] as? String)?.lowercased() ?? "dashboard"
+
+        DispatchQueue.main.async {
+            if route == "max" {
+                NotificationCenter.default.post(name: .openMaxChat, object: nil)
+                if let prompt = userInfo["prompt"] as? String,
+                   !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    NotificationCenter.default.post(
+                        name: .askMax,
+                        object: nil,
+                        userInfo: ["question": prompt]
+                    )
+                }
+            } else {
+                NotificationCenter.default.post(name: .openDashboard, object: nil)
+            }
+        }
+        completionHandler()
+    }
+}
 
 @main
 struct antios5App: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var supabase = SupabaseManager.shared
     @StateObject private var appSettings = AppSettings()
     @StateObject private var themeManager = ThemeManager.shared
@@ -13,6 +53,7 @@ struct antios5App: App {
     init() {
         // 启动调试日志
         print("🚀 [App] AntiAnxiety iOS 启动")
+        UNUserNotificationCenter.current().delegate = AppNotificationDelegate.shared
 
         configureTabBarAppearance()
         configureNavigationBarAppearance()
@@ -51,7 +92,6 @@ struct antios5App: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .forcedGlobalLeftShift(20)
                 .tint(.liquidGlassAccent)
                 .environmentObject(supabase)
                 .environmentObject(appSettings)
@@ -62,6 +102,13 @@ struct antios5App: App {
                     await supabase.refreshAppAPIBaseURL()
                     // 应用启动时检查会话
                     await supabase.checkSession()
+                    await supabase.prewarmProactiveCare(language: appSettings.language.apiCode, force: false)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task {
+                        await supabase.prewarmProactiveCare(language: appSettings.language.apiCode, force: false)
+                    }
                 }
         }
     }

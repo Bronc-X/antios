@@ -76,9 +76,9 @@ final class antios5Tests: XCTestCase {
         )
 
         let prompt = MaxPromptBuilder.build(input: input)
-        XCTAssertTrue(prompt.contains("[ANTI-ANXIETY RESPONSE FORMAT]"))
-        XCTAssertTrue(prompt.contains("1. 理解结论 / Understanding Conclusion"))
-        XCTAssertTrue(prompt.contains("小节标题使用中文"))
+        XCTAssertTrue(prompt.contains("[ADAPTIVE RESPONSE POLICY]"))
+        XCTAssertTrue(prompt.contains("根据用户输入动态选择输出结构"))
+        XCTAssertTrue(prompt.contains("不强制固定 5 段模板"))
         XCTAssertTrue(prompt.contains("[USER FOCUS]"))
         XCTAssertTrue(prompt.contains("工作场景触发焦虑"))
     }
@@ -98,7 +98,7 @@ final class antios5Tests: XCTestCase {
         )
         let prompt = MaxPromptBuilder.build(input: input)
         XCTAssertTrue(prompt.contains("- Output final answer in English"))
-        XCTAssertTrue(prompt.contains("- Use the English section titles exactly as listed above"))
+        XCTAssertTrue(prompt.contains("- Keep a natural, non-template structure unless headings are clearly useful"))
     }
 
     func testConversationStateTrackerDetectsStructuredResponseAndCitation() {

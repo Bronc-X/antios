@@ -9,11 +9,11 @@ struct OnboardingView: View {
     @Environment(\.screenMetrics) private var metrics
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appSettings: AppSettings
+    @State private var showStepGuide = false
     
     var body: some View {
         ZStack {
-            // 深渊背景
-            AbyssBackground()
+            AuroraBackground()
             
             VStack(spacing: 0) {
                 // 进度指示器
@@ -45,6 +45,15 @@ struct OnboardingView: View {
                 isComplete = true
             }
         }
+        .onChange(of: viewModel.currentStep) { _, _ in
+            let feedback = UISelectionFeedbackGenerator()
+            feedback.selectionChanged()
+        }
+        .sheet(isPresented: $showStepGuide) {
+            OnboardingStepGuideSheet(step: viewModel.currentStep)
+                .presentationDetents([.fraction(0.42), .large])
+                .liquidGlassSheetChrome(cornerRadius: 28)
+        }
     }
     
     // MARK: - Progress Indicator
@@ -53,10 +62,18 @@ struct OnboardingView: View {
         HStack(spacing: 8) {
             ForEach(1...5, id: \.self) { step in
                 Capsule()
-                    .fill(step <= viewModel.currentStep 
-                        ? Color.liquidGlassAccent 
-                        : Color.white.opacity(0.2))
-                    .frame(height: 4)
+                    .fill(
+                        step <= viewModel.currentStep
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [Color(hex: "#7C93FF"), Color(hex: "#C8AAFF")],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            : AnyShapeStyle(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.24))
+                    )
+                    .frame(height: step == viewModel.currentStep ? 6 : 4)
                     .animation(.spring(response: 0.3), value: viewModel.currentStep)
             }
         }
@@ -83,11 +100,11 @@ struct OnboardingView: View {
             
             VStack(spacing: 16) {
                 Text("欢迎来到 AntiAnxiety")
-                    .font(.title.bold())
+                    .font(GlassTypography.cnLovi(30, weight: .semibold))
                     .foregroundColor(.bioTextPrimary(for: colorScheme))
                 
-                Text("你的反焦虑闭环搭档\n主动问询、每日校准、科学解释、行动跟进")
-                    .font(.subheadline)
+                Text("你的反焦虑跟进助手\n主动问询、每日校准、科学解释、行动跟进")
+                    .font(GlassTypography.cnLovi(16, weight: .regular))
                     .foregroundColor(.bioTextSecondary(for: colorScheme))
                     .multilineTextAlignment(.center)
             }
@@ -110,7 +127,7 @@ struct OnboardingView: View {
                     }
                 } label: {
                     Text("跳过")
-                        .font(.subheadline)
+                        .font(GlassTypography.cnLovi(15, weight: .regular))
                         .foregroundColor(.bioTextSecondary(for: colorScheme))
                 }
             }
@@ -153,7 +170,7 @@ struct OnboardingView: View {
                                 }
                                 
                                 Text("年龄")
-                                    .font(.subheadline)
+                                    .font(GlassTypography.cnLovi(16, weight: .medium))
                                     .foregroundColor(.bioTextPrimary(for: colorScheme))
                                 
                                 Spacer()
@@ -203,17 +220,17 @@ struct OnboardingView: View {
                 Image(systemName: icon)
                     .font(.title2)
                 Text(label)
-                    .font(.caption)
+                    .font(GlassTypography.cnLovi(13, weight: .medium))
             }
             .foregroundColor(viewModel.onboardingData.gender == value ? .bgPrimary : .bioTextSecondary(for: colorScheme))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(
-                viewModel.onboardingData.gender == value
-                    ? Color.liquidGlassAccent
-                    : Color.white.opacity(0.05)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(
+                    viewModel.onboardingData.gender == value
+                        ? Color.liquidGlassAccent
+                        : Color.surfaceGlass(for: colorScheme)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
     
@@ -261,7 +278,7 @@ struct OnboardingView: View {
                     }
                     
                     Text(label)
-                        .font(.headline)
+                        .font(GlassTypography.cnLovi(18, weight: .semibold))
                         .foregroundColor(.bioTextPrimary(for: colorScheme))
                     
                     Spacer()
@@ -378,14 +395,14 @@ struct OnboardingView: View {
             viewModel.onboardingData.exerciseFrequency = value
         } label: {
             Text(label)
-                .font(.subheadline.bold())
+                .font(GlassTypography.cnLovi(16, weight: .semibold))
                 .foregroundColor(viewModel.onboardingData.exerciseFrequency == value ? .bgPrimary : .bioTextSecondary(for: colorScheme))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(
                     viewModel.onboardingData.exerciseFrequency == value
                         ? Color.liquidGlassAccent
-                        : Color.white.opacity(0.05)
+                        : Color.surfaceGlass(for: colorScheme)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10))
         }
@@ -397,7 +414,7 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             stepHeader(
                 title: "偏好设置",
-                subtitle: "最后一步，设定你的闭环节奏"
+                subtitle: "最后一步，设定你的提醒节奏"
             )
             
             ScrollView {
@@ -419,11 +436,11 @@ struct OnboardingView: View {
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("启用闭环提醒")
-                                        .font(.subheadline)
+                                    Text("启用跟进提醒")
+                                        .font(GlassTypography.cnLovi(16, weight: .medium))
                                         .foregroundColor(.bioTextPrimary(for: colorScheme))
                                     Text("接收每日校准与跟进提醒")
-                                        .font(.caption)
+                                        .font(GlassTypography.cnLovi(13, weight: .regular))
                                         .foregroundColor(.bioTextSecondary(for: colorScheme))
                                 }
                             }
@@ -478,7 +495,7 @@ struct OnboardingView: View {
                         _ = await viewModel.saveStep(data)
                     }
                 } label: {
-                    Text("开始闭环")
+                    Text("开始使用")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
@@ -489,7 +506,7 @@ struct OnboardingView: View {
                     viewModel.prevStep()
                 } label: {
                     Text("上一步")
-                        .font(.subheadline)
+                        .font(GlassTypography.cnLovi(15, weight: .regular))
                         .foregroundColor(.bioTextSecondary(for: colorScheme))
                 }
             }
@@ -506,14 +523,14 @@ struct OnboardingView: View {
             appSettings.language = AppLanguage.fromStored(value)
         } label: {
             Text(label)
-                .font(.subheadline.bold())
+                .font(GlassTypography.cnLovi(16, weight: .semibold))
                 .foregroundColor(viewModel.onboardingData.language == value ? .bgPrimary : .bioTextSecondary(for: colorScheme))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(
                     viewModel.onboardingData.language == value
                         ? Color.liquidGlassAccent
-                        : Color.white.opacity(0.05)
+                        : Color.surfaceGlass(for: colorScheme)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10))
         }
@@ -522,16 +539,36 @@ struct OnboardingView: View {
     // MARK: - Helpers
     
     private func stepHeader(title: String, subtitle: String) -> some View {
-        VStack(spacing: 8) {
-            Text(title)
-                .font(.title2.bold())
-                .foregroundColor(.bioTextPrimary(for: colorScheme))
-            
+        VStack(spacing: 10) {
+            HStack(alignment: .top) {
+                TypewriterHeadlineText(
+                    text: title,
+                    trigger: viewModel.currentStep,
+                    font: GlassTypography.cnLovi(28, weight: .semibold),
+                    color: .bioTextPrimary(for: colorScheme)
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .soft)
+                    impact.impactOccurred()
+                    showStepGuide = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.liquidGlassAccent)
+                        .liquidGlassCircleBadge(padding: 8)
+                }
+                .buttonStyle(.plain)
+            }
+
             Text(subtitle)
-                .font(.subheadline)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
                 .foregroundColor(.bioTextSecondary(for: colorScheme))
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.top, metrics.isCompactHeight ? 16 : 32)
+        .liquidGlassPageWidth()
     }
     
     private func navigationButtons() -> some View {
@@ -544,7 +581,7 @@ struct OnboardingView: View {
                         .font(.title3)
                         .foregroundColor(.bioTextSecondary(for: colorScheme))
                         .frame(width: 50, height: 50)
-                        .background(Color.white.opacity(0.1))
+                        .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(Circle())
                 }
             }
@@ -564,7 +601,7 @@ struct OnboardingView: View {
                 
                 // 直接前进到下一步
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    viewModel.currentStep += 1
+                    viewModel.nextStep()
                 }
                 
                 print("[Onboarding] 已前进到步骤: \(viewModel.currentStep)")
@@ -637,6 +674,136 @@ struct OnboardingView: View {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.liquidGlassAccent)
+        }
+    }
+}
+
+private struct TypewriterHeadlineText: View {
+    let text: String
+    let trigger: Int
+    let font: Font
+    let color: Color
+
+    @State private var renderedText = ""
+
+    var body: some View {
+        Text(renderedText.isEmpty ? " " : renderedText)
+            .font(font)
+            .foregroundColor(color)
+            .multilineTextAlignment(.center)
+            .task(id: "\(trigger)-\(text)") {
+                await animateText()
+            }
+    }
+
+    @MainActor
+    private func animateText() async {
+        renderedText = ""
+        let haptic = UISelectionFeedbackGenerator()
+        haptic.prepare()
+        let characters = Array(text)
+        for (index, character) in characters.enumerated() {
+            renderedText.append(character)
+            if index % 2 == 0 {
+                haptic.selectionChanged()
+                haptic.prepare()
+            }
+            try? await Task.sleep(nanoseconds: 22_000_000)
+        }
+    }
+}
+
+private struct OnboardingStepGuideSheet: View {
+    let step: Int
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var title: String {
+        switch step {
+        case 1: return "欢迎页说明"
+        case 2: return "基本信息说明"
+        case 3: return "目标说明"
+        case 4: return "生活节律说明"
+        case 5: return "偏好设置说明"
+        default: return "步骤说明"
+        }
+    }
+
+    private var bullets: [String] {
+        switch step {
+        case 1:
+            return [
+                "你可以先快速进入，后续随时在设置里补全信息。",
+                "引导流程默认走低负担路径，不会要求一次填完。"
+            ]
+        case 2:
+            return [
+                "名字、年龄、性别用于初始化你的个体画像。",
+                "这些信息会影响后续问询文案与建议颗粒度。"
+            ]
+        case 3:
+            return [
+                "优先目标决定 Max 今天更关注什么。",
+                "目标后续可改，先选你最在意的一项即可。"
+            ]
+        case 4:
+            return [
+                "睡眠、激活频率、紧张度决定每日校准节奏。",
+                "系统会根据你的输入动态调整建议强度。"
+            ]
+        case 5:
+            return [
+                "提醒决定触达频率，建议先开启再微调。",
+                "语言切换会实时生效，不影响历史数据。"
+            ]
+        default:
+            return ["继续完成当前步骤即可。"]
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(title)
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ForEach(bullets, id: \.self) { text in
+                    HStack(alignment: .top, spacing: 8) {
+                        Circle()
+                            .fill(Color.liquidGlassAccent)
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 7)
+                        Text(text)
+                            .font(GlassTypography.cnLovi(15, weight: .regular))
+                            .foregroundColor(.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.surfaceGlass(for: colorScheme))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
         }
     }
 }

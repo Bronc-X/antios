@@ -121,6 +121,34 @@ struct InquiryRespondResponse: Codable {
     let message: String?
 }
 
+// MARK: - Proactive Care Brief
+
+struct ProactiveCareBrief: Codable, Equatable, Identifiable {
+    let id: String
+    let title: String
+    let understanding: String
+    let mechanism: String
+    let microAction: String
+    let followUpQuestion: String
+    let evidenceTitle: String?
+    let evidenceURL: String?
+    let confidence: Double?
+    let generatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case understanding
+        case mechanism
+        case microAction = "micro_action"
+        case followUpQuestion = "follow_up_question"
+        case evidenceTitle = "evidence_title"
+        case evidenceURL = "evidence_url"
+        case confidence
+        case generatedAt = "generated_at"
+    }
+}
+
 // MARK: - Scientific Soothing Output Contract
 
 struct ScientificEvidenceCitation: Codable, Equatable {

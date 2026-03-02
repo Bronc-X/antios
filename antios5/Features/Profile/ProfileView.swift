@@ -9,13 +9,14 @@ struct ProfileView: View {
     @State private var showAvatarPicker = false
     @State private var showAIPersonalityEditor = false
     @State private var showAIPersonaContextEditor = false
+    @State private var showProfileGuideSheet = false
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // 深渊背景
-                AbyssBackground()
+                AuroraBackground()
                 
                 ScrollView {
                     VStack(spacing: metrics.sectionSpacing) {
@@ -51,16 +52,48 @@ struct ProfileView: View {
             }
             .navigationTitle("个人资料")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        showEditSheet = true
+                        let impact = UIImpactFeedbackGenerator(style: .soft)
+                        impact.impactOccurred()
+                        showProfileGuideSheet = true
                     } label: {
-                        Text("编辑")
-                            .font(.subheadline)
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.liquidGlassAccent)
+                            .liquidGlassCircleBadge(padding: 6)
                     }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
+                        showEditSheet = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("编辑")
+                                .font(GlassTypography.cnLovi(14, weight: .medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.surfaceGlass(for: colorScheme))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                        )
+                        .shadow(color: Color.liquidGlassAccent.opacity(0.18), radius: 10, y: 4)
+                    }
+                }
+            }
+            .sheet(isPresented: $showProfileGuideSheet) {
+                ProfileGuideSheet()
+                    .presentationDetents([.fraction(0.42), .large])
+                    .liquidGlassSheetChrome(cornerRadius: 28)
             }
             .sheet(isPresented: $showEditSheet) {
                 EditProfileSheet(
@@ -161,6 +194,8 @@ struct ProfileView: View {
                     
                     // 编辑按钮
                     Button {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
                         showAvatarPicker = true
                     } label: {
                         ZStack {
@@ -169,7 +204,7 @@ struct ProfileView: View {
                                 .frame(width: 28, height: 28)
                             Image(systemName: "camera.fill")
                                 .font(.system(size: 12))
-                                .foregroundColor(.white)
+                                .foregroundColor(.textPrimary)
                         }
                     }
                     .offset(x: editOffset, y: editOffset)
@@ -179,7 +214,7 @@ struct ProfileView: View {
                 VStack(spacing: 6) {
                     Text(viewModel.profile?.fullName ?? "探索者")
                         .font(.title2.bold())
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                     
                     Text(viewModel.profile?.email ?? "未设置邮箱")
                         .font(.subheadline)
@@ -215,7 +250,7 @@ struct ProfileView: View {
     
     private var statsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LiquidGlassSectionHeader(title: "闭环进展", icon: "chart.bar.fill")
+            LiquidGlassSectionHeader(title: "使用进展", icon: "chart.bar.fill")
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 StatCard(
@@ -290,7 +325,7 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
                     
-                    Divider().background(Color.white.opacity(0.05))
+                    Divider().background(Color.textPrimary.opacity(0.1))
                     
                     // 个人背景
                     Button {
@@ -364,7 +399,7 @@ struct ProfileView: View {
                         Spacer()
                     }
                     
-                    Divider().background(Color.white.opacity(0.05))
+                    Divider().background(Color.textPrimary.opacity(0.1))
                     
                     // 当前关注
                     HStack(spacing: 14) {
@@ -389,7 +424,7 @@ struct ProfileView: View {
                         Spacer()
                     }
 
-                    Divider().background(Color.white.opacity(0.05))
+                    Divider().background(Color.textPrimary.opacity(0.1))
 
                     HStack(spacing: 14) {
                         ZStack {
@@ -462,7 +497,7 @@ struct StatCard: View {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text(value)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                     Text(unit)
                         .font(.caption)
                         .foregroundColor(.textTertiary)
@@ -480,6 +515,7 @@ struct StatCard: View {
 
 struct EditProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     let profile: UserProfileData?
     let onSave: (UpdateProfileInput) -> Void
     
@@ -497,7 +533,7 @@ struct EditProfileSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.bgPrimary.ignoresSafeArea()
+                AuroraBackground()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -534,7 +570,7 @@ struct EditProfileSheet: View {
                                             .background(
                                                 aiPersonality == option.0
                                                     ? Color.liquidGlassAccent
-                                                    : Color.white.opacity(0.05)
+                                                    : Color.surfaceGlass(for: colorScheme)
                                             )
                                             .clipShape(RoundedRectangle(cornerRadius: 12))
                                         }
@@ -558,6 +594,7 @@ struct EditProfileSheet: View {
             }
             .navigationTitle("编辑资料")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -581,8 +618,6 @@ struct EditProfileSheet: View {
                     .foregroundColor(.liquidGlassAccent)
                 }
             }
-            .toolbarBackground(Color.bgPrimary, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .onAppear {
                 fullName = profile?.fullName ?? ""
                 aiPersonality = profile?.aiPersonality ?? "friendly"
@@ -594,6 +629,7 @@ struct EditProfileSheet: View {
 
 struct AIPersonalitySheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     let currentValue: String
     let onSave: (String) -> Void
 
@@ -609,7 +645,7 @@ struct AIPersonalitySheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.bgPrimary.ignoresSafeArea()
+                AuroraBackground()
                 VStack(spacing: 16) {
                     Text("选择 Max 的交流风格")
                         .font(.subheadline)
@@ -620,6 +656,8 @@ struct AIPersonalitySheet: View {
                         VStack(spacing: 10) {
                             ForEach(options, id: \.0) { option in
                                 Button {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
                                     selected = option.0
                                 } label: {
                                     HStack(spacing: 10) {
@@ -634,6 +672,11 @@ struct AIPersonalitySheet: View {
                                     }
                                     .foregroundColor(.textPrimary)
                                     .padding(.vertical, 8)
+                                    .padding(.horizontal, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(selected == option.0 ? Color.liquidGlassAccent.opacity(0.2) : Color.surfaceGlass(for: colorScheme))
+                                    )
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -651,6 +694,8 @@ struct AIPersonalitySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
+                        let impact = UINotificationFeedbackGenerator()
+                        impact.notificationOccurred(.success)
                         onSave(selected)
                         dismiss()
                     }
@@ -665,6 +710,7 @@ struct AIPersonalitySheet: View {
 
 struct AIPersonaContextSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     let currentValue: String
     let onSave: (String?) -> Void
     @State private var text = ""
@@ -672,7 +718,7 @@ struct AIPersonaContextSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.bgPrimary.ignoresSafeArea()
+                AuroraBackground()
                 VStack(alignment: .leading, spacing: 12) {
                     Text("补充你的背景、偏好和限制，Max 会据此优化建议。")
                         .font(.caption)
@@ -682,7 +728,7 @@ struct AIPersonaContextSheet: View {
                         .frame(minHeight: 180)
                         .padding(10)
                         .scrollContentBackground(.hidden)
-                        .background(Color.surfaceGlass(for: .dark))
+                        .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .foregroundColor(.textPrimary)
                     Spacer()
@@ -715,6 +761,7 @@ struct AIPersonaContextSheet: View {
 struct ProfileSetupView: View {
     @StateObject private var viewModel = ProfileViewModel()
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appSettings: AppSettings
     @State private var fullName = ""
     @State private var primaryGoal: ProfileGoal = .sleep
@@ -736,7 +783,7 @@ struct ProfileSetupView: View {
                                 .textFieldStyle(.plain)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 10)
-                                .background(Color.surfaceGlass(for: .dark))
+                                .background(Color.surfaceGlass(for: colorScheme))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                                 .foregroundColor(.textPrimary)
 
@@ -758,7 +805,7 @@ struct ProfileSetupView: View {
                                 .textFieldStyle(.plain)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 10)
-                                .background(Color.surfaceGlass(for: .dark))
+                                .background(Color.surfaceGlass(for: colorScheme))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                                 .foregroundColor(.textPrimary)
                         }
@@ -859,6 +906,61 @@ enum ProfileFocus: String, CaseIterable, Identifiable {
         case .energy: return "精力"
         case .mood: return "情绪"
         }
+    }
+}
+
+private struct ProfileGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("资料页说明")
+                        .font(GlassTypography.cnLovi(22, weight: .semibold))
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textSecondary)
+                            .padding(10)
+                            .background(Color.surfaceGlass(for: colorScheme))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                profileBullet("先完善重点目标与当前关注，Max 的建议会更贴合。")
+                profileBullet("头像、AI 风格、个人背景建议分步编辑，不必一次填完。")
+                profileBullet("资料变更会影响后续问询措辞和行动节奏强度。")
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+
+    private func profileBullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.liquidGlassAccent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+            Text(text)
+                .font(GlassTypography.cnLovi(15, weight: .regular))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surfaceGlass(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

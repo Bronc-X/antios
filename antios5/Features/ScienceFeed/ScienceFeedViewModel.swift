@@ -191,6 +191,18 @@ class ScienceFeedViewModel: NSObject, ObservableObject {
         
         do {
             try await SupabaseManager.shared.submitFeedFeedback(feedback)
+            await SupabaseManager.shared.captureUserSignal(
+                domain: "science_feed",
+                action: isPositive ? "liked_article" : "disliked_article",
+                summary: article.titleZh ?? article.title,
+                metadata: [
+                    "article_id": articleId,
+                    "feedback_type": isPositive ? "like" : "dislike",
+                    "source": article.sourceType ?? "unknown",
+                    "category": article.category ?? "unknown",
+                    "language": activeLanguage.apiCode
+                ]
+            )
             let impact = UIImpactFeedbackGenerator(style: .light)
             impact.impactOccurred()
             print("✅ 反馈已提交: \(isPositive ? "👍" : "👎")")

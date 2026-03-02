@@ -31,8 +31,9 @@ enum NetworkSession {
     private static func makeDefaultSession() -> URLSession {
         let config = URLSessionConfiguration.default
         config.waitsForConnectivity = false
-        config.timeoutIntervalForRequest = 8
-        config.timeoutIntervalForResource = 12
+        // Keep session-level limits above per-request budgets to avoid premature global timeout.
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 45
         return URLSession(configuration: config)
     }
 
@@ -42,8 +43,8 @@ enum NetworkSession {
         if DebugNetworkConfig.allowInsecureTLS {
             let config = URLSessionConfiguration.default
             config.waitsForConnectivity = false
-            config.timeoutIntervalForRequest = 8
-            config.timeoutIntervalForResource = 12
+            config.timeoutIntervalForRequest = 15
+            config.timeoutIntervalForResource = 45
             print("[NetworkSession] Insecure SSL enabled for simulator debug (\(label)).")
             return URLSession(configuration: config, delegate: InsecureSessionDelegate(), delegateQueue: nil)
         }
@@ -252,20 +253,57 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         }
     }
 
-    private let networkRetryAttempts = 2
-    private let networkRetryDelayNanos: UInt64 = 400_000_000
+    private var networkRetryAttempts: Int {
+        max(1, runtimeInt(for: "SUPABASE_NETWORK_RETRY_ATTEMPTS", fallback: 2))
+    }
+
+    private var networkRetryDelayNanos: UInt64 {
+        let millis = max(50, runtimeInt(for: "SUPABASE_NETWORK_RETRY_DELAY_MS", fallback: 400))
+        return UInt64(millis) * 1_000_000
+    }
+
+    private var networkRetryMaxDelayNanos: UInt64 {
+        let millis = max(100, runtimeInt(for: "SUPABASE_NETWORK_RETRY_MAX_DELAY_MS", fallback: 2_000))
+        return UInt64(millis) * 1_000_000
+    }
+
+    private var networkRetryBackoffMultiplier: Double {
+        max(1.1, runtimeDouble(for: "SUPABASE_NETWORK_RETRY_BACKOFF_MULTIPLIER", fallback: 2.0))
+    }
+
+    private var networkRetryJitterRatio: Double {
+        let ratio = runtimeDouble(for: "SUPABASE_NETWORK_RETRY_JITTER_RATIO", fallback: 0.25)
+        return min(0.9, max(0.0, ratio))
+    }
+
+    private var supabaseAuthTimeout: TimeInterval {
+        max(4, runtimeDouble(for: "SUPABASE_AUTH_TIMEOUT_SEC", fallback: 8))
+    }
+
+    private var supabaseRestReadTimeout: TimeInterval {
+        max(4, runtimeDouble(for: "SUPABASE_REST_TIMEOUT_READ_SEC", fallback: 8))
+    }
+
+    private var supabaseRestWriteTimeout: TimeInterval {
+        max(4, runtimeDouble(for: "SUPABASE_REST_TIMEOUT_WRITE_SEC", fallback: 9))
+    }
+
+    private var supabaseAppAPITimeout: TimeInterval {
+        max(4, runtimeDouble(for: "SUPABASE_APP_API_TIMEOUT_SEC", fallback: 8))
+    }
+
+    private var supabaseUploadTimeout: TimeInterval {
+        max(6, runtimeDouble(for: "SUPABASE_UPLOAD_TIMEOUT_SEC", fallback: 12))
+    }
+
+    private var supabaseHardTimeoutPadding: TimeInterval {
+        max(0.5, runtimeDouble(for: "SUPABASE_NETWORK_HARD_TIMEOUT_PADDING_SEC", fallback: 1))
+    }
     private let cachedAuthUserKey = "supabase_cached_auth_user"
 
     private enum MaxChatMode: String {
         case fast
         case think
-
-        var aiTimeout: TimeInterval {
-            switch self {
-            case .fast: return 12
-            case .think: return 18
-            }
-        }
 
         var ragDepth: MaxRAGDepth {
             switch self {
@@ -305,28 +343,321 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let expiresAt: Date
     }
 
+    private struct TimedProactiveBriefCache {
+        let brief: ProactiveCareBrief
+        let expiresAt: Date
+    }
+
     private static var inquirySummaryCache: [String: TimedTextCache] = [:]
     private static var userContextCache: [String: TimedTextCache] = [:]
     private static var dashboardCache: [String: TimedDashboardCache] = [:]
     private static var ragContextCache: [String: TimedRAGCache] = [:]
+    private static var ragContextInFlight: [String: Task<MaxRAGContext, Never>] = [:]
     private static var scientificBlockCache: [String: TimedScientificBlockCache] = [:]
     private static var profileCache: [String: TimedProfileCache] = [:]
     private static var wearableSummaryCache: [String: TimedWearableSummaryCache] = [:]
+    private static var proactiveBriefCache: [String: TimedProactiveBriefCache] = [:]
     private static var appAPIHealthCooldownUntil: [String: Date] = [:]
     private static var appAPIFailureCount: Int = 0
     private static var appAPICircuitUntil: Date?
     private static var appAPICircuitReason: String?
+    private static var maxChatRemoteFailureCount: Int = 0
+    private static var maxChatRemoteCooldownUntil: Date?
+    private static var proactivePrewarmAt: Date?
 
-    private let inquirySummaryCacheTTL: TimeInterval = 90
-    private let userContextCacheTTL: TimeInterval = 120
-    private let dashboardCacheTTL: TimeInterval = 90
-    private let ragCacheTTL: TimeInterval = 180
-    private let scientificBlockCacheTTL: TimeInterval = 180
-    private let profileCacheTTL: TimeInterval = 300
-    private let wearableSummaryCacheTTL: TimeInterval = 180
-    private let appAPIHealthCooldownTTL: TimeInterval = 120
-    private let appAPICircuitTTL: TimeInterval = 90
-    private let appAPIFailureThreshold = 2
+    private var inquirySummaryCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_INQUIRY_CACHE_TTL_SEC", fallback: 90)) }
+    private var userContextCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_USER_CONTEXT_CACHE_TTL_SEC", fallback: 120)) }
+    private var dashboardCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_DASHBOARD_CACHE_TTL_SEC", fallback: 90)) }
+    private var ragCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_RAG_CACHE_TTL_SEC", fallback: 180)) }
+    private var scientificBlockCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_SCIENCE_BLOCK_CACHE_TTL_SEC", fallback: 180)) }
+    private var profileCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_PROFILE_CACHE_TTL_SEC", fallback: 300)) }
+    private var wearableSummaryCacheTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_WEARABLE_CACHE_TTL_SEC", fallback: 180)) }
+    private var proactiveBriefCacheTTL: TimeInterval { max(120, runtimeDouble(for: "MAX_PROACTIVE_BRIEF_CACHE_TTL_SEC", fallback: 3_600)) }
+    private var appAPIHealthCooldownTTL: TimeInterval { max(5, runtimeDouble(for: "APP_API_HEALTH_COOLDOWN_SEC", fallback: 120)) }
+    private var appAPICircuitTTL: TimeInterval { max(5, runtimeDouble(for: "APP_API_CIRCUIT_TTL_SEC", fallback: 90)) }
+    private var appAPIFailureThreshold: Int { max(1, runtimeInt(for: "APP_API_FAILURE_THRESHOLD", fallback: 2)) }
+    private var maxChatRemoteFailureThreshold: Int { max(1, runtimeInt(for: "MAX_CHAT_REMOTE_FAILURE_THRESHOLD", fallback: 2)) }
+    private var maxChatRemoteCooldownTTL: TimeInterval { max(5, runtimeDouble(for: "MAX_CHAT_REMOTE_COOLDOWN_SEC", fallback: 60)) }
+    private var proactivePrewarmDebounceTTL: TimeInterval { max(30, runtimeDouble(for: "MAX_PROACTIVE_PREWARM_DEBOUNCE_SEC", fallback: 300)) }
+    private var chatSessionStatsDebounceNanos: UInt64 {
+        let millis = max(100, runtimeInt(for: "MAX_CHAT_SESSION_STATS_DEBOUNCE_MS", fallback: 800))
+        return UInt64(millis) * 1_000_000
+    }
+    private var maxChatLocalFastTimeout: TimeInterval { max(6, runtimeDouble(for: "MAX_CHAT_LOCAL_TIMEOUT_FAST_SEC", fallback: 12)) }
+    private var maxChatLocalThinkTimeout: TimeInterval { max(8, runtimeDouble(for: "MAX_CHAT_LOCAL_TIMEOUT_THINK_SEC", fallback: 18)) }
+    private var maxChatLocalDegradedTimeout: TimeInterval { max(4, runtimeDouble(for: "MAX_CHAT_LOCAL_TIMEOUT_DEGRADED_SEC", fallback: 8)) }
+    private var maxChatRemoteFastTimeout: TimeInterval { max(4, runtimeDouble(for: "MAX_CHAT_REMOTE_TIMEOUT_FAST_SEC", fallback: 9)) }
+    private var maxChatRemoteThinkTimeout: TimeInterval { max(6, runtimeDouble(for: "MAX_CHAT_REMOTE_TIMEOUT_THINK_SEC", fallback: 14)) }
+    private var maxChatRemoteLegacyTimeout: TimeInterval { max(4, runtimeDouble(for: "MAX_CHAT_REMOTE_TIMEOUT_LEGACY_SEC", fallback: 9)) }
+    private var appAPIHealthProbeTimeout: TimeInterval { max(1, runtimeDouble(for: "APP_API_HEALTH_TIMEOUT_SEC", fallback: 3)) }
+    private var pendingChatSessionStatsTasks: [String: Task<Void, Never>] = [:]
+    private var chatConversationsSupportsSessionId: Bool?
+    private let verboseNetworkLogs: Bool = {
+#if DEBUG
+        if let env = ProcessInfo.processInfo.environment["SUPABASE_VERBOSE_LOG"] {
+            return ["1", "true", "yes"].contains(env.lowercased())
+        }
+        return false
+#else
+        return false
+#endif
+    }()
+
+    private func debugNetworkLog(_ message: @autoclosure () -> String) {
+        guard verboseNetworkLogs else { return }
+        print(message())
+    }
+
+    private func runtimeString(for key: String) -> String? {
+        if let env = ProcessInfo.processInfo.environment[key] {
+            let trimmed = env.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        if let raw = Bundle.main.infoDictionary?[key] as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !trimmed.hasPrefix("$(") {
+                return trimmed
+            }
+        }
+
+        if let number = Bundle.main.infoDictionary?[key] as? NSNumber {
+            return number.stringValue
+        }
+        return nil
+    }
+
+    private func runtimeInt(for key: String, fallback: Int) -> Int {
+        guard let raw = runtimeString(for: key), let value = Int(raw) else {
+            return fallback
+        }
+        return value
+    }
+
+    private func runtimeDouble(for key: String, fallback: Double) -> Double {
+        guard let raw = runtimeString(for: key), let value = Double(raw) else {
+            return fallback
+        }
+        return value
+    }
+
+    private enum RequestClass {
+        case auth
+        case restRead
+        case restWrite
+        case appAPI
+        case upload
+    }
+
+    private struct SupabaseRequestFailure: LocalizedError {
+        let service: String
+        let context: String
+        let method: String
+        let endpoint: String
+        let statusCode: Int?
+        let requestId: String?
+        let reason: String
+        let responseSnippet: String?
+        let retryable: Bool
+        let underlyingDescription: String?
+
+        var errorDescription: String? {
+            var summary = "请求失败"
+            if let statusCode {
+                summary += "（\(statusCode)）"
+            }
+            summary += "：\(reason)"
+            return summary
+        }
+    }
+
+    private func requestTimeout(for requestClass: RequestClass, explicit: TimeInterval? = nil) -> TimeInterval {
+        if let explicit {
+            return max(2, explicit)
+        }
+        switch requestClass {
+        case .auth:
+            return supabaseAuthTimeout
+        case .restRead:
+            return supabaseRestReadTimeout
+        case .restWrite:
+            return supabaseRestWriteTimeout
+        case .appAPI:
+            return supabaseAppAPITimeout
+        case .upload:
+            return supabaseUploadTimeout
+        }
+    }
+
+    private func hardTimeout(for requestTimeout: TimeInterval) -> TimeInterval {
+        max(4, requestTimeout + supabaseHardTimeoutPadding)
+    }
+
+    private func retryDelayNanoseconds(for attempt: Int) -> UInt64 {
+        let safeAttempt = max(1, attempt)
+        let exponent = Double(safeAttempt - 1)
+        let base = Double(networkRetryDelayNanos)
+        let maxDelay = Double(networkRetryMaxDelayNanos)
+        let rawDelay = min(maxDelay, base * pow(networkRetryBackoffMultiplier, exponent))
+        let jitterFloor = 1 - networkRetryJitterRatio
+        let jitterCeil = 1 + networkRetryJitterRatio
+        let jitterFactor = Double.random(in: jitterFloor...jitterCeil)
+        let jittered = min(maxDelay, max(base, rawDelay * jitterFactor))
+        return UInt64(jittered)
+    }
+
+    private func requestServiceName(for request: URLRequest?) -> String {
+        guard let path = request?.url?.path.lowercased() else { return "network" }
+        if path.contains("/auth/v1/") {
+            return "supabase-auth"
+        }
+        if path.contains("/rest/v1/") {
+            return "supabase-rest"
+        }
+        if path.contains("/storage/v1/") {
+            return "supabase-storage"
+        }
+        if path.contains("/api/") {
+            return "app-api"
+        }
+        return "network"
+    }
+
+    private func requestEndpoint(for request: URLRequest?) -> String {
+        guard let url = request?.url else { return "unknown-endpoint" }
+        if let query = url.query, !query.isEmpty {
+            return "\(url.path)?\(query)"
+        }
+        return url.path
+    }
+
+    private func requestMethod(for request: URLRequest?) -> String {
+        request?.httpMethod ?? "GET"
+    }
+
+    private func headerValue(_ name: String, in response: HTTPURLResponse?) -> String? {
+        guard let response else { return nil }
+        for (key, value) in response.allHeaderFields {
+            guard let headerName = key as? String else { continue }
+            if headerName.compare(name, options: .caseInsensitive) == .orderedSame {
+                let text = String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    return text
+                }
+            }
+        }
+        return nil
+    }
+
+    private func requestIdentifier(in response: HTTPURLResponse?) -> String? {
+        headerValue("x-request-id", in: response)
+            ?? headerValue("x-supabase-request-id", in: response)
+            ?? headerValue("cf-ray", in: response)
+            ?? headerValue("x-amz-cf-id", in: response)
+    }
+
+    private func responseSnippet(from data: Data?, maxLength: Int = 240) -> String? {
+        guard let data, !data.isEmpty else { return nil }
+        guard var text = String(data: data, encoding: .utf8) else { return nil }
+        text = text.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty {
+            return nil
+        }
+        if text.count > maxLength {
+            return String(text.prefix(maxLength)) + "…"
+        }
+        return text
+    }
+
+    private func serverReason(from data: Data?) -> String? {
+        guard let data, !data.isEmpty else { return nil }
+        if let errorDict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let keys = ["error_description", "msg", "message", "error", "hint", "details"]
+            for key in keys {
+                if let value = errorDict[key] as? String {
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        return trimmed
+                    }
+                }
+            }
+        }
+        return responseSnippet(from: data, maxLength: 160)
+    }
+
+    private func makeRequestFailure(
+        context: String,
+        request: URLRequest? = nil,
+        response: HTTPURLResponse? = nil,
+        data: Data? = nil,
+        underlying: Error? = nil,
+        fallbackReason: String = "请求失败"
+    ) -> SupabaseRequestFailure {
+        let reason = serverReason(from: data)
+            ?? underlying.map(networkErrorSummary)
+            ?? fallbackReason
+        let retryable: Bool = {
+            if let underlying {
+                return isRetriableNetworkError(underlying)
+            }
+            guard let code = response?.statusCode else { return false }
+            return code == 408 || code == 409 || code == 425 || code == 429 || code >= 500
+        }()
+
+        return SupabaseRequestFailure(
+            service: requestServiceName(for: request),
+            context: context,
+            method: requestMethod(for: request),
+            endpoint: requestEndpoint(for: request),
+            statusCode: response?.statusCode,
+            requestId: requestIdentifier(in: response),
+            reason: reason,
+            responseSnippet: responseSnippet(from: data),
+            retryable: retryable,
+            underlyingDescription: underlying.map(networkErrorSummary)
+        )
+    }
+
+    func isRetryableRequestError(_ error: Error) -> Bool {
+        if let failure = error as? SupabaseRequestFailure {
+            return failure.retryable
+        }
+        return isRetriableNetworkError(error)
+    }
+
+    func isPermissionDeniedRequestError(_ error: Error) -> Bool {
+        guard let failure = error as? SupabaseRequestFailure else { return false }
+        if let code = failure.statusCode, code == 401 || code == 403 {
+            return true
+        }
+        let reason = failure.reason.lowercased()
+        let snippet = (failure.responseSnippet ?? "").lowercased()
+        let combined = reason + " " + snippet
+        if combined.contains("row-level security") || combined.contains("violates row-level security policy") {
+            return true
+        }
+        if combined.contains("permission denied") || combined.contains("insufficient_privilege") {
+            return true
+        }
+        return false
+    }
+
+    private func shouldFallbackToLegacyConversationInsert(_ error: Error) -> Bool {
+        guard let failure = error as? SupabaseRequestFailure else { return false }
+        let reason = failure.reason.lowercased()
+        let snippet = (failure.responseSnippet ?? "").lowercased()
+        let combined = reason + " " + snippet
+        guard combined.contains("session_id") else { return false }
+        if combined.contains("schema cache") || combined.contains("does not exist") || combined.contains("column") {
+            return true
+        }
+        return false
+    }
 
     private func performDataRequestWithRetry(
         for request: URLRequest,
@@ -352,8 +683,9 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 let shouldRetry = attempt < attempts && isRetriableNetworkError(error) && !hardTLSFailure
                 print("[NetworkRetry] \(context) attempt \(attempt) failed: \(networkErrorSummary(error))")
                 if shouldRetry {
-                    let scaledDelay = networkRetryDelayNanos * UInt64(max(1, attempt))
-                    try? await Task.sleep(nanoseconds: scaledDelay)
+                    let delayNanos = retryDelayNanoseconds(for: attempt)
+                    print("[NetworkRetry] \(context) attempt \(attempt) scheduling retry in \(String(format: "%.3f", Double(delayNanos) / 1_000_000_000))s")
+                    try? await Task.sleep(nanoseconds: delayNanos)
                     continue
                 }
                 break
@@ -444,7 +776,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let url = SupabaseConfig.url.appendingPathComponent("auth/v1/signup")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 8
+        request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         
@@ -454,11 +786,15 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let (data, response) = try await performDataRequestWithRetry(
             for: request,
             context: "Supabase signUp",
-            hardTimeout: 9
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase signUp invalid response",
+                request: request,
+                data: data
+            )
         }
         
         if (200...299).contains(httpResponse.statusCode) {
@@ -470,6 +806,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 currentUser = authResponse.user
                 cacheAuthUser(authResponse.user)
                 isAuthenticated = true
+                triggerMemoryPipelineMaintenance()
                 await ensureProfileRow()
                 await checkClinicalStatus()
             } else {
@@ -481,12 +818,13 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 try await signIn(email: email, password: password)
             }
         } else {
-            // 尝试解析错误信息
-            if let errorDict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let msg = errorDict["msg"] as? String {
-                throw NSError(domain: "SupabaseError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
-            }
-            throw SupabaseError.authenticationFailed
+            throw makeRequestFailure(
+                context: "Supabase signUp status failure",
+                request: request,
+                response: httpResponse,
+                data: data,
+                fallbackReason: "注册失败"
+            )
         }
     }
     
@@ -497,7 +835,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
-        request.timeoutInterval = 8
+        request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         
@@ -507,7 +845,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let (data, response) = try await performDataRequestWithRetry(
             for: request,
             context: "Supabase signIn",
-            hardTimeout: 9
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
         
         // Debug: Print response for troubleshooting
@@ -516,7 +854,12 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         }
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw SupabaseError.authenticationFailed
+            throw makeRequestFailure(
+                context: "Supabase signIn invalid response",
+                request: request,
+                data: data,
+                fallbackReason: "登录失败"
+            )
         }
         
         if httpResponse.statusCode == 200 {
@@ -535,16 +878,15 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             
             // 最后设置认证状态，触发 UI 更新
             isAuthenticated = true
+            triggerMemoryPipelineMaintenance()
         } else {
-            // 尝试解析错误信息
-            if let errorDict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                let errorMessage = errorDict["error_description"] as? String
-                    ?? errorDict["msg"] as? String
-                    ?? errorDict["message"] as? String
-                    ?? "登录失败"
-                throw NSError(domain: "SupabaseError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
-            }
-            throw SupabaseError.authenticationFailed
+            throw makeRequestFailure(
+                context: "Supabase signIn status failure",
+                request: request,
+                response: httpResponse,
+                data: data,
+                fallbackReason: "登录失败"
+            )
         }
     }
     
@@ -579,6 +921,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             let user = try await getUser(token: token)
             currentUser = user
             isAuthenticated = true
+            triggerMemoryPipelineMaintenance()
             // 检查临床量表状态
             await ensureProfileRow()
             await checkClinicalStatus()
@@ -594,6 +937,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                    let cachedUser = loadCachedAuthUser() {
                     currentUser = cachedUser
                     isAuthenticated = true
+                    triggerMemoryPipelineMaintenance()
                     print("[SupabaseManager] ⚠️ Supabase 网络不可达，已恢复本地缓存会话 userId=\(cachedUser.id)")
                 } else {
                     isAuthenticated = false
@@ -616,7 +960,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
-        request.timeoutInterval = 8
+        request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         
@@ -626,11 +970,25 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let (data, response) = try await performDataRequestWithRetry(
             for: request,
             context: "Supabase refreshSession",
-            hardTimeout: 9
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw SupabaseError.authenticationFailed
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw makeRequestFailure(
+                context: "Supabase refreshSession invalid response",
+                request: request,
+                data: data,
+                fallbackReason: "会话刷新失败"
+            )
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw makeRequestFailure(
+                context: "Supabase refreshSession status failure",
+                request: request,
+                response: httpResponse,
+                data: data,
+                fallbackReason: "会话刷新失败"
+            )
         }
         
         let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
@@ -642,6 +1000,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         currentUser = authResponse.user
         cacheAuthUser(authResponse.user)
         isAuthenticated = true
+        triggerMemoryPipelineMaintenance()
         // 刷新会话也检查临床状态
         Task {
             await ensureProfileRow()
@@ -649,19 +1008,41 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         }
     }
 
+    private func triggerMemoryPipelineMaintenance() {
+        Task(priority: .utility) {
+            MaxMemoryService.triggerPendingFlush()
+        }
+    }
+
     
     private func getUser(token: String) async throws -> AuthUser {
         let url = SupabaseConfig.url.appendingPathComponent("auth/v1/user")
         var request = URLRequest(url: url)
-        request.timeoutInterval = 6
+        request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         
-        let (data, _) = try await performDataRequestWithRetry(
+        let (data, response) = try await performDataRequestWithRetry(
             for: request,
             context: "Supabase getUser",
-            hardTimeout: 7
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw makeRequestFailure(
+                context: "Supabase getUser invalid response",
+                request: request,
+                data: data
+            )
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw makeRequestFailure(
+                context: "Supabase getUser status failure",
+                request: request,
+                response: httpResponse,
+                data: data,
+                fallbackReason: "获取用户信息失败"
+            )
+        }
         let user = try JSONDecoder().decode(AuthUser.self, from: data)
         cacheAuthUser(user)
         return user
@@ -761,14 +1142,17 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let token = try await ensureAccessToken()
         
         guard let url = buildRestURL(endpoint: endpoint) else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase REST invalid endpoint",
+                fallbackReason: "无效接口路径"
+            )
         }
-        print("[SupabaseManager.request] URL: \(url.absoluteString)")
-        print("[SupabaseManager.request] Method: \(method)")
+        debugNetworkLog("[SupabaseManager.request] URL: \(url.absoluteString)")
+        debugNetworkLog("[SupabaseManager.request] Method: \(method)")
         
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 8
+        request.timeoutInterval = requestTimeout(for: method == "GET" ? .restRead : .restWrite)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -788,9 +1172,9 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         )
         
         if let httpResponse = response as? HTTPURLResponse {
-            print("[SupabaseManager.request] Status: \(httpResponse.statusCode)")
+            debugNetworkLog("[SupabaseManager.request] Status: \(httpResponse.statusCode)")
             if let responseStr = String(data: data, encoding: .utf8) {
-                print("[SupabaseManager.request] Response: \(responseStr.prefix(500))")
+                debugNetworkLog("[SupabaseManager.request] Response: \(responseStr.prefix(500))")
             }
         }
 
@@ -804,13 +1188,23 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 context: "Supabase REST retry \(method) \(endpoint)"
             )
             guard let retryHttp = retryResponse as? HTTPURLResponse, (200...299).contains(retryHttp.statusCode) else {
-                throw SupabaseError.requestFailed
+                throw makeRequestFailure(
+                    context: "Supabase REST retry status failure",
+                    request: retryRequest,
+                    response: retryResponse as? HTTPURLResponse,
+                    data: retryData
+                )
             }
             return try JSONDecoder().decode(T.self, from: retryData)
         }
 
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase REST status failure",
+                request: request,
+                response: response as? HTTPURLResponse,
+                data: data
+            )
         }
 
         return try JSONDecoder().decode(T.self, from: data)
@@ -825,13 +1219,17 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let token = try await ensureAccessToken()
 
         guard let url = buildRestURL(endpoint: endpoint) else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase requestVoid invalid endpoint",
+                fallbackReason: "无效接口路径"
+            )
         }
-        print("[SupabaseManager.requestVoid] URL: \(url.absoluteString)")
-        print("[SupabaseManager.requestVoid] Method: \(method)")
+        debugNetworkLog("[SupabaseManager.requestVoid] URL: \(url.absoluteString)")
+        debugNetworkLog("[SupabaseManager.requestVoid] Method: \(method)")
         
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = requestTimeout(for: method == "GET" ? .restRead : .restWrite)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -845,20 +1243,20 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             let bodyData = try JSONEncoder().encode(body)
             request.httpBody = bodyData
             if let bodyStr = String(data: bodyData, encoding: .utf8) {
-                print("[SupabaseManager.requestVoid] Body: \(bodyStr)")
+                debugNetworkLog("[SupabaseManager.requestVoid] Body: \(bodyStr)")
             }
         }
 
         let (data, response) = try await performDataRequestWithRetry(
             for: request,
             context: "Supabase requestVoid \(method) \(endpoint)",
-            hardTimeout: 9
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
         
         if let httpResponse = response as? HTTPURLResponse {
-            print("[SupabaseManager.requestVoid] Status: \(httpResponse.statusCode)")
+            debugNetworkLog("[SupabaseManager.requestVoid] Status: \(httpResponse.statusCode)")
             if let responseStr = String(data: data, encoding: .utf8), !responseStr.isEmpty {
-                print("[SupabaseManager.requestVoid] Response: \(responseStr.prefix(500))")
+                debugNetworkLog("[SupabaseManager.requestVoid] Response: \(responseStr.prefix(500))")
             }
         }
         
@@ -870,15 +1268,24 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             let (_, retryResponse) = try await performDataRequestWithRetry(
                 for: retryRequest,
                 context: "Supabase requestVoid retry \(method) \(endpoint)",
-                hardTimeout: 9
+                hardTimeout: hardTimeout(for: retryRequest.timeoutInterval)
             )
             guard let retryHttp = retryResponse as? HTTPURLResponse, (200...299).contains(retryHttp.statusCode) else {
-                throw SupabaseError.requestFailed
+                throw makeRequestFailure(
+                    context: "Supabase requestVoid retry status failure",
+                    request: retryRequest,
+                    response: retryResponse as? HTTPURLResponse
+                )
             }
             return
         }
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase requestVoid status failure",
+                request: request,
+                response: response as? HTTPURLResponse,
+                data: data
+            )
         }
     }
     
@@ -980,32 +1387,23 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     func createConversation(title: String = "新对话") async throws -> Conversation {
         guard let user = currentUser else { throw SupabaseError.notAuthenticated }
 
-        do {
-            let body = ChatSessionInsert(user_id: user.id, title: title)
-            let endpoint = "chat_sessions"
-            let results: [ChatSessionRow] = try await request(endpoint, method: "POST", body: body, prefer: "return=representation")
-            guard let session = results.first else {
-                throw SupabaseError.requestFailed
-            }
-            return Conversation(
-                id: session.id.value,
-                user_id: session.user_id,
-                title: session.title ?? title,
-                last_message_at: session.last_message_at,
-                message_count: session.message_count,
-                created_at: session.created_at
-            )
-        } catch {
-            let sessionId = UUID().uuidString
-            return Conversation(
-                id: sessionId,
-                user_id: user.id,
-                title: title,
-                last_message_at: nil,
-                message_count: nil,
-                created_at: ISO8601DateFormatter().string(from: Date())
+        let body = ChatSessionInsert(user_id: user.id, title: title)
+        let endpoint = "chat_sessions"
+        let results: [ChatSessionRow] = try await request(endpoint, method: "POST", body: body, prefer: "return=representation")
+        guard let session = results.first else {
+            throw makeRequestFailure(
+                context: "createConversation empty response",
+                fallbackReason: "创建会话失败：服务端未返回会话数据"
             )
         }
+        return Conversation(
+            id: session.id.value,
+            user_id: session.user_id,
+            title: session.title ?? title,
+            last_message_at: session.last_message_at,
+            message_count: session.message_count,
+            created_at: session.created_at
+        )
     }
     
     /// 获取对话历史消息（chat_conversations）
@@ -1043,13 +1441,31 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     func appendMessage(conversationId: String, role: String, content: String) async throws -> ChatMessageDTO {
         guard let user = currentUser else { throw SupabaseError.notAuthenticated }
         let endpoint = "chat_conversations"
+        let usesSessionId = isUUID(conversationId)
+        let shouldTrySessionInsert = usesSessionId && (chatConversationsSupportsSessionId ?? true)
 
-        if isUUID(conversationId) {
+        if shouldTrySessionInsert {
             do {
-                let body = ChatConversationInsert(user_id: user.id, role: role, content: content, session_id: conversationId)
-                let results: [ChatConversationRow] = try await request(endpoint, method: "POST", body: body, prefer: "return=representation")
-                guard let row = results.first else { throw SupabaseError.requestFailed }
-                try? await updateChatSessionStats(sessionId: conversationId)
+                let body = ChatConversationInsert(
+                    user_id: user.id,
+                    role: role,
+                    content: content,
+                    session_id: conversationId
+                )
+                let results: [ChatConversationRow] = try await request(
+                    endpoint,
+                    method: "POST",
+                    body: body,
+                    prefer: "return=representation"
+                )
+                guard let row = results.first else {
+                    throw makeRequestFailure(
+                        context: "appendMessage empty response (session)",
+                        fallbackReason: "消息写入失败：未返回消息记录"
+                    )
+                }
+                chatConversationsSupportsSessionId = true
+                scheduleChatSessionStatsUpdate(sessionId: conversationId)
                 return ChatMessageDTO(
                     id: row.id.value,
                     conversation_id: conversationId,
@@ -1058,23 +1474,31 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                     created_at: row.created_at
                 )
             } catch {
-                // session_id 外键失败时回退为无 session
-                let body = ChatConversationInsert(user_id: user.id, role: role, content: content, session_id: nil)
-                let results: [ChatConversationRow] = try await request(endpoint, method: "POST", body: body, prefer: "return=representation")
-                guard let row = results.first else { throw SupabaseError.requestFailed }
-                return ChatMessageDTO(
-                    id: row.id.value,
-                    conversation_id: conversationId,
-                    role: row.role,
-                    content: row.content,
-                    created_at: row.created_at
-                )
+                if shouldFallbackToLegacyConversationInsert(error) {
+                    chatConversationsSupportsSessionId = false
+                    print("[ChatConversation] ⚠️ session_id unavailable, fallback to legacy insert")
+                } else {
+                    throw error
+                }
             }
         }
 
         let body = ChatConversationInsert(user_id: user.id, role: role, content: content, session_id: nil)
-        let results: [ChatConversationRow] = try await request(endpoint, method: "POST", body: body, prefer: "return=representation")
-        guard let row = results.first else { throw SupabaseError.requestFailed }
+        let results: [ChatConversationRow] = try await request(
+            endpoint,
+            method: "POST",
+            body: body,
+            prefer: "return=representation"
+        )
+        guard let row = results.first else {
+            throw makeRequestFailure(
+                context: "appendMessage empty response (legacy)",
+                fallbackReason: "消息写入失败：未返回消息记录"
+            )
+        }
+        if usesSessionId {
+            scheduleChatSessionStatsUpdate(sessionId: conversationId)
+        }
         return ChatMessageDTO(
             id: row.id.value,
             conversation_id: conversationId,
@@ -1082,6 +1506,77 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             content: row.content,
             created_at: row.created_at
         )
+    }
+
+    func appendMessagesBatch(
+        conversationId: String,
+        messages: [(role: String, content: String)]
+    ) async throws -> [ChatMessageDTO] {
+        guard let user = currentUser else { throw SupabaseError.notAuthenticated }
+        guard isUUID(conversationId), !messages.isEmpty else { return [] }
+
+        let endpoint = "chat_conversations"
+        if chatConversationsSupportsSessionId ?? true {
+            let body = messages.map { item in
+                ChatConversationInsert(
+                    user_id: user.id,
+                    role: item.role,
+                    content: item.content,
+                    session_id: conversationId
+                )
+            }
+            do {
+                let rows: [ChatConversationRow] = try await request(
+                    endpoint,
+                    method: "POST",
+                    body: body,
+                    prefer: "return=representation"
+                )
+                chatConversationsSupportsSessionId = true
+                scheduleChatSessionStatsUpdate(sessionId: conversationId)
+                return rows.map { row in
+                    ChatMessageDTO(
+                        id: row.id.value,
+                        conversation_id: conversationId,
+                        role: row.role,
+                        content: row.content,
+                        created_at: row.created_at
+                    )
+                }
+            } catch {
+                if shouldFallbackToLegacyConversationInsert(error) {
+                    chatConversationsSupportsSessionId = false
+                    print("[ChatConversation] ⚠️ session_id unavailable, fallback to legacy batch insert")
+                } else {
+                    throw error
+                }
+            }
+        }
+
+        let legacyBody = messages.map { item in
+            ChatConversationInsert(
+                user_id: user.id,
+                role: item.role,
+                content: item.content,
+                session_id: nil
+            )
+        }
+        let rows: [ChatConversationRow] = try await request(
+            endpoint,
+            method: "POST",
+            body: legacyBody,
+            prefer: "return=representation"
+        )
+        scheduleChatSessionStatsUpdate(sessionId: conversationId)
+        return rows.map { row in
+            ChatMessageDTO(
+                id: row.id.value,
+                conversation_id: conversationId,
+                role: row.role,
+                content: row.content,
+                created_at: row.created_at
+            )
+        }
     }
     
     /// 删除对话
@@ -1141,6 +1636,21 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let body = ChatSessionUpdate(last_message_at: now, message_count: nil)
         let endpoint = "chat_sessions?id=eq.\(sessionId)"
         try await requestVoid(endpoint, method: "PATCH", body: body)
+    }
+
+    private func scheduleChatSessionStatsUpdate(sessionId: String) {
+        pendingChatSessionStatsTasks[sessionId]?.cancel()
+        pendingChatSessionStatsTasks[sessionId] = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: chatSessionStatsDebounceNanos)
+            if Task.isCancelled { return }
+            do {
+                try await self.updateChatSessionStats(sessionId: sessionId)
+            } catch {
+                print("[ChatSession] stats update failed: \(error.localizedDescription)")
+            }
+            self.pendingChatSessionStatsTasks.removeValue(forKey: sessionId)
+        }
     }
     
     // MARK: - Dashboard API Methods
@@ -1582,7 +2092,6 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             print("[SupabaseManager] Skip wearable sync for unsupported source: \(bundle.source)")
             return
         }
-        guard userHealthDataTableAvailable != false else { return }
 
         let rows = bundle.snapshots.map { snapshot in
             UserHealthDataInsertRow(
@@ -1603,13 +2112,26 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             )
             userHealthDataTableAvailable = true
         } catch {
-            userHealthDataTableAvailable = false
             print("[SupabaseManager] ⚠️ wearable data persistence failed: \(error)")
             throw error
         }
 
         try? await syncWearableTraitsToUnifiedProfile(userId: user.id, bundle: bundle)
         Self.wearableSummaryCache.removeValue(forKey: user.id)
+        let sampleSummary = bundle.snapshots.prefix(4).map { snapshot in
+            "\(snapshot.metricType)=\(String(format: "%.1f", snapshot.value))"
+        }.joined(separator: ", ")
+        await captureUserSignal(
+            domain: "wearable",
+            action: "synced_apple_watch",
+            summary: sampleSummary.isEmpty
+                ? "apple_watch sync completed"
+                : "apple_watch sync: \(sampleSummary)",
+            metadata: [
+                "source": bundle.source,
+                "snapshot_count": bundle.snapshots.count
+            ]
+        )
     }
 
     func buildWearableRAGSummary() async -> String? {
@@ -1693,15 +2215,19 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         async let profileTask = getUnifiedProfile()
         async let logsTask = getWeeklyWellnessLogs()
         async let hardwareTask = getHardwareData()
+        async let profileSettingsTask = getProfileSettings()
 
         let profile = try? await profileTask
         let logs = (try? await logsTask) ?? []
         let hardware = try? await hardwareTask
+        let profileSettings = try? await profileSettingsTask
+        let clinicalScaleScores = profileSettings?.inferred_scale_scores
         
         return DashboardData(
             profile: profile,
             weeklyLogs: logs,
-            hardwareData: hardware
+            hardwareData: hardware,
+            clinicalScaleScores: clinicalScaleScores
         )
     }
 
@@ -1746,6 +2272,28 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         // 如果更新后包含量表数据，更新本地状态
         if let scores = updatedProfile?.inferred_scale_scores, !scores.isEmpty {
             self.isClinicalComplete = true
+        }
+
+        var updatedFields: [String] = []
+        if update.full_name != nil { updatedFields.append("full_name") }
+        if update.avatar_url != nil { updatedFields.append("avatar_url") }
+        if update.ai_personality != nil { updatedFields.append("ai_personality") }
+        if update.ai_persona_context != nil { updatedFields.append("ai_persona_context") }
+        if update.ai_settings != nil { updatedFields.append("ai_settings") }
+        if update.preferred_language != nil { updatedFields.append("preferred_language") }
+        if update.reminder_preferences != nil { updatedFields.append("reminder_preferences") }
+        if !updatedFields.isEmpty {
+            Task { [weak self] in
+                await self?.captureUserSignal(
+                    domain: "profile",
+                    action: "settings_updated",
+                    summary: "updated fields: \(updatedFields.joined(separator: ", "))",
+                    metadata: [
+                        "updated_fields": updatedFields,
+                        "field_count": updatedFields.count
+                    ]
+                )
+            }
         }
         
         return updatedProfile
@@ -1798,6 +2346,15 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             prefer: "resolution=merge-duplicates,return=representation"
         )
         self.isClinicalComplete = true
+        await captureUserSignal(
+            domain: "clinical",
+            action: "scores_upserted",
+            summary: scores.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ", "),
+            metadata: [
+                "scores": scores,
+                "score_count": scores.count
+            ]
+        )
     }
     
     // MARK: - Clinical Status Check
@@ -1841,11 +2398,15 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let objectPath = "avatars/\(user.id)/avatar-\(timestamp).\(fileExtension)"
         let encodedPath = objectPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? objectPath
         guard let uploadURL = URL(string: "\(baseURL)/storage/v1/object/\(encodedPath)") else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase avatar upload invalid URL",
+                fallbackReason: "头像上传地址无效"
+            )
         }
 
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout(for: .upload)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -1853,9 +2414,19 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         request.setValue("3600", forHTTPHeaderField: "cache-control")
         request.httpBody = imageData
 
-        let (_, response) = try await NetworkSession.shared.data(for: request)
+        let (data, response) = try await performDataRequestWithRetry(
+            for: request,
+            context: "Supabase uploadAvatar",
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
+        )
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "Supabase avatar upload status failure",
+                request: request,
+                response: response as? HTTPURLResponse,
+                data: data,
+                fallbackReason: "头像上传失败"
+            )
         }
 
         let publicURL = "\(baseURL)/storage/v1/object/public/\(encodedPath)"
@@ -1870,6 +2441,15 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         static let overrideBaseURLKey = "app_api_base_url_override"
         static let resolvedAtKey = "app_api_base_url_resolved_at"
         static let healthPath = "api/health"
+        static var maxChatPath: String {
+            if let path = Bundle.main.infoDictionary?["APP_API_MAX_CHAT_PATH"] as? String {
+                let sanitized = path.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !sanitized.isEmpty {
+                    return sanitized
+                }
+            }
+            return "api/chat"
+        }
         static var enforceSingleSource: Bool {
 #if targetEnvironment(simulator)
             true
@@ -2239,7 +2819,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 3
+        request.timeoutInterval = appAPIHealthProbeTimeout
 
         do {
             let (data, response) = try await performDataRequestWithRetry(
@@ -2247,7 +2827,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 session: NetworkSession.appAPI,
                 context: "AppAPI health \(baseURL.host ?? "unknown")",
                 maxAttempts: 1,
-                hardTimeout: 4
+                hardTimeout: hardTimeout(for: request.timeoutInterval)
             )
             if let httpResponse = response as? HTTPURLResponse {
                 guard (200...299).contains(httpResponse.statusCode) else {
@@ -2393,8 +2973,8 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
 
     private func buildAppAPIURL(baseURL: URL, path: String, queryItems: [URLQueryItem] = []) -> URL? {
         let baseString = baseURL.absoluteString.hasSuffix("/") ? String(baseURL.absoluteString.dropLast()) : baseURL.absoluteString
-        let sanitizedPath = path.hasSuffix("/") ? path : path + "/"
-        let fullURLString = "\(baseString)/\(sanitizedPath)"
+        let sanitizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let fullURLString = sanitizedPath.isEmpty ? baseString : "\(baseString)/\(sanitizedPath)"
 
         var components = URLComponents(string: fullURLString)
         if !queryItems.isEmpty {
@@ -2434,6 +3014,10 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             // 同时设置 Cookie 和 Authorization Header，确保 Next.js API 能识别
             request.setValue("sb-access-token=\(accessToken); sb-refresh-token=\(refreshToken)", forHTTPHeaderField: "Cookie")
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("ios", forHTTPHeaderField: "X-Client-Platform")
+            if let userId = currentUser?.id, !userId.isEmpty {
+                request.setValue(userId, forHTTPHeaderField: "X-User-Id")
+            }
             print("[SupabaseManager] 已附加认证信息到请求")
         } else {
             print("[SupabaseManager] ⚠️ 未找到 access_token，请先登录")
@@ -2466,10 +3050,14 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             session: NetworkSession.appAPI,
             context: "AppAPI \(request.httpMethod ?? "GET") \(request.url?.path ?? "")",
             maxAttempts: 1,
-            hardTimeout: max(4, request.timeoutInterval + 1)
+            hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw SupabaseError.requestFailed
+            throw makeRequestFailure(
+                context: "AppAPI invalid response",
+                request: request,
+                data: data
+            )
         }
 
         if httpResponse.statusCode == 401 {
@@ -2481,10 +3069,14 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 session: NetworkSession.appAPI,
                 context: "AppAPI retry \(retryRequest.httpMethod ?? "GET") \(retryRequest.url?.path ?? "")",
                 maxAttempts: 1,
-                hardTimeout: max(4, retryRequest.timeoutInterval + 1)
+                hardTimeout: hardTimeout(for: retryRequest.timeoutInterval)
             )
             guard let retryHttp = retryResponse as? HTTPURLResponse else {
-                throw SupabaseError.requestFailed
+                throw makeRequestFailure(
+                    context: "AppAPI retry invalid response",
+                    request: retryRequest,
+                    data: retryData
+                )
             }
             resetAppAPIFailureState()
             return (retryData, retryHttp)
@@ -2536,7 +3128,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
         body: Data? = nil,
-        timeout: TimeInterval = 8,
+        timeout: TimeInterval = 0,
         contentType: String? = "application/json"
     ) async throws -> (Data, HTTPURLResponse) {
         guard let url = appAPIURL(path: path, queryItems: queryItems) else {
@@ -2545,7 +3137,8 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
 
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = max(4, timeout)
+        let explicitTimeout = timeout > 0 ? timeout : nil
+        request.timeoutInterval = requestTimeout(for: .appAPI, explicit: explicitTimeout)
         if let contentType {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
@@ -2568,54 +3161,132 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             )
         })
 
-        let profile = await getProfileSettingsCached(userId: user.id)
         let appLanguage = AppLanguage.fromStored(UserDefaults.standard.string(forKey: "app_language")).apiCode
         let language = (appLanguage == "en" || appLanguage == "zh")
             ? appLanguage
-            : (profile?.preferred_language == "en" ? "en" : "zh")
-
-        let conversationState = MaxConversationStateTracker.extractState(from: localMessages)
-        let inquirySummary: String? = chatMode == .think
-            ? await getInquiryContextSummaryCached(userId: user.id, language: language)
-            : nil
-
+            : "zh"
         let lastUserMessage = localMessages.last { $0.role == .user }
+
         if let lastUserMessage, shouldRefuseNonHealthRequest(lastUserMessage.content) {
             return refusalMessage(language: language)
         }
+
+        let degradedLocalFallback: Bool
+        do {
+            let remoteText = try await chatWithMaxRemote(
+                messages: messages,
+                mode: chatMode.rawValue,
+                userId: user.id,
+                language: language
+            )
+            let cleanedRemote = stripReasoningContent(remoteText)
+            if shouldRejectRemoteResponse(
+                cleanedRemote,
+                language: language,
+                lastUserMessage: lastUserMessage?.content,
+                localMessages: localMessages
+            ) {
+                registerMaxChatRemoteFailure(reason: "quality gate: template/language mismatch")
+                throw makeRequestFailure(
+                    context: "chatWithMaxRemote quality gate",
+                    fallbackReason: language == "en"
+                        ? "Cloud output quality gate triggered; switched to adaptive local path."
+                        : "云端输出触发质量闸门，已切换自适应本地路径。"
+                )
+            }
+            persistChatMemoriesAsync(userId: user.id, lastUserMessage: lastUserMessage, assistantReply: cleanedRemote)
+            let elapsed = Date().timeIntervalSince(startedAt)
+            await MaxTelemetry.recordLatency(
+                metric: "max_chat_round_ms_\(chatMode.rawValue)_remote",
+                milliseconds: elapsed * 1000
+            )
+            await MaxTelemetry.recordAck(metric: "max_chat_round_success_remote", ack: true)
+            print("[MaxPerf] mode=\(chatMode.rawValue) path=remote elapsed=\(String(format: "%.2f", elapsed))s messages=\(localMessages.count)")
+            return cleanedRemote
+        } catch {
+            degradedLocalFallback = shouldUseDegradedLocalFallback(for: error)
+            let remoteElapsed = Date().timeIntervalSince(startedAt)
+            await MaxTelemetry.recordLatency(
+                metric: "max_chat_round_ms_\(chatMode.rawValue)_remote_failed",
+                milliseconds: remoteElapsed * 1000
+            )
+            await MaxTelemetry.recordAck(metric: "max_chat_round_success_remote", ack: false)
+            print("[MaxChatRemote] fallback mode=\(degradedLocalFallback ? "degraded" : "standard") reason=\(networkErrorSummary(error))")
+        }
+
+        let effectiveMode: MaxChatMode = degradedLocalFallback ? .fast : chatMode
+        let conversationState = MaxConversationStateTracker.extractState(from: localMessages)
+        let inquirySummary: String? = (!degradedLocalFallback && effectiveMode == .think)
+            ? await getInquiryContextSummaryCached(userId: user.id, language: language)
+            : nil
+
+        let eagerRAGTask: Task<MaxRAGContext, Never>? = lastUserMessage.map { message in
+            Task { [self] in
+                await buildRAGContextCached(
+                    userId: user.id,
+                    query: message.content,
+                    language: language,
+                    mode: effectiveMode
+                )
+            }
+        }
+        async let profileTask = getProfileSettingsCached(userId: user.id)
+        let profile = await profileTask
 
         var ragContext = MaxRAGContext(memoryBlock: nil, playbookBlock: nil)
         var contextBlock: String? = nil
 
         if let lastUserMessage {
-            async let ragTask = buildRAGContextCached(
-                userId: user.id,
-                query: lastUserMessage.content,
-                language: language,
-                mode: chatMode
-            )
-            async let contextTask = buildScientificContextBlock(
+            async let contextTask: String? = degradedLocalFallback ? nil : buildScientificContextBlock(
                 query: lastUserMessage.content,
                 state: conversationState,
                 healthFocus: profile?.current_focus ?? profile?.primary_goal,
-                mode: chatMode
+                mode: effectiveMode,
+                language: language
             )
-            ragContext = await ragTask
+            if let eagerRAGTask {
+                ragContext = await eagerRAGTask.value
+            } else {
+                ragContext = await buildRAGContextCached(
+                    userId: user.id,
+                    query: lastUserMessage.content,
+                    language: language,
+                    mode: effectiveMode
+                )
+            }
             contextBlock = await contextTask
         } else if let healthFocus = profile?.current_focus ?? profile?.primary_goal {
             let decision = MaxContextOptimizer.optimize(
                 state: conversationState,
                 healthFocus: healthFocus,
-                scientificPapers: []
+                scientificPapers: [],
+                language: language
             )
-            contextBlock = MaxContextOptimizer.buildContextBlock(decision: decision)
+            contextBlock = MaxContextOptimizer.buildContextBlock(decision: decision, language: language)
         }
 
-        let userContext = await buildUserContextSummaryCached(profile: profile, userId: user.id, mode: chatMode)
+        let userContext = await buildUserContextSummaryCached(
+            profile: profile,
+            userId: user.id,
+            mode: chatMode,
+            language: language
+        )
 
         var combinedContext: [String] = []
         if let userContext, !userContext.isEmpty {
             combinedContext.append("[USER CONTEXT]\n\(userContext)")
+        }
+        if let proactiveBrief = getCachedProactiveBrief(userId: user.id, language: language) {
+            combinedContext.append(
+                """
+                [PROACTIVE CARE CONTEXT]
+                - title: \(proactiveBrief.title)
+                - understanding: \(proactiveBrief.understanding)
+                - mechanism: \(proactiveBrief.mechanism)
+                - action: \(proactiveBrief.microAction)
+                - follow_up: \(proactiveBrief.followUpQuestion)
+                """
+            )
         }
         if let contextBlock, !contextBlock.isEmpty {
             combinedContext.append(contextBlock)
@@ -2635,50 +3306,250 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             language: language
         ))
 
-        let model: AIModel = (chatMode == .think) ? .deepseekV3Thinking : .deepseekV3Exp
-        let response = try await AIManager.shared.chatCompletion(
-            messages: localMessages,
-            systemPrompt: prompt,
-            model: model,
-            temperature: 0.7,
-            timeout: chatMode.aiTimeout
-        )
-        let cleaned = stripReasoningContent(response)
+        let model: AIModel = (effectiveMode == .think) ? .deepseekV3Thinking : .deepseekV3Exp
+        let localTimeout: TimeInterval
+        if degradedLocalFallback {
+            localTimeout = maxChatLocalDegradedTimeout
+        } else {
+            localTimeout = (effectiveMode == .think) ? maxChatLocalThinkTimeout : maxChatLocalFastTimeout
+        }
+        do {
+            let response = try await AIManager.shared.chatCompletion(
+                messages: localMessages,
+                systemPrompt: prompt,
+                model: model,
+                temperature: 0.7,
+                timeout: localTimeout
+            )
+            let cleaned = stripReasoningContent(response)
+            persistChatMemoriesAsync(userId: user.id, lastUserMessage: lastUserMessage, assistantReply: cleaned)
 
+            let elapsed = Date().timeIntervalSince(startedAt)
+            let path = degradedLocalFallback ? "local-degraded" : "local"
+            await MaxTelemetry.recordLatency(
+                metric: "max_chat_round_ms_\(effectiveMode.rawValue)_\(path)",
+                milliseconds: elapsed * 1000
+            )
+            await MaxTelemetry.recordAck(metric: "max_chat_round_success_local", ack: true)
+            print("[MaxPerf] mode=\(effectiveMode.rawValue) path=\(path) elapsed=\(String(format: "%.2f", elapsed))s messages=\(localMessages.count)")
+            return cleaned
+        } catch {
+            let elapsed = Date().timeIntervalSince(startedAt)
+            let path = degradedLocalFallback ? "local-degraded" : "local"
+            await MaxTelemetry.recordLatency(
+                metric: "max_chat_round_ms_\(effectiveMode.rawValue)_\(path)_failed",
+                milliseconds: elapsed * 1000
+            )
+            await MaxTelemetry.recordAck(metric: "max_chat_round_success_local", ack: false)
+            throw error
+        }
+    }
+
+    private func shouldUseDegradedLocalFallback(for error: Error) -> Bool {
+        if isRetriableNetworkError(error) || isHardTLSFailure(error) {
+            return true
+        }
+        if let requestFailure = error as? SupabaseRequestFailure {
+            if requestFailure.retryable {
+                return true
+            }
+            if let statusCode = requestFailure.statusCode {
+                return statusCode == 408 || statusCode == 409 || statusCode == 425 || statusCode == 429 || statusCode >= 500
+            }
+        }
+        if let supabaseError = error as? SupabaseError {
+            switch supabaseError {
+            case .appApiCircuitOpen, .appApiRequiresRemote, .requestFailed:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
+    private func persistChatMemoriesAsync(
+        userId: String,
+        lastUserMessage: ChatMessage?,
+        assistantReply: String
+    ) {
         if let lastUserMessage {
-            let userId = user.id
             let userContent = lastUserMessage.content
-            let assistantContent = cleaned
-            Task.detached {
-                await MaxMemoryService.storeMemory(
+            Task(priority: .utility) {
+                _ = await MaxMemoryService.storeConversationTurn(
                     userId: userId,
-                    content: userContent,
-                    role: "user",
-                    metadata: ["source": "max_chat"]
-                )
-                await MaxMemoryService.storeMemory(
-                    userId: userId,
-                    content: assistantContent,
-                    role: "assistant",
+                    userContent: userContent,
+                    assistantReply: assistantReply,
                     metadata: ["source": "max_chat"]
                 )
             }
         } else {
-            let userId = user.id
-            let assistantContent = cleaned
-            Task.detached {
-                await MaxMemoryService.storeMemory(
+            Task(priority: .utility) {
+                _ = await MaxMemoryService.storeMemory(
                     userId: userId,
-                    content: assistantContent,
+                    content: assistantReply,
                     role: "assistant",
                     metadata: ["source": "max_chat"]
                 )
             }
         }
+    }
 
-        let elapsed = Date().timeIntervalSince(startedAt)
-        print("[MaxPerf] mode=\(chatMode.rawValue) elapsed=\(String(format: "%.2f", elapsed))s messages=\(localMessages.count)")
-        return cleaned
+    private struct RemoteMaxChatPayload: Encodable {
+        let messages: [ChatRequestMessage]
+        let mode: String
+        let language: String
+        let userId: String
+        let source: String
+
+        enum CodingKeys: String, CodingKey {
+            case messages
+            case mode
+            case language
+            case userId = "userId"
+            case source
+        }
+    }
+
+    private struct RemoteMaxChatLegacyPayload: Encodable {
+        let message: String
+        let mode: String
+        let language: String
+    }
+
+    private func chatWithMaxRemote(
+        messages: [ChatRequestMessage],
+        mode: String,
+        userId: String,
+        language: String
+    ) async throws -> String {
+        if let until = Self.maxChatRemoteCooldownUntil, until > Date() {
+            throw SupabaseError.appApiCircuitOpen
+        }
+
+        let base = try await resolveMaxAgentBaseURL()
+        guard let url = buildAppAPIURL(baseURL: base, path: AppAPIConfig.maxChatPath) else {
+            registerMaxChatRemoteFailure(reason: "invalid URL path")
+            throw makeRequestFailure(
+                context: "chatWithMaxRemote invalid URL",
+                fallbackReason: "Max 云端地址无效"
+            )
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        attachSupabaseCookies(to: &request)
+        request.timeoutInterval = (mode == MaxChatMode.think.rawValue) ? maxChatRemoteThinkTimeout : maxChatRemoteFastTimeout
+        request.httpBody = try JSONEncoder().encode(
+            RemoteMaxChatPayload(
+                messages: messages,
+                mode: mode,
+                language: language,
+                userId: userId,
+                source: "ios"
+            )
+        )
+
+        do {
+            let (data, httpResponse) = try await performAppAPIRequest(request)
+            if (200...299).contains(httpResponse.statusCode),
+               let text = extractRemoteChatText(from: data) {
+                resetMaxChatRemoteFailureState()
+                return text
+            }
+
+            if httpResponse.statusCode == 404 || httpResponse.statusCode == 405 || httpResponse.statusCode == 422 {
+                // Backward compatibility: some deployments only accept a simple message payload.
+                if let legacyText = try await chatWithMaxRemoteLegacy(
+                    baseURL: base,
+                    mode: mode,
+                    language: language,
+                    lastMessage: messages.last?.content ?? ""
+                ) {
+                    resetMaxChatRemoteFailureState()
+                    return legacyText
+                }
+            }
+
+            registerMaxChatRemoteFailure(reason: "status \(httpResponse.statusCode)")
+            throw makeRequestFailure(
+                context: "chatWithMaxRemote status failure",
+                request: request,
+                response: httpResponse,
+                data: data
+            )
+        } catch {
+            registerMaxChatRemoteFailure(reason: networkErrorSummary(error))
+            throw error
+        }
+    }
+
+    private func chatWithMaxRemoteLegacy(
+        baseURL: URL,
+        mode: String,
+        language: String,
+        lastMessage: String
+    ) async throws -> String? {
+        guard !lastMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        guard let url = buildAppAPIURL(baseURL: baseURL, path: AppAPIConfig.maxChatPath) else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        attachSupabaseCookies(to: &request)
+        request.timeoutInterval = maxChatRemoteLegacyTimeout
+        request.httpBody = try JSONEncoder().encode(
+            RemoteMaxChatLegacyPayload(
+                message: lastMessage,
+                mode: mode,
+                language: language
+            )
+        )
+
+        let (data, httpResponse) = try await performAppAPIRequest(request)
+        guard (200...299).contains(httpResponse.statusCode) else { return nil }
+        return extractRemoteChatText(from: data)
+    }
+
+    private func extractRemoteChatText(from data: Data) -> String? {
+        if let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !text.isEmpty,
+           !text.hasPrefix("{"),
+           !text.hasPrefix("[") {
+            return text
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let candidates = ["response", "content", "message", "reply", "text", "answer"]
+            for key in candidates {
+                if let value = object[key] as? String {
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        return trimmed
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private func registerMaxChatRemoteFailure(reason: String) {
+        Self.maxChatRemoteFailureCount += 1
+        print("[MaxChatRemote] failed: \(reason)")
+        if Self.maxChatRemoteFailureCount >= maxChatRemoteFailureThreshold {
+            Self.maxChatRemoteCooldownUntil = Date().addingTimeInterval(maxChatRemoteCooldownTTL)
+            print("[MaxChatRemote] cooldown \(Int(maxChatRemoteCooldownTTL))s")
+        }
+    }
+
+    private func resetMaxChatRemoteFailureState() {
+        Self.maxChatRemoteFailureCount = 0
+        Self.maxChatRemoteCooldownUntil = nil
     }
 
     private func trimMessagesForInference(_ messages: [ChatMessage], maxCount: Int = 10) -> [ChatMessage] {
@@ -2718,17 +3589,30 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         language: String,
         mode: MaxChatMode
     ) async -> MaxRAGContext {
-        let cacheKey = normalizedContextCacheKey(userId: userId, language: language, query: query)
+        let normalizedKey = normalizedContextCacheKey(userId: userId, language: language, query: query)
+        let cacheKey = "\(mode.rawValue)|\(normalizedKey)"
         if let cached = Self.ragContextCache[cacheKey], cached.expiresAt > Date() {
             return cached.context
         }
 
-        let context = await MaxRAGService.buildContext(
-            userId: userId,
-            query: query,
-            language: language,
-            depth: mode.ragDepth
-        )
+        if let inFlight = Self.ragContextInFlight[cacheKey] {
+            return await inFlight.value
+        }
+
+        let task = Task<MaxRAGContext, Never> {
+            await MaxRAGService.buildContext(
+                userId: userId,
+                query: query,
+                language: language,
+                depth: mode.ragDepth
+            )
+        }
+        Self.ragContextInFlight[cacheKey] = task
+        defer {
+            Self.ragContextInFlight.removeValue(forKey: cacheKey)
+        }
+
+        let context = await task.value
         Self.ragContextCache[cacheKey] = TimedRAGCache(
             context: context,
             expiresAt: Date().addingTimeInterval(ragCacheTTL)
@@ -2740,9 +3624,10 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         query: String,
         state: MaxConversationState,
         healthFocus: String?,
-        mode: MaxChatMode
+        mode: MaxChatMode,
+        language: String
     ) async -> String? {
-        let cacheKey = "\(mode.rawValue)|\(normalizedContextCacheKey(userId: "global", language: "any", query: query))"
+        let cacheKey = "\(mode.rawValue)|\(normalizedContextCacheKey(userId: "global", language: language, query: query))"
         if let cached = Self.scientificBlockCache[cacheKey], cached.expiresAt > Date() {
             return cached.block
         }
@@ -2758,9 +3643,10 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         let decision = MaxContextOptimizer.optimize(
             state: state,
             healthFocus: healthFocus,
-            scientificPapers: papers
+            scientificPapers: papers,
+            language: language
         )
-        let block = MaxContextOptimizer.buildContextBlock(decision: decision)
+        let block = MaxContextOptimizer.buildContextBlock(decision: decision, language: language)
         Self.scientificBlockCache[cacheKey] = TimedScientificBlockCache(
             block: block,
             expiresAt: Date().addingTimeInterval(scientificBlockCacheTTL)
@@ -2768,18 +3654,23 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         return block
     }
 
-    private func buildUserContextSummaryCached(profile: ProfileSettings?, userId: String, mode: MaxChatMode) async -> String? {
-        let cacheKey = "\(userId)|\(mode.rawValue)"
+    private func buildUserContextSummaryCached(
+        profile: ProfileSettings?,
+        userId: String,
+        mode: MaxChatMode,
+        language: String
+    ) async -> String? {
+        let cacheKey = "\(userId)|\(mode.rawValue)|\(language)"
         if let cached = Self.userContextCache[cacheKey], cached.expiresAt > Date() {
             return cached.text
         }
 
         let summary: String?
         if mode == .fast {
-            summary = buildUserContextSummary(profile: profile, dashboard: nil)
+            summary = buildUserContextSummary(profile: profile, dashboard: nil, language: language)
         } else {
             let dashboard = await getDashboardDataCached(userId: userId)
-            summary = buildUserContextSummary(profile: profile, dashboard: dashboard)
+            summary = buildUserContextSummary(profile: profile, dashboard: dashboard, language: language)
         }
 
         if let summary, !summary.isEmpty {
@@ -2818,6 +3709,170 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         return dashboard
     }
 
+    private func getCachedProactiveBrief(userId: String, language: String) -> ProactiveCareBrief? {
+        let lang = language == "en" ? "en" : "zh"
+        let dayKey = recommendationDateString(Date())
+        let cacheKey = "\(userId)|\(lang)|\(dayKey)"
+        guard let cached = Self.proactiveBriefCache[cacheKey], cached.expiresAt > Date() else {
+            return nil
+        }
+        return cached.brief
+    }
+
+    private func shouldRejectRemoteResponse(
+        _ text: String,
+        language: String,
+        lastUserMessage: String?,
+        localMessages: [ChatMessage]
+    ) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+
+        if language == "en" && cjkCharacterRatio(in: trimmed) > 0.10 {
+            return true
+        }
+        if language == "zh" && cjkCharacterRatio(in: trimmed) < 0.01 && englishWordCount(in: trimmed) > 80 {
+            return true
+        }
+
+        let looksRigidTemplate = containsRigidFiveSectionTemplate(trimmed)
+        guard looksRigidTemplate else { return false }
+
+        let repeated = isNearDuplicateOfLastAssistantMessage(trimmed, localMessages: localMessages)
+        let lowPersonalization = lacksUserAnchors(response: trimmed, lastUserMessage: lastUserMessage)
+        return repeated || lowPersonalization
+    }
+
+    private func containsRigidFiveSectionTemplate(_ text: String) -> Bool {
+        let sectionMarkers = [
+            "理解结论", "机制解释", "证据来源", "可执行动作", "跟进问题",
+            "understanding conclusion", "mechanism explanation", "evidence sources", "executable actions", "follow-up question"
+        ]
+        let lowered = text.lowercased()
+        let matchedSections = sectionMarkers.reduce(0) { partial, marker in
+            partial + (lowered.contains(marker.lowercased()) ? 1 : 0)
+        }
+        let numberedMatches: Int = {
+            guard let regex = try? NSRegularExpression(pattern: "(?m)^\\s*[1-5][\\.|\\)]\\s+") else { return 0 }
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            return regex.numberOfMatches(in: text, options: [], range: range)
+        }()
+        return matchedSections >= 4 && numberedMatches >= 4
+    }
+
+    private func cjkCharacterRatio(in text: String) -> Double {
+        let scalars = text.unicodeScalars
+        guard !scalars.isEmpty else { return 0 }
+        let cjkCount = scalars.filter { scalar in
+            switch scalar.value {
+            case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0xF900...0xFAFF:
+                return true
+            default:
+                return false
+            }
+        }.count
+        return Double(cjkCount) / Double(scalars.count)
+    }
+
+    private func englishWordCount(in text: String) -> Int {
+        let words = text.lowercased().split { !$0.isLetter && !$0.isNumber }
+        return words.filter { $0.count >= 2 }.count
+    }
+
+    private func isNearDuplicateOfLastAssistantMessage(
+        _ response: String,
+        localMessages: [ChatMessage]
+    ) -> Bool {
+        guard let lastAssistant = localMessages.reversed().first(where: { $0.role == .assistant }) else {
+            return false
+        }
+        let currentTokens = normalizedSimilarityTokens(from: response)
+        let previousTokens = normalizedSimilarityTokens(from: lastAssistant.content)
+        guard !currentTokens.isEmpty, !previousTokens.isEmpty else { return false }
+
+        let union = currentTokens.union(previousTokens)
+        guard !union.isEmpty else { return false }
+        let intersection = currentTokens.intersection(previousTokens)
+        let jaccard = Double(intersection.count) / Double(union.count)
+        return jaccard >= 0.78
+    }
+
+    private func normalizedSimilarityTokens(from text: String) -> Set<String> {
+        let lowered = text.lowercased()
+        let separators = CharacterSet.alphanumerics.inverted.union(.whitespacesAndNewlines)
+        let baseTokens = lowered
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 2 }
+        var unique: Set<String> = []
+        for token in baseTokens {
+            unique.insert(token)
+            if unique.count >= 120 {
+                break
+            }
+        }
+        return unique
+    }
+
+    private func lacksUserAnchors(response: String, lastUserMessage: String?) -> Bool {
+        guard let lastUserMessage else { return true }
+        let userTokens = anchorTokens(from: lastUserMessage)
+        guard !userTokens.isEmpty else { return true }
+        let loweredResponse = response.lowercased()
+        let matched = userTokens.contains { loweredResponse.contains($0.lowercased()) }
+        return !matched
+    }
+
+    private func anchorTokens(from text: String) -> [String] {
+        let stopwords: Set<String> = [
+            "the", "and", "for", "that", "this", "with", "from", "have", "what", "why", "how",
+            "good", "ok", "yes", "no", "really", "just", "about", "your", "you", "today"
+        ]
+        let lowered = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lowered.isEmpty else { return [] }
+
+        var tokens: [String] = lowered
+            .components(separatedBy: CharacterSet.alphanumerics.inverted.union(.whitespacesAndNewlines))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 3 && !stopwords.contains($0) }
+
+        let cjkScalars = lowered.unicodeScalars.filter { scalar in
+            switch scalar.value {
+            case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0xF900...0xFAFF:
+                return true
+            default:
+                return false
+            }
+        }
+        if cjkScalars.count >= 2 {
+            let cjkText = String(String.UnicodeScalarView(cjkScalars))
+            let chars = Array(cjkText)
+            if chars.count >= 2 {
+                for index in 0..<(chars.count - 1) {
+                    let token = String(chars[index...index + 1])
+                    if token.trimmingCharacters(in: .whitespacesAndNewlines).count == 2 {
+                        tokens.append(token)
+                    }
+                    if tokens.count >= 20 {
+                        break
+                    }
+                }
+            }
+        }
+
+        var unique: [String] = []
+        var seen = Set<String>()
+        for token in tokens {
+            if seen.insert(token).inserted {
+                unique.append(token)
+            }
+            if unique.count >= 16 {
+                break
+            }
+        }
+        return unique
+    }
+
 
     private func shouldRefuseNonHealthRequest(_ text: String) -> Bool {
         let lowered = text.lowercased()
@@ -2839,7 +3894,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         if language == "en" {
             return "I can’t help with election predictions or betting odds. If you want anti-anxiety support, I can help with calibration, evidence, and actions."
         }
-        return "我不能提供政治选举预测或博彩赔率等内容。如果你需要反焦虑支持，我可以帮你做校准、机制解释和行动闭环。"
+        return "我不能提供政治选举预测或博彩赔率等内容。如果你需要反焦虑支持，我可以帮你做校准、机制解释和行动跟进。"
     }
 
     private func buildMemoryContext(_ records: [MaxMemoryRecord]) -> String {
@@ -2868,22 +3923,39 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func buildUserContextSummary(profile: ProfileSettings?, dashboard: DashboardData?) -> String? {
+    private func buildUserContextSummary(
+        profile: ProfileSettings?,
+        dashboard: DashboardData?,
+        language: String
+    ) -> String? {
+        let isEn = language == "en"
         var lines: [String] = []
 
         if let profile {
-            if let name = profile.full_name, !name.isEmpty { lines.append("姓名: \(name)") }
-            if let language = profile.preferred_language, !language.isEmpty { lines.append("偏好语言: \(language)") }
-            if let goal = profile.primary_goal, !goal.isEmpty { lines.append("主要目标: \(goal)") }
-            if let focus = profile.current_focus, !focus.isEmpty { lines.append("当前关注: \(focus)") }
-            if let personality = profile.ai_personality, !personality.isEmpty { lines.append("沟通风格: \(personality)") }
+            if let name = profile.full_name, !name.isEmpty {
+                lines.append(isEn ? "name: \(name)" : "姓名: \(name)")
+            }
+            if let preferredLanguage = profile.preferred_language, !preferredLanguage.isEmpty {
+                lines.append(isEn ? "preferred language: \(preferredLanguage)" : "偏好语言: \(preferredLanguage)")
+            }
+            if let goal = profile.primary_goal, !goal.isEmpty {
+                lines.append(isEn ? "primary goal: \(goal)" : "主要目标: \(goal)")
+            }
+            if let focus = profile.current_focus, !focus.isEmpty {
+                lines.append(isEn ? "current focus: \(focus)" : "当前关注: \(focus)")
+            }
+            if let personality = profile.ai_personality, !personality.isEmpty {
+                lines.append(isEn ? "communication style: \(personality)" : "沟通风格: \(personality)")
+            }
             if let scores = profile.inferred_scale_scores, !scores.isEmpty {
                 let gad7 = scores["gad7"].map { "GAD7=\($0)" }
                 let phq9 = scores["phq9"].map { "PHQ9=\($0)" }
                 let isi = scores["isi"].map { "ISI=\($0)" }
                 let pss10 = scores["pss10"].map { "PSS10=\($0)" }
                 let parts = [gad7, phq9, isi, pss10].compactMap { $0 }
-                if !parts.isEmpty { lines.append("量表分数: \(parts.joined(separator: ", "))") }
+                if !parts.isEmpty {
+                    lines.append(isEn ? "scale scores: \(parts.joined(separator: ", "))" : "量表分数: \(parts.joined(separator: ", "))")
+                }
             }
         }
 
@@ -2895,20 +3967,30 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 let avgEnergy = average(logs.map { $0.energy_level }).map { String(format: "%.1f", $0) }
                 let avgAnxiety = average(logs.map { $0.anxiety_level }).map { String(format: "%.1f", $0) }
                 var summaryParts: [String] = []
-                if let avgSleep { summaryParts.append("平均睡眠=\(avgSleep)小时") }
-                if let avgStress { summaryParts.append("平均压力=\(avgStress)") }
-                if let avgAnxiety { summaryParts.append("平均焦虑=\(avgAnxiety)") }
-                if let avgEnergy { summaryParts.append("平均精力=\(avgEnergy)") }
-                if !summaryParts.isEmpty { lines.append("最近7天: \(summaryParts.joined(separator: ", "))") }
+                if let avgSleep { summaryParts.append(isEn ? "avg sleep=\(avgSleep)h" : "平均睡眠=\(avgSleep)小时") }
+                if let avgStress { summaryParts.append(isEn ? "avg stress=\(avgStress)" : "平均压力=\(avgStress)") }
+                if let avgAnxiety { summaryParts.append(isEn ? "avg anxiety=\(avgAnxiety)" : "平均焦虑=\(avgAnxiety)") }
+                if let avgEnergy { summaryParts.append(isEn ? "avg energy=\(avgEnergy)" : "平均精力=\(avgEnergy)") }
+                if !summaryParts.isEmpty {
+                    lines.append(isEn ? "last 7 days: \(summaryParts.joined(separator: ", "))" : "最近7天: \(summaryParts.joined(separator: ", "))")
+                }
             }
 
             if let hardware = dashboard.hardwareData {
                 var hardwareParts: [String] = []
                 if let hrv = hardware.hrv?.value { hardwareParts.append("HRV=\(String(format: "%.0f", hrv))") }
-                if let rhr = hardware.resting_heart_rate?.value { hardwareParts.append("静息心率=\(String(format: "%.0f", rhr))") }
-                if let sleepScore = hardware.sleep_score?.value { hardwareParts.append("睡眠评分=\(String(format: "%.0f", sleepScore))") }
-                if let steps = hardware.steps?.value { hardwareParts.append("步数=\(String(format: "%.0f", steps))") }
-                if !hardwareParts.isEmpty { lines.append("穿戴设备: \(hardwareParts.joined(separator: ", "))") }
+                if let rhr = hardware.resting_heart_rate?.value {
+                    hardwareParts.append(isEn ? "restingHR=\(String(format: "%.0f", rhr))" : "静息心率=\(String(format: "%.0f", rhr))")
+                }
+                if let sleepScore = hardware.sleep_score?.value {
+                    hardwareParts.append(isEn ? "sleepScore=\(String(format: "%.0f", sleepScore))" : "睡眠评分=\(String(format: "%.0f", sleepScore))")
+                }
+                if let steps = hardware.steps?.value {
+                    hardwareParts.append(isEn ? "steps=\(String(format: "%.0f", steps))" : "步数=\(String(format: "%.0f", steps))")
+                }
+                if !hardwareParts.isEmpty {
+                    lines.append(isEn ? "wearable: \(hardwareParts.joined(separator: ", "))" : "穿戴设备: \(hardwareParts.joined(separator: ", "))")
+                }
             }
         }
 
@@ -3166,6 +4248,17 @@ extension SupabaseManager {
         )
 
         try await requestVoid("user_plans", method: "POST", body: payload, prefer: "return=representation")
+        await captureUserSignal(
+            domain: "plans",
+            action: "plan_saved",
+            summary: plan.displayTitle,
+            metadata: [
+                "category": inferredCategory,
+                "difficulty": plan.difficulty ?? "unknown",
+                "items_count": normalizedItems.count,
+                "duration_days": parseDurationDays(plan.duration) ?? -1
+            ]
+        )
         print("✅ 计划已保存到数据库: \(plan.displayTitle)")
     }
 
@@ -3323,7 +4416,7 @@ extension SupabaseManager {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             attachSupabaseCookies(to: &request)
-            request.timeoutInterval = 8
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -3472,6 +4565,7 @@ extension SupabaseManager {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             attachSupabaseCookies(to: &request)
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -3650,6 +4744,19 @@ extension SupabaseManager {
         let endpoint = "inquiry_history?id=eq.\(resolvedId)"
         let updatedRows: [InquiryHistoryRow] = try await request(endpoint, method: "PATCH", body: payload, prefer: "return=representation")
 
+        if let updated = updatedRows.first {
+            await captureUserSignal(
+                domain: "inquiry",
+                action: "answered",
+                summary: "\(updated.question_text ?? "inquiry") -> \(response)",
+                metadata: [
+                    "inquiry_id": resolvedId,
+                    "question_type": updated.question_type ?? "unknown",
+                    "priority": updated.priority ?? "unknown"
+                ]
+            )
+        }
+
         if let gapField = updatedRows.first?.data_gaps_addressed?.first {
             await syncInquiryResponseToCalibration(userId: user.id, gapField: gapField, response: response)
         }
@@ -3677,7 +4784,10 @@ extension SupabaseManager {
             return latest.id
         }
 
-        throw SupabaseError.requestFailed
+        throw makeRequestFailure(
+            context: "resolveInquiryHistoryId no match",
+            fallbackReason: "未找到可回应的问题记录"
+        )
     }
 
     private func fetchLatestPendingInquiry(userId: String) async throws -> InquiryHistoryRow? {
@@ -4039,6 +5149,17 @@ extension SupabaseManager {
                 try await requestVoid(endpoint, method: "DELETE", body: nil, prefer: nil)
             }
         }
+
+        await captureUserSignal(
+            domain: "habits",
+            action: isCompleted ? "completed" : "uncompleted",
+            summary: "habit \(habitId) -> \(isCompleted ? "done" : "undone")",
+            metadata: [
+                "habit_id": habitId,
+                "completed": isCompleted,
+                "backend": (backend == .v2 ? "v2" : "legacy")
+            ]
+        )
     }
 
     private func resolveHabitsBackend(userId: String) async -> HabitsBackend {
@@ -4261,6 +5382,16 @@ extension SupabaseManager {
             body: updatePayload,
             prefer: "return=representation"
         )
+        await captureUserSignal(
+            domain: "bayesian",
+            action: "nudge_triggered",
+            summary: "\(actionType) correction \(Int(correction))",
+            metadata: [
+                "action_type": actionType,
+                "duration_minutes": durationMinutes ?? -1,
+                "new_posterior": newPosterior
+            ]
+        )
 
         return BayesianNudgeResponse(
             success: true,
@@ -4318,6 +5449,17 @@ extension SupabaseManager {
         }
 
         let message = "概率已调整至 \(Int(posterior))%"
+        await captureUserSignal(
+            domain: "bayesian",
+            action: "ritual_ran",
+            summary: "\(context) prior \(priorScore) -> posterior \(Int(posterior))",
+            metadata: [
+                "context": context,
+                "prior": priorScore,
+                "posterior": posterior,
+                "evidence_count": evidenceStack.count
+            ]
+        )
         let data = BayesianRitualData(
             id: insertedId,
             priorScore: Double(priorScore),
@@ -4501,7 +5643,7 @@ extension SupabaseManager {
             )
         )
 
-        request.timeoutInterval = 8
+        request.timeoutInterval = requestTimeout(for: .appAPI)
 
         do {
             let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4550,7 +5692,7 @@ extension SupabaseManager {
             attachSupabaseCookies(to: &request)
             request.httpBody = try JSONEncoder().encode(input)
 
-            request.timeoutInterval = 8
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4573,7 +5715,7 @@ extension SupabaseManager {
             attachSupabaseCookies(to: &request)
             request.httpBody = try JSONEncoder().encode(input)
 
-            request.timeoutInterval = 8
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4594,7 +5736,7 @@ extension SupabaseManager {
             request.httpMethod = "GET"
             attachSupabaseCookies(to: &request)
 
-            request.timeoutInterval = 8
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4622,7 +5764,7 @@ extension SupabaseManager {
             attachSupabaseCookies(to: &request)
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-            request.timeoutInterval = 8
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4667,7 +5809,7 @@ extension SupabaseManager {
             attachSupabaseCookies(to: &request)
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-            request.timeoutInterval = 8
+            request.timeoutInterval = requestTimeout(for: .appAPI)
 
             do {
                 let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4701,7 +5843,7 @@ extension SupabaseManager {
             let currentStateData = (try? JSONEncoder().encode(input.currentFormState)) ?? Data()
             let currentState = String(data: currentStateData, encoding: .utf8) ?? "{}"
             let systemPrompt = """
-你是反焦虑闭环助手，负责从用户口述中提取结构化校准数据。
+你是反焦虑跟进助手，负责从用户口述中提取结构化校准数据。
 请只输出 JSON，格式如下：
 {
   "formUpdates": { "sleepDuration": "...", "sleepQuality": "...", "exerciseDuration": "...", "moodStatus": "...", "stressLevel": "...", "notes": "..." },
@@ -4822,7 +5964,7 @@ exerciseMinutes: \(input.exerciseMinutes ?? 0)
         if isAIConfigured() {
             let systemPrompt = """
 你是反焦虑周报助手。基于输入统计摘要，给出 3 条洞察和 1 个重点建议。
-要求：中文、简洁、可执行，强调闭环跟进。
+要求：中文、简洁、可执行，强调持续跟进。
 """
             let response = try await AIManager.shared.chatCompletion(
                 messages: [ChatMessage(role: .user, content: baseSummary)],
@@ -4905,6 +6047,7 @@ category: \(category ?? "")
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         attachSupabaseCookies(to: &request)
+        request.timeoutInterval = requestTimeout(for: .appAPI)
         request.httpBody = payload.data(using: .utf8)
 
         let (data, httpResponse) = try await performAppAPIRequest(request)
@@ -4917,12 +6060,43 @@ category: \(category ?? "")
             return String(data: data, encoding: .utf8) ?? ""
         }
 
-        throw SupabaseError.requestFailed
+        throw makeRequestFailure(
+            context: "sendDebugPayload status failure",
+            request: request,
+            response: httpResponse,
+            data: data
+        )
     }
 }
 
 // MARK: - 🆕 Daily AI Recommendations API
 extension SupabaseManager {
+    func prewarmProactiveCare(language: String? = nil, force: Bool = false) async {
+        guard currentUser != nil else { return }
+
+        if !force,
+           let last = Self.proactivePrewarmAt,
+           Date().timeIntervalSince(last) < proactivePrewarmDebounceTTL {
+            return
+        }
+        Self.proactivePrewarmAt = Date()
+
+        let resolvedLanguage: String = {
+            if let language,
+               !language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return language == "en" ? "en" : "zh"
+            }
+            let appLanguage = AppLanguage.fromStored(UserDefaults.standard.string(forKey: "app_language"))
+            return appLanguage == .en ? "en" : "zh"
+        }()
+
+        await triggerDailyRecommendations(force: false, language: resolvedLanguage)
+        _ = try? await generateProactiveCareBrief(
+            language: resolvedLanguage,
+            forceRefresh: false
+        )
+    }
+
     func getDailyRecommendations(date: Date = Date()) async throws -> [DailyAIRecommendationItem] {
         guard let user = currentUser else { throw SupabaseError.notAuthenticated }
         let dayString = recommendationDateString(date)
@@ -4937,7 +6111,7 @@ extension SupabaseManager {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         attachSupabaseCookies(to: &request)
-        request.timeoutInterval = 8
+        request.timeoutInterval = requestTimeout(for: .appAPI)
 
         let payload: [String: Any] = [
             "force": force,
@@ -4962,6 +6136,391 @@ extension SupabaseManager {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+
+    private struct ProactiveSignalSnapshot {
+        let lines: [String]
+        let primaryFocus: String
+        let scientificQuery: String
+    }
+
+    private struct ProactiveBriefLLMResponse: Decodable {
+        let title: String?
+        let understanding: String?
+        let mechanism: String?
+        let micro_action: String?
+        let follow_up_question: String?
+        let evidence_title: String?
+        let evidence_url: String?
+        let confidence: Double?
+    }
+
+    func captureUserSignal(
+        domain: String,
+        action: String,
+        summary: String,
+        metadata: [String: Any]? = nil
+    ) async {
+        guard let user = currentUser else { return }
+        let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSummary.isEmpty else { return }
+
+        let cleanedDomain = domain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleanedAction = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleanedDomain.isEmpty, !cleanedAction.isEmpty else { return }
+
+        var mergedMetadata = metadata ?? [:]
+        mergedMetadata["domain"] = cleanedDomain
+        mergedMetadata["action"] = cleanedAction
+        mergedMetadata["source"] = "ios"
+        mergedMetadata["captured_at"] = ISO8601DateFormatter().string(from: Date())
+
+        let content = "[\(cleanedDomain)] \(cleanedAction): \(trimmedSummary)"
+        _ = await MaxMemoryService.storeMemory(
+            userId: user.id,
+            content: content,
+            role: "user",
+            metadata: mergedMetadata
+        )
+    }
+
+    func generateProactiveCareBrief(
+        language: String,
+        forceRefresh: Bool = false
+    ) async throws -> ProactiveCareBrief {
+        guard let user = currentUser else { throw SupabaseError.notAuthenticated }
+
+        let lang = language == "en" ? "en" : "zh"
+        let dayKey = recommendationDateString(Date())
+        let cacheKey = "\(user.id)|\(lang)|\(dayKey)"
+        if !forceRefresh,
+           let cached = Self.proactiveBriefCache[cacheKey],
+           cached.expiresAt > Date() {
+            return cached.brief
+        }
+
+        // Keep this path fully stable on simulator/runtime upgrades.
+        // Sequential awaits avoid async-let teardown crashes observed in production traces.
+        let profile = try? await getProfileSettings()
+        let dashboard = try? await getDashboardData()
+        let inquirySummary = try? await getInquiryContextSummary(language: lang, limit: 8)
+        let memories = await MaxMemoryService.retrieveRecentMemories(userId: user.id, limit: 10)
+
+        let snapshot = buildProactiveSignalSnapshot(
+            profile: profile,
+            dashboard: dashboard,
+            inquirySummary: inquirySummary,
+            memories: memories,
+            language: lang
+        )
+        let scientific = await ScientificSearchService.searchScientificTruth(query: snapshot.scientificQuery)
+        let topEvidence = Array(scientific.papers.prefix(3))
+
+        let generatedAt = ISO8601DateFormatter().string(from: Date())
+        var finalBrief: ProactiveCareBrief?
+        if isAIConfigured() {
+            let evidenceLines = topEvidence.map { paper in
+                let year = paper.year.map(String.init) ?? "n/a"
+                return "- \(paper.title) | \(year) | \(paper.source.rawValue) | \(paper.url)"
+            }.joined(separator: "\n")
+            let memoryLines = memories.prefix(4).map { record in
+                let snippet = String(record.content_text.replacingOccurrences(of: "\n", with: " ").prefix(120))
+                return "- [\(record.role)] \(snippet)"
+            }.joined(separator: "\n")
+
+            let systemPrompt = lang == "en" ? """
+You are a clinical-grade anti-anxiety copilot.
+Generate one proactive care brief for this user without sounding generic.
+Return JSON only with keys:
+title, understanding, mechanism, micro_action, follow_up_question, evidence_title, evidence_url, confidence
+Rules:
+- Keep it personal and concrete.
+- One low-friction action that can start today.
+- Follow-up question must be measurable (0-10 or minutes).
+- confidence is 0~1.
+""" : """
+你是临床级反焦虑协作助手。
+请基于用户画像生成一条主动关怀简报，不能空泛。
+只返回 JSON，包含键：
+title, understanding, mechanism, micro_action, follow_up_question, evidence_title, evidence_url, confidence
+要求：
+- 必须个性化、具体。
+- 只给一个今天可执行的低阻力动作。
+- 跟进问题必须可量化（0-10 或分钟）。
+- confidence 范围 0~1。
+"""
+            let userPrompt = """
+[USER SIGNALS]
+\(snapshot.lines.joined(separator: "\n"))
+
+[INQUIRY SUMMARY]
+\(inquirySummary ?? (lang == "en" ? "none" : "无"))
+
+[RECENT MEMORIES]
+\(memoryLines.isEmpty ? (lang == "en" ? "- none" : "- 无") : memoryLines)
+
+[SCIENTIFIC EVIDENCE CANDIDATES]
+\(evidenceLines.isEmpty ? (lang == "en" ? "- none" : "- 无") : evidenceLines)
+
+[PRIMARY FOCUS]
+\(snapshot.primaryFocus)
+"""
+
+            do {
+                let response = try await AIManager.shared.chatCompletion(
+                    messages: [ChatMessage(role: .user, content: userPrompt)],
+                    systemPrompt: systemPrompt,
+                    model: .gpt5ChatLatest,
+                    temperature: 0.45,
+                    timeout: 16
+                )
+                if let parsed = parseProactiveCareBrief(
+                    response,
+                    generatedAt: generatedAt,
+                    language: lang,
+                    evidenceFallback: topEvidence.first
+                ) {
+                    finalBrief = parsed
+                }
+            } catch {
+                print("[ProactiveBrief] AI generation failed: \(error)")
+            }
+        }
+
+        let brief = finalBrief ?? buildFallbackProactiveCareBrief(
+            generatedAt: generatedAt,
+            language: lang,
+            snapshot: snapshot,
+            evidence: topEvidence.first
+        )
+
+        Self.proactiveBriefCache[cacheKey] = TimedProactiveBriefCache(
+            brief: brief,
+            expiresAt: Date().addingTimeInterval(proactiveBriefCacheTTL)
+        )
+
+        // Persist assistant proactive output to vector memory, so later RAG can use it cross-module.
+        _ = await MaxMemoryService.storeMemory(
+            userId: user.id,
+            content: "[proactive_brief] \(brief.title) | \(brief.mechanism) | action: \(brief.microAction)",
+            role: "assistant",
+            metadata: [
+                "source": "proactive_brief",
+                "language": lang,
+                "confidence": brief.confidence ?? 0.55
+            ]
+        )
+
+        return brief
+    }
+
+    private func buildProactiveSignalSnapshot(
+        profile: ProfileSettings?,
+        dashboard: DashboardData?,
+        inquirySummary: String?,
+        memories: [MaxMemoryRecord],
+        language: String
+    ) -> ProactiveSignalSnapshot {
+        let isEn = language == "en"
+        var lines: [String] = []
+
+        var avgSleepHours: Double?
+        var avgStress: Double?
+        var avgAnxiety: Double?
+        if let logs = dashboard?.weeklyLogs, !logs.isEmpty {
+            let sleepSamples = logs.compactMap { $0.sleep_duration_minutes }.map { Double($0) / 60.0 }
+            let stressSamples = logs.compactMap { $0.stress_level }.map(Double.init)
+            let anxietySamples = logs.compactMap { $0.anxiety_level }.map(Double.init)
+
+            if !sleepSamples.isEmpty {
+                avgSleepHours = sleepSamples.reduce(0, +) / Double(sleepSamples.count)
+            }
+            if !stressSamples.isEmpty {
+                avgStress = stressSamples.reduce(0, +) / Double(stressSamples.count)
+            }
+            if !anxietySamples.isEmpty {
+                avgAnxiety = anxietySamples.reduce(0, +) / Double(anxietySamples.count)
+            }
+        }
+
+        if let focus = profile?.current_focus ?? profile?.primary_goal, !focus.isEmpty {
+            lines.append(isEn ? "- Focus: \(focus)" : "- 当前关注：\(focus)")
+        }
+        if let avgSleepHours {
+            lines.append(isEn ? "- Avg sleep (7d): \(String(format: "%.1f", avgSleepHours))h" : "- 近7天平均睡眠：\(String(format: "%.1f", avgSleepHours))小时")
+        }
+        if let avgStress {
+            lines.append(isEn ? "- Avg stress (7d): \(String(format: "%.1f", avgStress))/10" : "- 近7天平均压力：\(String(format: "%.1f", avgStress))/10")
+        }
+        if let avgAnxiety {
+            lines.append(isEn ? "- Avg anxiety (7d): \(String(format: "%.1f", avgAnxiety))/10" : "- 近7天平均焦虑：\(String(format: "%.1f", avgAnxiety))/10")
+        }
+        if let inquirySummary, !inquirySummary.isEmpty {
+            lines.append(isEn ? "- Inquiry summary available" : "- 已有主动问询摘要")
+        }
+        if !memories.isEmpty {
+            let topTags = memories.prefix(3).map { memory in
+                String(memory.content_text.replacingOccurrences(of: "\n", with: " ").prefix(32))
+            }
+            lines.append((isEn ? "- Recent memory cues: " : "- 最近记忆线索：") + topTags.joined(separator: " | "))
+        }
+
+        let focusLower = (profile?.current_focus ?? profile?.primary_goal ?? "").lowercased()
+        let memoryText = memories.prefix(6).map { $0.content_text.lowercased() }.joined(separator: " ")
+
+        let primaryFocus: String
+        let scientificQuery: String
+        if let avgSleepHours, avgSleepHours < 6.5
+            || focusLower.contains("sleep")
+            || memoryText.contains("sleep")
+            || memoryText.contains("insomnia")
+            || memoryText.contains("失眠")
+            || memoryText.contains("睡眠") {
+            primaryFocus = isEn ? "sleep stabilization" : "睡眠节律稳定"
+            scientificQuery = "sleep duration anxiety regulation circadian light intervention randomized trial"
+        } else if let avgStress, avgStress >= 7
+            || focusLower.contains("stress")
+            || memoryText.contains("stress")
+            || memoryText.contains("压力")
+            || memoryText.contains("心慌") {
+            primaryFocus = isEn ? "physiological down-regulation" : "生理唤醒下调"
+            scientificQuery = "slow breathing heart rate variability stress reduction randomized trial anxiety"
+        } else if let avgAnxiety, avgAnxiety >= 6
+            || focusLower.contains("anxiety")
+            || memoryText.contains("anxiety")
+            || memoryText.contains("焦虑")
+            || memoryText.contains("panic")
+            || memoryText.contains("惊恐") {
+            primaryFocus = isEn ? "anxiety trigger regulation" : "焦虑触发调节"
+            scientificQuery = "behavioral activation anxiety treatment meta analysis daily implementation"
+        } else {
+            primaryFocus = isEn ? "rhythm and consistency" : "节律与一致性"
+            scientificQuery = "daily routine consistency anxiety stress resilience prospective study"
+        }
+
+        if lines.isEmpty {
+            lines = [isEn ? "- Signals are limited; prioritize low-friction action." : "- 当前信号有限，优先低阻力动作。"]
+        }
+
+        return ProactiveSignalSnapshot(
+            lines: lines,
+            primaryFocus: primaryFocus,
+            scientificQuery: scientificQuery
+        )
+    }
+
+    private func parseProactiveCareBrief(
+        _ raw: String,
+        generatedAt: String,
+        language: String,
+        evidenceFallback: RankedScientificPaper?
+    ) -> ProactiveCareBrief? {
+        let payloadData = extractJSONPayload(from: raw) ?? raw.data(using: .utf8)
+        guard let payloadData,
+              let parsed = try? JSONDecoder().decode(ProactiveBriefLLMResponse.self, from: payloadData) else {
+            return nil
+        }
+
+        let title = parsed.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let understanding = parsed.understanding?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let mechanism = parsed.mechanism?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let action = parsed.micro_action?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let followUp = parsed.follow_up_question?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !title.isEmpty, !understanding.isEmpty, !mechanism.isEmpty, !action.isEmpty, !followUp.isEmpty else {
+            return nil
+        }
+
+        let confidence = min(0.98, max(0.3, parsed.confidence ?? 0.62))
+        let evidenceTitle = (parsed.evidence_title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? parsed.evidence_title
+            : evidenceFallback?.title
+        let evidenceURL = (parsed.evidence_url?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? parsed.evidence_url
+            : evidenceFallback?.url
+
+        return ProactiveCareBrief(
+            id: UUID().uuidString,
+            title: title,
+            understanding: understanding,
+            mechanism: mechanism,
+            microAction: action,
+            followUpQuestion: followUp,
+            evidenceTitle: evidenceTitle,
+            evidenceURL: evidenceURL,
+            confidence: confidence,
+            generatedAt: generatedAt
+        )
+    }
+
+    private func buildFallbackProactiveCareBrief(
+        generatedAt: String,
+        language: String,
+        snapshot: ProactiveSignalSnapshot,
+        evidence: RankedScientificPaper?
+    ) -> ProactiveCareBrief {
+        let isEn = language == "en"
+        let title: String
+        let understanding: String
+        let mechanism: String
+        let action: String
+        let followUp: String
+
+        if snapshot.primaryFocus.contains("睡眠") || snapshot.primaryFocus.contains("sleep") {
+            title = isEn ? "Stabilize tonight's sleep window" : "先稳住今晚睡眠窗口"
+            understanding = isEn
+                ? "Your recent pattern suggests sleep rhythm is likely amplifying daytime anxiety reactivity."
+                : "你最近的节律提示：睡眠窗口不稳，正在放大白天焦虑反应。"
+            mechanism = isEn
+                ? "When sleep timing drifts, threat sensitivity and autonomic arousal rise; consistency lowers this load."
+                : "当睡眠时点漂移时，威胁敏感性与自主神经唤醒会上升；节律一致性能降低这部分负荷。"
+            action = isEn
+                ? "Set a fixed bedtime tonight and do 3 minutes of slow breathing before bed."
+                : "今晚固定入睡时间，睡前做 3 分钟慢呼吸。"
+            followUp = isEn
+                ? "Tomorrow morning, how rested do you feel on a 0-10 scale?"
+                : "明天早晨你的恢复感是几分（0-10）？"
+        } else if snapshot.primaryFocus.contains("唤醒") || snapshot.primaryFocus.contains("regulation") {
+            title = isEn ? "Lower arousal before problem-solving" : "先降唤醒，再做问题处理"
+            understanding = isEn
+                ? "Your recent signals point to high arousal load rather than lack of effort."
+                : "你最近更像是处在高唤醒负荷，而不是“做得不够”。"
+            mechanism = isEn
+                ? "High arousal narrows attention and exaggerates threat signals; short down-regulation restores control."
+                : "高唤醒会收窄注意并放大威胁信号；短时下调能先恢复可控感。"
+            action = isEn
+                ? "Do 2 rounds of inhale-4s / exhale-6s, then take an 8-minute walk."
+                : "先做 2 轮吸4秒-呼6秒呼吸，再快走 8 分钟。"
+            followUp = isEn
+                ? "After the action, how much did tension drop (0-10)?"
+                : "动作后你的紧张度下降了几分（0-10）？"
+        } else {
+            title = isEn ? "Keep one low-friction rhythm anchor" : "先守住一个低阻力节律锚点"
+            understanding = isEn
+                ? "Your current trajectory benefits most from consistency, not intensity."
+                : "你当前最需要的是一致性，而不是强度。"
+            mechanism = isEn
+                ? "Small repeatable behaviors reduce uncertainty and gradually retrain anxiety loops."
+                : "可重复的小动作会降低不确定感，并逐步重塑焦虑回路。"
+            action = isEn
+                ? "Pick one 10-minute action and complete it at the same time today."
+                : "选一个 10 分钟动作，并在今天固定时段完成。"
+            followUp = isEn
+                ? "Did you complete it on schedule, and what was your body score (0-10)?"
+                : "你是否按时完成？完成后体感评分是多少（0-10）？"
+        }
+
+        return ProactiveCareBrief(
+            id: UUID().uuidString,
+            title: title,
+            understanding: understanding,
+            mechanism: mechanism,
+            microAction: action,
+            followUpQuestion: followUp,
+            evidenceTitle: evidence?.title,
+            evidenceURL: evidence?.url,
+            confidence: 0.58,
+            generatedAt: generatedAt
+        )
     }
 }
 
