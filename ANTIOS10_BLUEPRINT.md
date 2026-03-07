@@ -1,6 +1,6 @@
 # ANTIOS10 Blueprint
 
-> Status: historical rebuild blueprint; implementation now converges into `main`
+> Status: active latest-app blueprint for `codex/antios10`
 > Updated: 2026-03-07
 > Scope: local-first iOS rebuild for AntiAnxiety with SwiftData foundation
 
@@ -17,7 +17,7 @@ Primary goals:
 - keep remote services only where they create clear product leverage
 - create a reusable iOS delivery pattern for future B-end and C-end AI products
 
-Non-goals for this blueprint:
+Non-goals for this branch:
 - full backend rewrite
 - auth provider migration away from Supabase
 - payment launch in v1

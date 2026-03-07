@@ -9,7 +9,7 @@
 ## 1. PRD（产品需求）
 
 ### 1.1 产品概述
-- 产品名称: AntiAnxiety iOS（`antios5`，当前主线: `main`，`codex/antios10` 仅保留为历史蓝图）
+- 产品名称: AntiAnxiety iOS（旧版稳定线: `main`，最新 app 开发线: `codex/antios10`）
 - 版本目标: TestFlight v1.0（iOS 26.0+）
 - 一句话价值: 用“问询 -> 校准 -> 解释 -> 行动”闭环降低焦虑波动。
 

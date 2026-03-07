@@ -28,9 +28,9 @@
 - 空/错/加载状态收敛
 - 轻量交互改弹窗（减少无必要跳转）
 
-### 阶段 R1: antios10 重构启动（已并回主线）
+### 阶段 R1: antios10 重构启动（进行中）
 - 蓝图与治理同步
-- `codex/antios10` 分支建立并完成主线合流准备
+- `codex/antios10` 分支建立
 - SwiftData local-first 主壳层搭建
 - 3 Tab Shell（Home / Coach / Me）启动
 
@@ -39,7 +39,7 @@
 - 签名与打包链路
 - TestFlight 回归与发布记录
 
-当前步骤: 阶段 4（联调与稳定性）
+当前步骤: 阶段 R1（重构启动）
 
 ---
 
@@ -91,7 +91,7 @@
 
 ## 4. PROGRESS（当前状态）
 
-Last Updated: 2026-03-07 01:48
+Last Updated: 2026-03-07 02:36
 
 Done:
 - 治理模板 4 包已引入
@@ -100,15 +100,15 @@ Done:
 - 全量审计已完成并输出附录
 - `Secrets.xcconfig` 已收敛为可提交模板，真实值转入本地私有配置
 - 模拟器 Debug build 已通过
-- `EXECUTION_GOVERNANCE.md` 与仓库工作区/分支纪律已恢复
+- `EXECUTION_GOVERNANCE.md` 已补齐
 
 In Progress:
-- 主壳层与旧模块并行校验
+- `codex/antios10` 主壳层与旧模块并行校验
 - 模拟器测试会话稳定性复核
 
 Next:
-- 收敛到 `main` 单主线
-- 清理残留 worktree
+- 保持 `main` 为旧版稳定线
+- 保持 `codex/antios10` 为最新 app worktree
 - 继续拆分 `SupabaseManager`
 
 Known Issues:
