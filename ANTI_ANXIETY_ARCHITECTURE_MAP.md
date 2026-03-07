@@ -1,7 +1,7 @@
 # Anti-Anxiety Closed Loop Architecture Map (antios5)
 
 ## Scope Guardrail
-- Workspace: `/Users/mac/Desktop/Antianxiety/antios5`
+- Workspace: `/Users/mac/Desktop/antios5`
 - Legacy untouched: `/Users/mac/Desktop/Antianxiety/antianxietynew`
 
 ## Product Loop (Single Home Orchestration)

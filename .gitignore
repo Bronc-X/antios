@@ -1,0 +1,22 @@
+# Local private secrets
+Secrets.private.xcconfig
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+
+# macOS noise
+.DS_Store
+
+# Local analysis and build artifacts
+.analysis/
+.artifacts/
+.build/
+.derivedData/
+.derivedData_*/
+.derivedData_build/
+.derivedData_build_ios/
+.derivedData_preflight/
+.derivedData_release/
+.derivedData_test/
+PASS

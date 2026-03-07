@@ -1,7 +1,7 @@
 # AntiAnxiety iOS Design Baseline (iOS 26 / Liquid Glass)
 
 Last updated: 2026-02-14  
-Scope: `/Users/mac/Desktop/Antianxiety/antios5/antios5` (SwiftUI-first)
+Scope: `/Users/mac/Desktop/antios5/antios5` (SwiftUI-first)
 
 ## 0. 角色协作结论（强制定调）
 
@@ -191,10 +191,10 @@ Scope: `/Users/mac/Desktop/Antianxiety/antios5/antios5` (SwiftUI-first)
 - `Color(hex: ...)`：69 处
 
 高风险热点：
-- `/Users/mac/Desktop/Antianxiety/antios5/antios5/Features/Onboarding/ClinicalOnboardingView.swift`
-- `/Users/mac/Desktop/Antianxiety/antios5/antios5/Features/Max/MaxChatView.swift`
-- `/Users/mac/Desktop/Antianxiety/antios5/antios5/Features/CoreHub/CoreHubView.swift`
-- `/Users/mac/Desktop/Antianxiety/antios5/antios5/Features/ScienceFeed/ScienceFeedView.swift`
+- `/Users/mac/Desktop/antios5/antios5/Features/Onboarding/ClinicalOnboardingView.swift`
+- `/Users/mac/Desktop/antios5/antios5/Features/Max/MaxChatView.swift`
+- `/Users/mac/Desktop/antios5/antios5/Features/CoreHub/CoreHubView.swift`
+- `/Users/mac/Desktop/antios5/antios5/Features/ScienceFeed/ScienceFeedView.swift`
 
 典型问题：
 - 频繁 `.foregroundColor(.white/.black)` 绕过语义文本色。

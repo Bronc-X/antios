@@ -47,19 +47,19 @@ struct WellnessLog: Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         log_date = (try? container.decode(String.self, forKey: .log_date)) ?? ""
-        sleep_duration_minutes = try? container.decode(Int.self, forKey: .sleep_duration_minutes)
-        exercise_duration_minutes = try? container.decode(Int.self, forKey: .exercise_duration_minutes)
-        mindfulness_minutes = try? container.decode(Int.self, forKey: .mindfulness_minutes)
+        sleep_duration_minutes = Self.decodeFlexibleInt(from: container, forKey: .sleep_duration_minutes)
+        exercise_duration_minutes = Self.decodeFlexibleInt(from: container, forKey: .exercise_duration_minutes)
+        mindfulness_minutes = Self.decodeFlexibleInt(from: container, forKey: .mindfulness_minutes)
         mood_status = try? container.decode(String.self, forKey: .mood_status)
-        stress_level = try? container.decode(Int.self, forKey: .stress_level)
-        morning_energy = try? container.decode(Int.self, forKey: .morning_energy)
-        overall_readiness = try? container.decode(Int.self, forKey: .overall_readiness)
+        stress_level = Self.decodeFlexibleInt(from: container, forKey: .stress_level)
+        morning_energy = Self.decodeFlexibleInt(from: container, forKey: .morning_energy)
+        overall_readiness = Self.decodeFlexibleInt(from: container, forKey: .overall_readiness)
         ai_recommendation = try? container.decode(String.self, forKey: .ai_recommendation)
-        body_tension = try? container.decode(Int.self, forKey: .body_tension)
-        mental_clarity = try? container.decode(Int.self, forKey: .mental_clarity)
+        body_tension = Self.decodeFlexibleInt(from: container, forKey: .body_tension)
+        mental_clarity = Self.decodeFlexibleInt(from: container, forKey: .mental_clarity)
         exercise_type = try? container.decode(String.self, forKey: .exercise_type)
-        energy_level = try? container.decode(Int.self, forKey: .energy_level)
-        anxiety_level = try? container.decode(Int.self, forKey: .anxiety_level)
+        energy_level = Self.decodeFlexibleInt(from: container, forKey: .energy_level)
+        anxiety_level = Self.decodeFlexibleInt(from: container, forKey: .anxiety_level)
         notes = try? container.decode(String.self, forKey: .notes)
 
         if let qualityString = try? container.decode(String.self, forKey: .sleep_quality) {
@@ -69,6 +69,23 @@ struct WellnessLog: Codable, Identifiable {
         } else {
             sleep_quality = nil
         }
+    }
+
+    private static func decodeFlexibleInt(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) -> Int? {
+        if let intValue = try? container.decode(Int.self, forKey: key) {
+            return intValue
+        }
+        if let doubleValue = try? container.decode(Double.self, forKey: key) {
+            return Int(doubleValue.rounded())
+        }
+        if let stringValue = try? container.decode(String.self, forKey: key),
+           let parsed = Double(stringValue) {
+            return Int(parsed.rounded())
+        }
+        return nil
     }
 
     // 计算属性

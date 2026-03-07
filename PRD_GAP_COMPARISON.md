@@ -1,7 +1,7 @@
 # PRD vs Antios5 Baseline Gap Analysis
 
 ## Scope
-- Baseline app: `/Users/mac/Desktop/Antianxiety/antios5` (copied from `antianxietynew`)
+- Baseline app: `/Users/mac/Desktop/antios5` (copied from `antianxietynew`)
 - Goal: align to latest anti-anxiety-first PRD
 - Note: legacy project `/Users/mac/Desktop/Antianxiety/antianxietynew` remains untouched
 

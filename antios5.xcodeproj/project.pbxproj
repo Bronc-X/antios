@@ -70,7 +70,6 @@
 		EEA092022F1A929B00193FC7 /* LiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA092012F1A929B00193FC7 /* LiveActivityAttributes.swift */; };
 		EEA092032F1A929B00193FC7 /* LiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA092012F1A929B00193FC7 /* LiveActivityAttributes.swift */; };
 		EEA092052F1A92D700193FC7 /* AIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA092042F1A92D700193FC7 /* AIManager.swift */; };
-		EEA092072F1AB8FB00193FC7 /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = EEA092062F1AB8FB00193FC7 /* Secrets.xcconfig */; };
 		EEA4D4DE2F26065E00C9F079 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA4D4DC2F26065E00C9F079 /* ThemeManager.swift */; };
 		EEA4D4DF2F26065E00C9F079 /* LiquidGlassTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA4D4DD2F26065E00C9F079 /* LiquidGlassTheme.swift */; };
 		EEA4D4E22F26075100C9F079 /* LiquidGlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA4D4E12F26075100C9F079 /* LiquidGlassComponents.swift */; };
@@ -852,13 +851,12 @@
 		EEDCCD512F1A623F003918D1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-					files = (
-						EEA092072F1AB8FB00193FC7 /* Secrets.xcconfig in Resources */,
-						EEDCCD5F2F1A6242003918D1 /* Preview Assets.xcassets in Resources */,
-						EEB545AB2F1A787700B61C9D /* Assets.xcassets in Resources */,
-						9F7A1B2C3D4E5F60718293A4 /* Localizable.strings in Resources */,
-						F0A1B2C3D4E5F60718293A11 /* PrivacyInfo.xcprivacy in Resources */,
-					);
+			files = (
+				EEDCCD5F2F1A6242003918D1 /* Preview Assets.xcassets in Resources */,
+				EEB545AB2F1A787700B61C9D /* Assets.xcassets in Resources */,
+				9F7A1B2C3D4E5F60718293A4 /* Localizable.strings in Resources */,
+				F0A1B2C3D4E5F60718293A11 /* PrivacyInfo.xcprivacy in Resources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		EEDCCD622F1A6243003918D1 /* Resources */ = {
@@ -1199,7 +1197,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				APP_API_BASE_URL = "https://www.antianxiety.app";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = antios5/antios5.entitlements;
@@ -1242,7 +1239,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				APP_API_BASE_URL = "https://www.antianxiety.app";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = antios5/antios5.entitlements;

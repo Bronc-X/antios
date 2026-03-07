@@ -1118,8 +1118,21 @@ class DashboardViewModel: ObservableObject {
 
     private func invertClinicalScale(_ value: Int, max upperBound: Int) -> Double? {
         guard upperBound > 0, value >= 0 else { return nil }
-        let clamped = min(Swift.max(value, 0), upperBound)
-        return (1.0 - (Double(clamped) / Double(upperBound))) * 100.0
+
+        // 兼容两种输入：
+        // 1) 原始量表分（如 GAD-7: 0...21）
+        // 2) 百分制严重度（0...100，越高越严重）
+        let severityFraction: Double
+        if value <= upperBound {
+            severityFraction = Double(value) / Double(upperBound)
+        } else if value <= 100 {
+            severityFraction = Double(value) / 100.0
+        } else {
+            // 极端异常值按“严重度上限”处理，避免把整条链路拉成无意义极值。
+            severityFraction = 1.0
+        }
+
+        return (1.0 - min(max(severityFraction, 0), 1)) * 100.0
     }
 
     private func calculateOverallScoreFromDigitalTwin(_ dashboard: DigitalTwinDashboardResponse?) -> Int? {

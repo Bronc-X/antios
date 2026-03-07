@@ -11,15 +11,15 @@ Videos:
   - FPS: `59.412895`
   - Duration: `151.093s`
   - Total extracted frames: `8977 / 8977`
-  - Frames dir: `/Users/mac/Desktop/Antianxiety/antios5/.analysis/video8026_all`
-  - Index CSV: `/Users/mac/Desktop/Antianxiety/antios5/.analysis/video8026_all/frames.csv`
+  - Frames dir: `/Users/mac/Desktop/antios5/.analysis/video8026_all`
+  - Index CSV: `/Users/mac/Desktop/antios5/.analysis/video8026_all/frames.csv`
 
 - The Outsiders (`IMG_8027 (1).MP4`)
   - FPS: `50.655052`
   - Duration: `50.240s`
   - Total extracted frames: `2545 / 2545`
-  - Frames dir: `/Users/mac/Desktop/Antianxiety/antios5/.analysis/video8027_all`
-  - Index CSV: `/Users/mac/Desktop/Antianxiety/antios5/.analysis/video8027_all/frames.csv`
+  - Frames dir: `/Users/mac/Desktop/antios5/.analysis/video8027_all`
+  - Index CSV: `/Users/mac/Desktop/antios5/.analysis/video8027_all/frames.csv`
 
 ---
 

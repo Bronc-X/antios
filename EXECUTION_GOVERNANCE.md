@@ -1,61 +1,66 @@
 # Antios5 Delivery Governance
 
 ## Project Guardrail
-- All implementation changes must happen under `/Users/mac/Desktop/Antianxiety/antios5`.
-- Do not modify files under `/Users/mac/Desktop/Antianxiety/antianxietynew`.
+- All implementation changes for this delivery happen under `/Users/mac/Desktop/antios5`.
+- Do not modify other workspaces or legacy copies unless the task explicitly requires it.
+
+## Branch and Worktree Discipline
+- `main` is the only long-lived branch for this repository.
+- Temporary build/review branches may exist during execution, but they must merge back into `main` and be removed afterward.
+- Only one active worktree should point at this repository during product work unless a task explicitly requires an additional worktree.
 
 ## Dual-Agent Roles
 
 ### Agent A: Chief Architecture Planner
 Scope:
-- Translate latest PRD into target domain model and feature boundaries.
-- Define migration strategy from current app to anti-anxiety-first product flow.
-- Produce ADR-style decisions for high-risk tradeoffs.
+- Translate product and research requirements into stable domain boundaries.
+- Define migration strategy for closed-loop anti-anxiety flows.
+- Record high-risk tradeoffs as ADR-style decisions.
 
 Deliverables:
-- Gap matrix (PRD vs current state)
+- Gap matrix (target product vs current app)
 - Module refactor map
 - Milestone acceptance checklist
 
 ### Agent B: Chief Code Engineer
 Scope:
-- Implement architecture decisions with production-grade SwiftUI/MVVM code.
-- Build data pipeline for onboarding + daily calibration + proactive inquiry + wearable data ingestion.
-- Add/adjust tests and runtime guardrails.
+- Implement architecture decisions in production-grade SwiftUI/MVVM code.
+- Maintain the user data, memory, RAG, and evidence pipeline without hard-coded shortcuts.
+- Add build, runtime, and release guardrails.
 
 Deliverables:
-- Working code in antios5
+- Working code in `antios5`
 - Integration validation logs
-- Change list by module
+- Module-level change summary
 
 ## Cross-Supervision Protocol
-1. Agent A proposes design and risk classification.
-2. Agent B challenges technical feasibility and implementation cost.
+1. Agent A proposes design intent and risk classification.
+2. Agent B challenges feasibility, coupling cost, and rollout risk.
 3. If conflict exists:
-- Record both options.
-- Resolve by user-value first, complexity second, timeline third.
-4. Agent B implementation is blocked until Agent A signs off design constraints.
-5. Agent A review is blocked until Agent B provides evidence (build/test/runtime checks).
+- record both options;
+- resolve by user value first, system stability second, implementation cost third.
+4. Agent B implementation is blocked until Agent A signs off the constraints.
+5. Agent A review is blocked until Agent B provides build/test/runtime evidence.
 
-## Build Threads Plan
+## Delivery Threads
 
 ### Thread 1: Architecture and PRD Alignment
-- Output: final architecture map + API/data contract list.
-- Priority: highest (must finish before large implementation starts).
+- Output: final architecture map and API/data contract list.
+- Priority: highest.
 
-### Thread 2: iOS App Refactor (SwiftUI/MVVM)
-- Output: home flow rewrite, onboarding/calibration/proactive inquiry orchestration.
+### Thread 2: iOS App Refactor
+- Output: home shell, onboarding, calibration, proactive inquiry, and action closure orchestration.
 - Dependency: Thread 1 contracts.
 
 ### Thread 3: Data and Intelligence Pipeline
-- Output: HealthKit ingestion, profile enrichment, RAG evidence assembly, Max response grounding.
+- Output: profile enrichment, memory capture, RAG evidence assembly, and Max grounding reliability.
 - Dependency: Thread 1 entity definitions.
 
 ### Thread 4: Integration and Release Readiness
-- Output: regression pass, telemetry checks, rollout gates.
-- Dependency: Thread 2 + Thread 3 completion.
+- Output: regression pass, telemetry checks, simulator validation, and rollout gates.
+- Dependency: Thread 2 and Thread 3 completion.
 
 ## Merge Discipline
-- Use milestone branches off `antios5` scope.
-- Merge order: Thread 1 -> Thread 3 -> Thread 2 -> Thread 4.
-- No direct edits in legacy project.
+- Merge sequence should preserve contract-first delivery: Thread 1 -> Thread 3 -> Thread 2 -> Thread 4.
+- No key documentation may be dropped when code changes land.
+- Every merge candidate must pass simulator build validation before entering `main`.

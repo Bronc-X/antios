@@ -1,412 +1,1286 @@
-// ContentView.swift
-// 主内容视图 - iOS 26 悬浮导航
-//
-// 审美: Neuro-Glass 界面
-
+import SwiftData
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject var supabase: SupabaseManager
-    @EnvironmentObject var appSettings: AppSettings
-    @State private var selectedTab: Tab = .dashboard
+    @EnvironmentObject private var supabase: SupabaseManager
+    @EnvironmentObject private var appSettings: AppSettings
     @AppStorage("isOnboardingComplete") private var isOnboardingComplete = false
-    @State private var isCalibrationPresented = false
-    @State private var isBreathingPresented = false
-    @State private var breathingDurationMinutes = 5
-    
-    enum Tab: CaseIterable, Identifiable {
-        case dashboard, report, max, plans, settings
-        
-        var id: Self { self }
-        
-        var icon: String {
-            switch self {
-            case .dashboard: return "house.fill"
-            case .report: return "doc.text.magnifyingglass"
-            case .max: return "bubble.left.and.bubble.right.fill"
-            case .plans: return "list.bullet.clipboard.fill"
-            case .settings: return "gearshape.fill"
-            }
-        }
-        
-        func title(language: AppLanguage) -> String {
-            switch self {
-            case .dashboard: return L10n.text("进展", "Progress", language: language)
-            case .report: return L10n.text("解释", "Evidence", language: language)
-            case .max: return "Max"
-            case .plans: return L10n.text("行动", "Actions", language: language)
-            case .settings: return L10n.text("设置", "Settings", language: language)
-            }
-        }
-    }
-    
-    var body: some View {
-        GeometryReader { proxy in
-            let metrics = ScreenMetrics(size: proxy.size, safeAreaInsets: proxy.safeAreaInsets)
 
-            Group {
-            Group {
-                if !supabase.isSessionRestored {
-                    LoviLaunchSplashView()
-                        .transition(.opacity)
-                } else if !supabase.isAuthenticated {
-                    AuthView()
-                        .transition(.opacity)
-                } else if !supabase.isClinicalComplete {
-                    ClinicalOnboardingView(isComplete: $supabase.isClinicalComplete)
-                        .transition(.opacity)
-                } else if !isOnboardingComplete {
-                    OnboardingView(isComplete: $isOnboardingComplete)
-                        .transition(.opacity)
-                } else {
-                    mainInterface()
-                        .transition(.opacity)
-                }
-            }
-            }
-            .environment(\.screenMetrics, metrics)
-            .animation(.easeInOut, value: supabase.isAuthenticated)
-            .animation(.easeInOut, value: isOnboardingComplete)
-            .onReceive(NotificationCenter.default.publisher(for: .openDashboard)) { _ in
-                selectedTab = .dashboard
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .openMaxChat)) { _ in
-                selectedTab = .max
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .startCalibration)) { _ in
-                isCalibrationPresented = true
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .startBreathing)) { notification in
-                if let duration = notification.userInfo?["duration"] as? Int {
-                    breathingDurationMinutes = max(1, duration)
-                }
-                isBreathingPresented = true
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .askMax)) { notification in
-                if notification.userInfo?["forwarded"] as? Bool == true {
-                    return
-                }
-                if let question = notification.userInfo?["question"] as? String,
-                   !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    selectedTab = .max
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        NotificationCenter.default.post(
-                            name: .askMax,
-                            object: nil,
-                            userInfo: ["question": question, "forwarded": true]
-                        )
-                    }
-                }
-            }
-            .fullScreenCover(isPresented: $isCalibrationPresented) {
-                CalibrationView(autoStart: true)
-            }
-            .fullScreenCover(isPresented: $isBreathingPresented) {
-                BreathingSessionView(durationMinutes: breathingDurationMinutes)
+    var body: some View {
+        Group {
+            if !supabase.isSessionRestored {
+                A10LaunchView(language: appSettings.language)
+            } else if !supabase.isAuthenticated {
+                AuthView()
+            } else if !supabase.isClinicalComplete {
+                ClinicalOnboardingView(isComplete: $supabase.isClinicalComplete)
+            } else if !isOnboardingComplete {
+                OnboardingView(isComplete: $isOnboardingComplete)
+            } else {
+                A10AppShell(language: appSettings.language)
             }
         }
-        .ignoresSafeArea()
-    }
-    
-    // MARK: - 主界面
-    private func mainInterface() -> some View {
-        ZStack {
-            // 1. 全局背景
-            AuroraBackground()
-                .ignoresSafeArea() // 确保背景填满顶部灵动岛区域
-            
-            // 2. 原生 TabView
-            TabView(selection: $selectedTab) {
-                DashboardView()
-                    .tag(Tab.dashboard)
-                    .tabItem {
-                        Label(Tab.dashboard.title(language: appSettings.language), systemImage: Tab.dashboard.icon)
-                    }
-                ReportView()
-                    .tag(Tab.report)
-                    .tabItem {
-                        Label(Tab.report.title(language: appSettings.language), systemImage: Tab.report.icon)
-                    }
-                MaxChatView()
-                    .tag(Tab.max)
-                    .tabItem {
-                        Label(Tab.max.title(language: appSettings.language), systemImage: Tab.max.icon)
-                    }
-                PlansView()
-                    .tag(Tab.plans)
-                    .tabItem {
-                        Label(Tab.plans.title(language: appSettings.language), systemImage: Tab.plans.icon)
-                    }
-                SettingsView()
-                    .tag(Tab.settings)
-                    .tabItem {
-                        Label(Tab.settings.title(language: appSettings.language), systemImage: Tab.settings.icon)
-                    }
-            }
-            .toolbar(.hidden, for: .tabBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if selectedTab != .max {
-                    CustomTabBar(tabs: Tab.allCases, selection: $selectedTab)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .animation(.easeInOut(duration: 0.24), value: supabase.isSessionRestored)
+        .animation(.easeInOut(duration: 0.24), value: supabase.isAuthenticated)
+        .animation(.easeInOut(duration: 0.24), value: isOnboardingComplete)
     }
 }
 
-private struct LoviLaunchSplashView: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var drift = false
-    @State private var logoFloat = false
-    @State private var revealContent = false
+enum A10Tab: String, CaseIterable, Identifiable {
+    case home
+    case coach
+    case me
+
+    var id: String { rawValue }
+}
+
+enum A10LoopStage: String, CaseIterable, Identifiable, Codable {
+    case inquiry
+    case calibration
+    case evidence
+    case action
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .inquiry: return "bubble.left.and.bubble.right"
+        case .calibration: return "waveform.path.ecg"
+        case .evidence: return "doc.text.magnifyingglass"
+        case .action: return "checklist"
+        }
+    }
+
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .inquiry:
+            return L10n.text("问询", "Inquiry", language: language)
+        case .calibration:
+            return L10n.text("校准", "Calibration", language: language)
+        case .evidence:
+            return L10n.text("解释", "Evidence", language: language)
+        case .action:
+            return L10n.text("行动", "Action", language: language)
+        }
+    }
+
+    func summary(language: AppLanguage) -> String {
+        switch self {
+        case .inquiry:
+            return L10n.text("用一句话说出今天最明显的触发点。", "Name today's clearest trigger in one sentence.", language: language)
+        case .calibration:
+            return L10n.text("补齐今日主观状态与身体信号。", "Capture today's subjective and body signals.", language: language)
+        case .evidence:
+            return L10n.text("把建议和证据链解释清楚。", "Turn the recommendation into an evidence-backed explanation.", language: language)
+        case .action:
+            return L10n.text("执行一个最低阻力动作。", "Complete one lowest-friction action.", language: language)
+        }
+    }
+
+    var next: A10LoopStage {
+        switch self {
+        case .inquiry: return .calibration
+        case .calibration: return .evidence
+        case .evidence: return .action
+        case .action: return .action
+        }
+    }
+}
+
+enum A10CoachRole: String, Codable {
+    case user
+    case assistant
+}
+
+@Model
+final class A10LoopSnapshot {
+    var headline: String
+    var summary: String
+    var nextActionTitle: String
+    var nextActionDetail: String
+    var evidenceNote: String
+    var currentStageRaw: String
+    var stressScore: Int
+    var updatedAt: Date
+
+    init(
+        headline: String,
+        summary: String,
+        nextActionTitle: String,
+        nextActionDetail: String,
+        evidenceNote: String,
+        currentStageRaw: String,
+        stressScore: Int,
+        updatedAt: Date = .now
+    ) {
+        self.headline = headline
+        self.summary = summary
+        self.nextActionTitle = nextActionTitle
+        self.nextActionDetail = nextActionDetail
+        self.evidenceNote = evidenceNote
+        self.currentStageRaw = currentStageRaw
+        self.stressScore = stressScore
+        self.updatedAt = updatedAt
+    }
+
+    var stage: A10LoopStage {
+        get { A10LoopStage(rawValue: currentStageRaw) ?? .inquiry }
+        set { currentStageRaw = newValue.rawValue }
+    }
+}
+
+@Model
+final class A10ActionPlan {
+    var title: String
+    var detail: String
+    var effortLabel: String
+    var estimatedMinutes: Int
+    var isCompleted: Bool
+    var sortOrder: Int
+    var updatedAt: Date
+
+    init(
+        title: String,
+        detail: String,
+        effortLabel: String,
+        estimatedMinutes: Int,
+        isCompleted: Bool = false,
+        sortOrder: Int = 0,
+        updatedAt: Date = .now
+    ) {
+        self.title = title
+        self.detail = detail
+        self.effortLabel = effortLabel
+        self.estimatedMinutes = estimatedMinutes
+        self.isCompleted = isCompleted
+        self.sortOrder = sortOrder
+        self.updatedAt = updatedAt
+    }
+}
+
+@Model
+final class A10CoachSession {
+    var title: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    @Relationship(deleteRule: .cascade, inverse: \A10CoachMessage.session)
+    var messages: [A10CoachMessage] = []
+
+    init(title: String, createdAt: Date = .now, updatedAt: Date = .now) {
+        self.title = title
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+@Model
+final class A10CoachMessage {
+    var roleRaw: String
+    var body: String
+    var createdAt: Date
+    var session: A10CoachSession?
+
+    init(
+        roleRaw: String,
+        body: String,
+        createdAt: Date = .now,
+        session: A10CoachSession? = nil
+    ) {
+        self.roleRaw = roleRaw
+        self.body = body
+        self.createdAt = createdAt
+        self.session = session
+    }
+
+    var role: A10CoachRole {
+        A10CoachRole(rawValue: roleRaw) ?? .assistant
+    }
+}
+
+@Model
+final class A10PreferenceRecord {
+    var languageCode: String
+    var healthSyncEnabled: Bool
+    var notificationsEnabled: Bool
+    var dailyCheckInHour: Int
+    var updatedAt: Date
+
+    init(
+        languageCode: String,
+        healthSyncEnabled: Bool,
+        notificationsEnabled: Bool,
+        dailyCheckInHour: Int,
+        updatedAt: Date = .now
+    ) {
+        self.languageCode = languageCode
+        self.healthSyncEnabled = healthSyncEnabled
+        self.notificationsEnabled = notificationsEnabled
+        self.dailyCheckInHour = dailyCheckInHour
+        self.updatedAt = updatedAt
+    }
+}
+
+private struct A10AppShell: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var selectedTab: A10Tab = .home
+
+    let language: AppLanguage
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                A10HomeView(
+                    language: language,
+                    onOpenCoach: { selectedTab = .coach }
+                )
+            }
+            .tabItem {
+                Label(
+                    A10Tab.home.title(language: language),
+                    systemImage: A10Tab.home.icon
+                )
+            }
+            .tag(A10Tab.home)
+
+            NavigationStack {
+                A10CoachView(language: language)
+            }
+            .tabItem {
+                Label(
+                    A10Tab.coach.title(language: language),
+                    systemImage: A10Tab.coach.icon
+                )
+            }
+            .tag(A10Tab.coach)
+
+            NavigationStack {
+                A10MeView(language: language)
+            }
+            .tabItem {
+                Label(
+                    A10Tab.me.title(language: language),
+                    systemImage: A10Tab.me.icon
+                )
+            }
+            .tag(A10Tab.me)
+        }
+        .task(id: language.rawValue) {
+            A10SeedData.ensureSeedData(context: modelContext, language: language)
+        }
+        .background(A10Palette.canvas.ignoresSafeArea())
+    }
+}
+
+private struct A10HomeView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
+    @Query(sort: \A10ActionPlan.sortOrder) private var plans: [A10ActionPlan]
+
+    let language: AppLanguage
+    let onOpenCoach: () -> Void
+
+    private var currentSnapshot: A10LoopSnapshot? { loopSnapshots.first }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if let currentSnapshot {
+                    A10FocusHeroCard(snapshot: currentSnapshot, language: language)
+                } else {
+                    A10EmptyStateCard(
+                        title: L10n.text("正在建立今日闭环", "Creating today's loop", language: language),
+                        message: L10n.text("SwiftData 容器已接入，正在生成本地快照。", "SwiftData is ready and preparing a local snapshot.", language: language)
+                    )
+                }
+
+                A10SectionHeader(
+                    title: L10n.text("闭环状态", "Loop status", language: language),
+                    subtitle: L10n.text("先让用户知道自己在哪一步。", "Show the current recovery step first.", language: language)
+                )
+
+                A10Card {
+                    VStack(spacing: 14) {
+                        ForEach(A10LoopStage.allCases) { stage in
+                            A10LoopStepRow(
+                                stage: stage,
+                                currentStage: currentSnapshot?.stage ?? .inquiry,
+                                language: language
+                            )
+                        }
+                    }
+                }
+
+                A10SectionHeader(
+                    title: L10n.text("今日行动", "Today plan", language: language),
+                    subtitle: L10n.text("把建议收敛成最小动作。", "Turn guidance into the smallest useful action.", language: language)
+                )
+
+                VStack(spacing: 12) {
+                    ForEach(plans.prefix(3), id: \.persistentModelID) { plan in
+                        A10ActionCard(
+                            plan: plan,
+                            language: language,
+                            onToggle: { toggle(plan: plan) }
+                        )
+                    }
+                }
+
+                A10SectionHeader(
+                    title: L10n.text("快速动作", "Quick actions", language: language),
+                    subtitle: L10n.text("先推进闭环，再决定是否深入。", "Progress the loop first, then decide whether to go deeper.", language: language)
+                )
+
+                HStack(spacing: 12) {
+                    Button {
+                        advanceLoop()
+                    } label: {
+                        A10ActionButtonLabel(
+                            title: L10n.text("推进下一步", "Advance next step", language: language),
+                            subtitle: L10n.text("更新本地闭环状态", "Update the local loop state", language: language),
+                            systemImage: "arrow.right.circle.fill"
+                        )
+                    }
+                    .buttonStyle(A10PrimaryButtonStyle())
+
+                    Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        onOpenCoach()
+                    } label: {
+                        A10ActionButtonLabel(
+                            title: L10n.text("打开 Coach", "Open Coach", language: language),
+                            subtitle: L10n.text("进入对话与行动收口", "Enter chat and action handoff", language: language),
+                            systemImage: "bubble.left.and.bubble.right.fill"
+                        )
+                    }
+                    .buttonStyle(A10SecondaryButtonStyle())
+                }
+            }
+            .padding(20)
+        }
+        .background(A10Palette.canvas.ignoresSafeArea())
+        .navigationTitle(A10Tab.home.title(language: language))
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    private func advanceLoop() {
+        guard let snapshot = currentSnapshot else { return }
+
+        UISelectionFeedbackGenerator().selectionChanged()
+        snapshot.stage = snapshot.stage.next
+        snapshot.updatedAt = .now
+
+        if snapshot.stage == .evidence {
+            snapshot.evidenceNote = L10n.text(
+                "解释优先来自本地闭环快照，后续再接入远端证据链。",
+                "Explanations are currently grounded in the local loop snapshot, with remote evidence to follow.",
+                language: language
+            )
+        }
+
+        if snapshot.stage == .action {
+            snapshot.nextActionTitle = L10n.text("完成 3 分钟呼吸", "Complete a 3-minute breathing reset", language: language)
+            snapshot.nextActionDetail = L10n.text("只做一个最低阻力动作，先把身体带回安全感。", "Do one lowest-friction action and bring the body back to safety first.", language: language)
+            if !plans.contains(where: { $0.title == snapshot.nextActionTitle }) {
+                modelContext.insert(
+                    A10ActionPlan(
+                        title: snapshot.nextActionTitle,
+                        detail: snapshot.nextActionDetail,
+                        effortLabel: L10n.text("低负担", "Low load", language: language),
+                        estimatedMinutes: 3,
+                        sortOrder: plans.count
+                    )
+                )
+            }
+        }
+
+        try? modelContext.save()
+    }
+
+    private func toggle(plan: A10ActionPlan) {
+        UISelectionFeedbackGenerator().selectionChanged()
+        plan.isCompleted.toggle()
+        plan.updatedAt = .now
+        try? modelContext.save()
+    }
+}
+
+private struct A10CoachView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \A10CoachSession.updatedAt, order: .reverse) private var sessions: [A10CoachSession]
+    @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
+    @State private var draft = ""
+
+    let language: AppLanguage
+
+    private var activeSession: A10CoachSession? { sessions.first }
+
+    private var sortedMessages: [A10CoachMessage] {
+        guard let activeSession else { return [] }
+        return activeSession.messages.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    A10SectionHeader(
+                        title: L10n.text("Coach 对话", "Coach thread", language: language),
+                        subtitle: L10n.text("现在先用本地优先会话模型承接输入。", "The first rebuild pass uses a local-first thread model.", language: language)
+                    )
+
+                    ForEach(sortedMessages, id: \.persistentModelID) { message in
+                        A10CoachBubble(message: message, language: language)
+                    }
+
+                    if sortedMessages.isEmpty {
+                        A10EmptyStateCard(
+                            title: L10n.text("还没有对话", "No thread yet", language: language),
+                            message: L10n.text("发送第一条消息，系统会写入 SwiftData 会话。", "Send the first message and the shell will write to SwiftData.", language: language)
+                        )
+                    }
+
+                    A10SectionHeader(
+                        title: L10n.text("快捷提示", "Quick prompts", language: language),
+                        subtitle: L10n.text("减少高压状态下的输入成本。", "Reduce input effort during high stress moments.", language: language)
+                    )
+
+                    A10QuickPromptRow(
+                        prompts: A10CoachResponder.quickPrompts(language: language),
+                        onSelect: { draft = $0 }
+                    )
+                }
+                .padding(20)
+            }
+
+            A10ComposerBar(
+                draft: $draft,
+                language: language,
+                onSend: sendMessage
+            )
+        }
+        .background(A10Palette.canvas.ignoresSafeArea())
+        .navigationTitle(A10Tab.coach.title(language: language))
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    private func sendMessage() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        UISelectionFeedbackGenerator().selectionChanged()
+        let session = activeSession ?? A10SeedData.createSession(context: modelContext, language: language)
+        let userMessage = A10CoachMessage(roleRaw: A10CoachRole.user.rawValue, body: trimmed, session: session)
+        modelContext.insert(userMessage)
+
+        let currentStage = loopSnapshots.first?.stage ?? .inquiry
+        let reply = A10CoachResponder.reply(
+            to: trimmed,
+            stage: currentStage,
+            language: language
+        )
+        let assistantMessage = A10CoachMessage(roleRaw: A10CoachRole.assistant.rawValue, body: reply, session: session)
+        modelContext.insert(assistantMessage)
+
+        session.updatedAt = .now
+
+        if let snapshot = loopSnapshots.first, snapshot.stage != .action {
+            snapshot.stage = snapshot.stage.next
+            snapshot.updatedAt = .now
+        }
+
+        draft = ""
+        try? modelContext.save()
+    }
+}
+
+private struct A10MeView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var supabase: SupabaseManager
+    @Query(sort: \A10PreferenceRecord.updatedAt, order: .reverse) private var preferenceRecords: [A10PreferenceRecord]
+    @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
+    @Query(sort: \A10ActionPlan.sortOrder) private var plans: [A10ActionPlan]
+    @Query(sort: \A10CoachSession.updatedAt, order: .reverse) private var sessions: [A10CoachSession]
+
+    let language: AppLanguage
+
+    private var preferences: A10PreferenceRecord? { preferenceRecords.first }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                A10SectionHeader(
+                    title: L10n.text("系统与偏好", "System and preferences", language: language),
+                    subtitle: L10n.text("把设置从展示型页面改成状态清晰的运维面板。", "Turn settings into a clear operating panel rather than a decorative page.", language: language)
+                )
+
+                A10Card {
+                    VStack(spacing: 16) {
+                        A10SettingsToggleRow(
+                            title: L10n.text("Health 数据同步", "Health data sync", language: language),
+                            subtitle: L10n.text("保持 Apple Health 为首选输入来源。", "Keep Apple Health as the preferred signal source.", language: language),
+                            isOn: Binding(
+                                get: { preferences?.healthSyncEnabled ?? true },
+                                set: { newValue in
+                                    updatePreferences { record in
+                                        record.healthSyncEnabled = newValue
+                                    }
+                                }
+                            )
+                        )
+
+                        A10Divider()
+
+                        A10SettingsToggleRow(
+                            title: L10n.text("每日提醒", "Daily reminders", language: language),
+                            subtitle: L10n.text("仅保留高价值提醒，不制造噪音。", "Keep reminders high value and low noise.", language: language),
+                            isOn: Binding(
+                                get: { preferences?.notificationsEnabled ?? true },
+                                set: { newValue in
+                                    updatePreferences { record in
+                                        record.notificationsEnabled = newValue
+                                    }
+                                }
+                            )
+                        )
+                    }
+                }
+
+                A10SectionHeader(
+                    title: L10n.text("数据层状态", "Data layer status", language: language),
+                    subtitle: L10n.text("确认新壳层已经由 SwiftData 驱动。", "Confirm that the rebuild shell is already driven by SwiftData.", language: language)
+                )
+
+                A10Card {
+                    VStack(spacing: 14) {
+                        A10MetricRow(
+                            title: "SwiftData",
+                            value: L10n.text("已接管本地状态", "Local state is active", language: language)
+                        )
+                        A10MetricRow(
+                            title: L10n.text("闭环快照", "Loop snapshots", language: language),
+                            value: "\(loopSnapshots.count)"
+                        )
+                        A10MetricRow(
+                            title: L10n.text("行动计划", "Plans", language: language),
+                            value: "\(plans.count)"
+                        )
+                        A10MetricRow(
+                            title: L10n.text("Coach 会话", "Coach sessions", language: language),
+                            value: "\(sessions.count)"
+                        )
+                        A10MetricRow(
+                            title: "Remote",
+                            value: L10n.text("Auth 与同步后续桥接", "Auth and sync will stay remote", language: language)
+                        )
+                    }
+                }
+
+                A10SectionHeader(
+                    title: L10n.text("账户", "Account", language: language),
+                    subtitle: L10n.text("当前先保留 Supabase Auth，不在本轮迁移提供商。", "Supabase Auth remains in place for this rebuild pass.", language: language)
+                )
+
+                Button {
+                    Task { await supabase.signOut() }
+                } label: {
+                    Text(L10n.text("退出登录", "Sign out", language: language))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(A10SecondaryButtonStyle())
+            }
+            .padding(20)
+        }
+        .background(A10Palette.canvas.ignoresSafeArea())
+        .navigationTitle(A10Tab.me.title(language: language))
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    private func updatePreferences(_ mutate: (A10PreferenceRecord) -> Void) {
+        let record = preferences ?? A10SeedData.createPreferences(context: modelContext, language: language)
+        mutate(record)
+        record.updatedAt = .now
+        try? modelContext.save()
+    }
+}
+
+private struct A10LaunchView: View {
+    let language: AppLanguage
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: colorScheme == .dark
-                    ? [Color(hex: "#1A1230"), Color(hex: "#311745"), Color(hex: "#21163D")]
-                    : [Color(hex: "#FFFEFF"), Color(hex: "#FDEFFF"), Color(hex: "#F4EEFF")],
+                colors: [A10Palette.canvas, A10Palette.surface, A10Palette.inset],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
-            Circle()
-                .fill(Color(hex: "#E2AAFF").opacity(colorScheme == .dark ? 0.34 : 0.28))
-                .frame(width: 420, height: 420)
-                .blur(radius: 118)
-                .offset(x: drift ? -120 : -22, y: drift ? -210 : -132)
-
-            Circle()
-                .fill(Color(hex: "#FFC3EA").opacity(colorScheme == .dark ? 0.30 : 0.25))
-                .frame(width: 442, height: 442)
-                .blur(radius: 126)
-                .offset(x: drift ? 126 : 36, y: drift ? 228 : 148)
-
-            Circle()
-                .fill(Color(hex: "#89E8B8").opacity(colorScheme == .dark ? 0.15 : 0.11))
-                .frame(width: 220, height: 220)
-                .blur(radius: 66)
-                .offset(x: drift ? 138 : 88, y: drift ? -108 : -142)
-
-            Circle()
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.07 : 0.16))
-                .frame(width: 322, height: 322)
-                .blur(radius: 92)
-                .offset(x: drift ? 36 : -24, y: drift ? 34 : 102)
-
             VStack(spacing: 18) {
-                Spacer()
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 54, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.brand)
 
-                LoviSplashMark(scaleUp: logoFloat)
-                    .padding(.bottom, 2)
+                Text("AntiAnxiety")
+                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
 
-                VStack(spacing: 8) {
-                    Text("Science-backed 情绪伙伴")
-                        .font(GlassTypography.cnLovi(20, weight: .medium))
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(hex: "#72679C"))
-                }
-                .opacity(revealContent ? 1 : 0)
-                .offset(y: revealContent ? 0 : 8)
-
-                Spacer()
-
-                HStack(spacing: 6) {
-                    Circle().fill(Color(hex: "#D7A2FF")).frame(width: 6, height: 6).opacity(0.95)
-                    Circle().fill(Color(hex: "#F4B5E2")).frame(width: 6, height: 6).opacity(0.76)
-                    Circle().fill(Color(hex: "#85E6B5")).frame(width: 6, height: 6).opacity(0.62)
-                    Text("正在准备你的个性化体验")
-                        .font(GlassTypography.cnLovi(13, weight: .medium))
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "#7A6EA3"))
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.white.opacity(colorScheme == .dark ? 0.14 : 0.42))
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(Color.white.opacity(colorScheme == .dark ? 0.3 : 0.56), lineWidth: 1)
-                        )
-                        .shadow(color: Color(hex: "#748CFF").opacity(colorScheme == .dark ? 0.24 : 0.16), radius: 12, y: 7)
+                Text(
+                    L10n.text(
+                        "正在切换到更轻、更稳的 antios10 主壳层",
+                        "Booting the lighter and steadier antios10 shell",
+                        language: language
+                    )
                 )
-                .padding(.horizontal, 44)
-                .padding(.bottom, 64)
-                .opacity(revealContent ? 1 : 0)
-                .offset(y: revealContent ? 0 : 10)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(A10Palette.inkSecondary)
+
+                ProgressView()
+                    .tint(A10Palette.brand)
+                    .padding(.top, 8)
             }
+            .padding(32)
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 8.0).repeatForever(autoreverses: true)) {
-                drift.toggle()
-            }
-            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
-                logoFloat.toggle()
-            }
-            withAnimation(.easeOut(duration: 0.55).delay(0.18)) {
-                revealContent = true
+    }
+}
+
+private struct A10FocusHeroCard: View {
+    let snapshot: A10LoopSnapshot
+    let language: AppLanguage
+
+    var body: some View {
+        A10Card(highlighted: true) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(L10n.text("今日重点", "Today's focus", language: language))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+
+                Text(snapshot.headline)
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+
+                Text(snapshot.summary)
+                    .font(.system(size: 16, weight: .regular, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+
+                HStack(spacing: 12) {
+                    A10Badge(
+                        title: "\(L10n.text("压力", "Stress", language: language)) \(snapshot.stressScore)/10",
+                        tint: A10Palette.warning
+                    )
+                    A10Badge(
+                        title: snapshot.stage.title(language: language),
+                        tint: A10Palette.brand
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(snapshot.nextActionTitle)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+                    Text(snapshot.nextActionDetail)
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(A10Palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
     }
 }
 
-private struct CustomTabBar: View {
-    @Environment(\.screenMetrics) private var metrics
-    @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject private var appSettings: AppSettings
-    let tabs: [ContentView.Tab]
-    @Binding var selection: ContentView.Tab
+private struct A10LoopStepRow: View {
+    let stage: A10LoopStage
+    let currentStage: A10LoopStage
+    let language: AppLanguage
+
+    private var isComplete: Bool {
+        A10LoopStage.allCases.firstIndex(of: stage).map { index in
+            guard let currentIndex = A10LoopStage.allCases.firstIndex(of: currentStage) else { return false }
+            return index < currentIndex
+        } ?? false
+    }
+
+    private var isCurrent: Bool { currentStage == stage }
 
     var body: some View {
-        let itemHeight: CGFloat = metrics.isCompactHeight ? 52 : 58
-        let topPadding: CGFloat = metrics.isCompactHeight ? 6 : 8
-        let bottomPadding = max(10, metrics.safeAreaInsets.bottom)
-        let sidePadding = metrics.tabBarHorizontalPadding
-        // 使用像素对齐的固定宽度，避免亚像素漂移
-        let containerWidth = alignToPixel(metrics.fixedScreenWidth)
-        let extraWidth: CGFloat = 16  // 左右各自加宽 8
-        let barWidth = alignToPixel(min(containerWidth, metrics.tabBarWidth + extraWidth))
-        let totalHeight = itemHeight + topPadding + bottomPadding
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(indicatorColor.opacity(0.18))
+                    .frame(width: 38, height: 38)
 
-        // 使用 ZStack 创建显式居中容器，确保背景与内容共享同一锚点
-        ZStack {
-            // 背景层 - 使用相同的 barWidth
-            tabBarBackground
-                .frame(width: barWidth, height: totalHeight)
+                Image(systemName: isComplete ? "checkmark" : stage.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(indicatorColor)
+            }
 
-            // 内容层 - 使用相同的 barWidth
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topPadding)
-                HStack(spacing: 0) {
-                    ForEach(tabs, id: \.self) { tab in
-                        tabButton(tab, itemHeight: itemHeight)
-                            .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(stage.title(language: language))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+
+                Text(stage.summary(language: language))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+            }
+
+            Spacer()
+
+            Text(statusText)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(indicatorColor)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var indicatorColor: Color {
+        if isComplete { return A10Palette.success }
+        if isCurrent { return A10Palette.brand }
+        return A10Palette.line
+    }
+
+    private var statusText: String {
+        if isComplete {
+            return L10n.text("完成", "Done", language: language)
+        }
+        if isCurrent {
+            return L10n.text("当前", "Current", language: language)
+        }
+        return L10n.text("待处理", "Queued", language: language)
+    }
+}
+
+private struct A10ActionCard: View {
+    let plan: A10ActionPlan
+    let language: AppLanguage
+    let onToggle: () -> Void
+
+    var body: some View {
+        A10Card {
+            HStack(alignment: .top, spacing: 14) {
+                Button(action: onToggle) {
+                    Image(systemName: plan.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24))
+                        .foregroundStyle(plan.isCompleted ? A10Palette.success : A10Palette.line)
+                }
+                .buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(plan.title)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+                    Text(plan.detail)
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                    HStack(spacing: 8) {
+                        A10Badge(title: plan.effortLabel, tint: A10Palette.info)
+                        A10Badge(
+                            title: "\(plan.estimatedMinutes) \(L10n.text("分钟", "min", language: language))",
+                            tint: A10Palette.brandSecondary
+                        )
                     }
                 }
-                .padding(.horizontal, sidePadding)
-                .frame(width: barWidth, height: itemHeight)
-                Color.clear.frame(height: bottomPadding)
+
+                Spacer()
             }
-            .frame(width: barWidth, height: totalHeight)
         }
-        .frame(width: containerWidth, height: totalHeight)  // 容器锚定到物理屏幕宽度
-        .overlay(centerAxisOverlay)
     }
+}
 
-    private var tabBarBackground: some View {
-        RoundedRectangle(cornerRadius: 30, style: .continuous)
-            .fill(Color.clear)
-            .liquidGlassRoundedChrome(cornerRadius: 30, shadow: true)
-            .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color.liquidGlassAccent.opacity(colorScheme == .dark ? 0.14 : 0.1))
-                    .blur(radius: colorScheme == .dark ? 16 : 12)
-                    .offset(y: colorScheme == .dark ? 8 : 6)
-            )
-            .padding(.horizontal, 2)
-    }
+private struct A10CoachBubble: View {
+    let message: A10CoachMessage
+    let language: AppLanguage
 
-    @ViewBuilder
-    private func tabButton(_ tab: ContentView.Tab, itemHeight: CGFloat) -> some View {
-        let isSelected = selection == tab
-
-        Button {
-            if selection != tab {
-                let impact = UIImpactFeedbackGenerator(style: .light)
-                impact.impactOccurred()
+    var body: some View {
+        HStack {
+            if message.role == .assistant {
+                bubble(alignment: .leading, tint: A10Palette.surface, foreground: A10Palette.ink)
+                Spacer(minLength: 36)
             } else {
-                let feedback = UISelectionFeedbackGenerator()
-                feedback.selectionChanged()
+                Spacer(minLength: 36)
+                bubble(alignment: .trailing, tint: A10Palette.brand.opacity(0.18), foreground: A10Palette.ink)
             }
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                selection = tab
-            }
-        } label: {
-            VStack(spacing: 3) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 17, weight: .semibold))
-                Text(tab.title(language: appSettings.language))
-                    .font(GlassTypography.cnLovi(11, weight: isSelected ? .semibold : .regular))
-            }
-            .foregroundColor(isSelected ? .liquidGlassAccent : .textTertiary)
-            .frame(maxWidth: .infinity, minHeight: itemHeight)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Color.white.opacity(colorScheme == .dark ? 0.22 : 0.34) : Color.clear)
-                    .overlay(
-                        Capsule()
-                            .stroke(isSelected ? Color.white.opacity(colorScheme == .dark ? 0.38 : 0.5) : Color.clear, lineWidth: 1)
-                    )
-            )
-            .scaleEffect(isSelected ? 1.02 : 1)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 
-    private var centerAxisOverlay: some View {
-        Group {
-            if LayoutDebug.enabled {
-                GeometryReader { proxy in
-                    let centerX = proxy.size.width / 2
-                    Rectangle()
-                        .fill(Color.yellow.opacity(0.7))
-                        .frame(width: 1)
-                        .offset(x: centerX)
+    private func bubble(alignment: HorizontalAlignment, tint: Color, foreground: Color) -> some View {
+        VStack(alignment: alignment, spacing: 6) {
+            Text(message.role == .assistant ? "Coach" : L10n.text("你", "You", language: language))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(A10Palette.inkSecondary)
+
+            Text(message.body)
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .trailing)
+
+            Text(message.createdAt.formatted(date: .omitted, time: .shortened))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(A10Palette.inkTertiary)
+        }
+        .padding(16)
+        .background(tint)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct A10ComposerBar: View {
+    @Binding var draft: String
+
+    let language: AppLanguage
+    let onSend: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            A10Divider()
+
+            HStack(alignment: .bottom, spacing: 12) {
+                TextField(
+                    L10n.text("输入今天最真实的感受…", "Write the most real thing you feel today...", language: language),
+                    text: $draft,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .padding(14)
+                .background(A10Palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                Button(action: onSend) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 30))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? A10Palette.line : A10Palette.brand)
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+            .padding(.top, 6)
+            .background(A10Palette.canvas)
+        }
+    }
+}
+
+private struct A10QuickPromptRow: View {
+    let prompts: [String]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(prompts, id: \.self) { prompt in
+                    Button(action: { onSelect(prompt) }) {
+                        Text(prompt)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(A10Palette.ink)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(A10Palette.surface)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
     }
-
-    private func alignToPixel(_ value: CGFloat) -> CGFloat {
-        #if os(iOS)
-        let scale = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.scale ?? 2.0
-        #else
-        let scale: CGFloat = 2.0
-        #endif
-        return (value * scale).rounded() / scale
-    }
 }
 
-private struct LoviSplashMark: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let scaleUp: Bool
+private struct A10SectionHeader: View {
+    let title: String
+    let subtitle: String
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .frame(width: 118, height: 118)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.36), lineWidth: 1)
-                )
-                .shadow(color: Color(hex: "#8D80FF").opacity(0.3), radius: 24, y: 10)
-
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.22))
-                .frame(width: 86, height: 86)
-
-            Text("lóvi")
-                .font(.system(size: 38, weight: .semibold, design: .rounded))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.95), Color(hex: "#D7C9FF")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .kerning(-1.2)
-                .scaleEffect(scaleUp ? 1.03 : 0.98)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                .foregroundStyle(A10Palette.ink)
+            Text(subtitle)
+                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .foregroundStyle(A10Palette.inkSecondary)
         }
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environmentObject(SupabaseManager.shared)
-            .environmentObject(AppSettings())
+private struct A10EmptyStateCard: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        A10Card {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+                Text(message)
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+            }
+        }
     }
+}
+
+private struct A10MetricRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(A10Palette.inkSecondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(A10Palette.ink)
+        }
+    }
+}
+
+private struct A10SettingsToggleRow: View {
+    let title: String
+    let subtitle: String
+    let isOn: Binding<Bool>
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(A10Palette.brand)
+        }
+    }
+}
+
+private struct A10ActionButtonLabel: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .opacity(0.8)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct A10Card<Content: View>: View {
+    let highlighted: Bool
+    @ViewBuilder let content: Content
+
+    init(highlighted: Bool = false, @ViewBuilder content: () -> Content) {
+        self.highlighted = highlighted
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(highlighted ? A10Palette.surfaceStrong : A10Palette.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(highlighted ? A10Palette.brand.opacity(0.18) : A10Palette.line.opacity(0.7), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
+private struct A10Badge: View {
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(tint.opacity(0.14))
+            .clipShape(Capsule())
+    }
+}
+
+private struct A10Divider: View {
+    var body: some View {
+        Rectangle()
+            .fill(A10Palette.line.opacity(0.7))
+            .frame(height: 1)
+    }
+}
+
+private struct A10PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(A10Palette.brand.opacity(configuration.isPressed ? 0.78 : 1))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+private struct A10SecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(A10Palette.ink)
+            .background(A10Palette.surface.opacity(configuration.isPressed ? 0.88 : 1))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(A10Palette.line, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+private enum A10Palette {
+    static let canvas = Color(a10Hex: "#F5F1EA")
+    static let surface = Color(a10Hex: "#FFFDF8")
+    static let surfaceStrong = Color(a10Hex: "#F8F3EB")
+    static let inset = Color(a10Hex: "#ECE4D7")
+    static let line = Color(a10Hex: "#D8CEBF")
+    static let ink = Color(a10Hex: "#1F2328")
+    static let inkSecondary = Color(a10Hex: "#56606B")
+    static let inkTertiary = Color(a10Hex: "#7B8794")
+    static let brand = Color(a10Hex: "#2F6E62")
+    static let brandSecondary = Color(a10Hex: "#C96F4A")
+    static let success = Color(a10Hex: "#2E7D5B")
+    static let warning = Color(a10Hex: "#C28A2C")
+    static let info = Color(a10Hex: "#5073B8")
+}
+
+private enum A10SeedData {
+    @MainActor
+    static func ensureSeedData(context: ModelContext, language: AppLanguage) {
+        do {
+            var snapshotDescriptor = FetchDescriptor<A10LoopSnapshot>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
+            snapshotDescriptor.fetchLimit = 1
+            let hasSnapshot = try !context.fetch(snapshotDescriptor).isEmpty
+
+            var planDescriptor = FetchDescriptor<A10ActionPlan>(sortBy: [SortDescriptor(\.sortOrder)])
+            planDescriptor.fetchLimit = 1
+            let hasPlans = try !context.fetch(planDescriptor).isEmpty
+
+            var sessionDescriptor = FetchDescriptor<A10CoachSession>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
+            sessionDescriptor.fetchLimit = 1
+            let hasSession = try !context.fetch(sessionDescriptor).isEmpty
+
+            var preferenceDescriptor = FetchDescriptor<A10PreferenceRecord>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
+            preferenceDescriptor.fetchLimit = 1
+            let existingPreferences = try context.fetch(preferenceDescriptor).first
+
+            if !hasSnapshot {
+                context.insert(
+                    A10LoopSnapshot(
+                        headline: L10n.text("先让系统知道你今天最难的点。", "Let the system understand your hardest point today first.", language: language),
+                        summary: L10n.text("新壳层先围绕一个问题、一条解释、一个动作来组织信息。", "The new shell starts by organizing the experience around one question, one explanation, and one action.", language: language),
+                        nextActionTitle: L10n.text("用 20 秒说出触发点", "Name the trigger in 20 seconds", language: language),
+                        nextActionDetail: L10n.text("例如：今天开会前胸口发紧，注意力被拉走。", "Example: before today's meeting my chest tightened and my attention drifted away.", language: language),
+                        evidenceNote: L10n.text("下一阶段会把本地快照与远端证据桥接。", "The next phase will bridge the local snapshot with remote evidence.", language: language),
+                        currentStageRaw: A10LoopStage.inquiry.rawValue,
+                        stressScore: 6
+                    )
+                )
+            }
+
+            if !hasPlans {
+                context.insert(
+                    A10ActionPlan(
+                        title: L10n.text("做 3 分钟呼吸", "Do a 3-minute breathing reset", language: language),
+                        detail: L10n.text("不用追求完整闭环，先做最低阻力动作。", "Do not chase the full loop yet. Start with the lowest-friction action.", language: language),
+                        effortLabel: L10n.text("低负担", "Low load", language: language),
+                        estimatedMinutes: 3,
+                        sortOrder: 0
+                    )
+                )
+                context.insert(
+                    A10ActionPlan(
+                        title: L10n.text("记录一句触发语境", "Log one trigger sentence", language: language),
+                        detail: L10n.text("保留最真实的上下文，后面给解释和行动用。", "Capture the most real context for later explanation and action.", language: language),
+                        effortLabel: L10n.text("1 句话", "1 line", language: language),
+                        estimatedMinutes: 1,
+                        sortOrder: 1
+                    )
+                )
+            }
+
+            if !hasSession {
+                let session = createSession(context: context, language: language)
+                context.insert(
+                    A10CoachMessage(
+                        roleRaw: A10CoachRole.assistant.rawValue,
+                        body: L10n.text(
+                            "我会先帮你把今天的状态说清楚，再把它收敛成一个动作。",
+                            "I will first help you name today's state clearly, then collapse it into one action.",
+                            language: language
+                        ),
+                        session: session
+                    )
+                )
+            }
+
+            if let existingPreferences {
+                existingPreferences.languageCode = language.rawValue
+                existingPreferences.updatedAt = .now
+            } else {
+                context.insert(
+                    A10PreferenceRecord(
+                        languageCode: language.rawValue,
+                        healthSyncEnabled: true,
+                        notificationsEnabled: true,
+                        dailyCheckInHour: 21
+                    )
+                )
+            }
+
+            try context.save()
+        } catch {
+            print("[A10SeedData] failed: \(error)")
+        }
+    }
+
+    @MainActor
+    static func createSession(context: ModelContext, language: AppLanguage) -> A10CoachSession {
+        let session = A10CoachSession(
+            title: L10n.text("今日恢复线程", "Today's recovery thread", language: language)
+        )
+        context.insert(session)
+        return session
+    }
+
+    @MainActor
+    static func createPreferences(context: ModelContext, language: AppLanguage) -> A10PreferenceRecord {
+        let record = A10PreferenceRecord(
+            languageCode: language.rawValue,
+            healthSyncEnabled: true,
+            notificationsEnabled: true,
+            dailyCheckInHour: 21
+        )
+        context.insert(record)
+        return record
+    }
+}
+
+private enum A10CoachResponder {
+    static func quickPrompts(language: AppLanguage) -> [String] {
+        [
+            L10n.text("我今天最难的是开会前的紧绷", "The hardest part today was the tension before a meeting", language: language),
+            L10n.text("我想先做一个最简单的动作", "I want the simplest useful action first", language: language),
+            L10n.text("请把原因和下一步说短一点", "Please keep the why and next step short", language: language)
+        ]
+    }
+
+    static func reply(to message: String, stage: A10LoopStage, language: AppLanguage) -> String {
+        let lowered = message.lowercased()
+
+        if lowered.contains("meeting") || message.contains("开会") || message.contains("工作") {
+            return L10n.text(
+                "这更像是工作场景下的预期性高唤醒。先别要求自己立刻平静，先把身体负荷降下来，再决定是否深入解释。",
+                "This looks like anticipatory arousal in a work context. Do not force calm first. Lower body load first, then decide whether to go deeper.",
+                language: language
+            )
+        }
+
+        switch stage {
+        case .inquiry:
+            return L10n.text(
+                "我先帮你收口成一句状态描述：你不是做不到，而是系统现在处在偏高警觉。下一步补一个主观分数就够了。",
+                "Let me collapse this into one state statement: you are not failing, your system is simply running at elevated alertness. The next useful step is a quick calibration score.",
+                language: language
+            )
+        case .calibration:
+            return L10n.text(
+                "现在信息已经够做一版解释了。先用最少证据说明为什么会这样，再给一个低阻力动作。",
+                "The information is now enough for a first-pass explanation. Use the smallest useful evidence, then give one low-friction action.",
+                language: language
+            )
+        case .evidence:
+            return L10n.text(
+                "解释已经足够，接下来别扩写。请只执行一个动作，比如 3 分钟呼吸或离开刺激场景 2 分钟。",
+                "The explanation is already enough. Do not expand it further. Execute just one action, such as three minutes of breathing or stepping away from the trigger for two minutes.",
+                language: language
+            )
+        case .action:
+            return L10n.text(
+                "现在的重点不是理解更多，而是确认动作是否完成。做完后回来告诉我身体有没有降一点紧。",
+                "The priority now is not more understanding, but whether the action was completed. Come back and tell me whether the body settled even a little.",
+                language: language
+            )
+        }
+    }
+}
+
+private extension A10Tab {
+    var icon: String {
+        switch self {
+        case .home: return "house"
+        case .coach: return "bubble.left.and.bubble.right"
+        case .me: return "person.crop.circle"
+        }
+    }
+
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .home:
+            return L10n.text("Home", "Home", language: language)
+        case .coach:
+            return "Coach"
+        case .me:
+            return L10n.text("Me", "Me", language: language)
+        }
+    }
+}
+
+private extension Color {
+    init(a10Hex hex: String) {
+        let sanitized = hex.replacingOccurrences(of: "#", with: "")
+        var value: UInt64 = 0
+        Scanner(string: sanitized).scanHexInt64(&value)
+
+        let red = Double((value >> 16) & 0xFF) / 255
+        let green = Double((value >> 8) & 0xFF) / 255
+        let blue = Double(value & 0xFF) / 255
+
+        self.init(red: red, green: green, blue: blue)
+    }
+}
+
+#Preview("A10 Shell") {
+    A10AppShell(language: .en)
+        .modelContainer(
+            for: [
+                A10LoopSnapshot.self,
+                A10ActionPlan.self,
+                A10CoachSession.self,
+                A10CoachMessage.self,
+                A10PreferenceRecord.self
+            ],
+            inMemory: true
+        )
 }

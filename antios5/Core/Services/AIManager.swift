@@ -26,6 +26,20 @@ enum AIModel: String {
     case geminiStandard = "gemini-3-pro-preview"
 }
 
+private enum AIConfigurationError: LocalizedError {
+    case missingRuntimeValue(String)
+    case invalidRuntimeURL(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingRuntimeValue(let key):
+            return "AI 配置缺失：\(key)"
+        case .invalidRuntimeURL(let raw):
+            return "AI 配置 URL 无效：\(raw)"
+        }
+    }
+}
+
 @MainActor
 final class AIManager: ObservableObject, AIManaging {
     static let shared = AIManager()
@@ -80,20 +94,17 @@ final class AIManager: ObservableObject, AIManaging {
     private var embeddingCircuitReason: String?
     private var didLogConfig = false
     
-    private var apiKey: String {
-        guard let key = runtimeString(for: "OPENAI_API_KEY") else {
-            fatalError("Missing OPENAI_API_KEY in Info.plist. Please configure Secrets.xcconfig.")
-        }
-        return key
+    private var apiKey: String? {
+        runtimeString(for: "OPENAI_API_KEY")
     }
 
-    private var embeddingAPIKey: String {
+    private var embeddingAPIKey: String? {
         runtimeString(for: "OPENAI_EMBEDDING_API_KEY") ?? apiKey
     }
     
-    private var baseURL: String {
+    private var baseURL: String? {
         guard let url = runtimeString(for: "OPENAI_API_BASE") else {
-            fatalError("Missing OPENAI_API_BASE in Info.plist. Please configure Secrets.xcconfig.")
+            return nil
         }
         return normalizeAPIBaseURL(url)
     }
@@ -105,7 +116,7 @@ final class AIManager: ObservableObject, AIManaging {
         return normalizeAPIBaseURL(url)
     }
 
-    private var embeddingURL: String {
+    private var embeddingURL: String? {
         if let url = runtimeString(for: "OPENAI_EMBEDDING_API_URL") {
             let cleaned = url.replacingOccurrences(of: "\\", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
             if !cleaned.isEmpty {
@@ -115,7 +126,10 @@ final class AIManager: ObservableObject, AIManaging {
         if let embeddingBaseURL {
             return "\(embeddingBaseURL)/embeddings"
         }
-        return "\(baseURL)/embeddings"
+        if let baseURL {
+            return "\(baseURL)/embeddings"
+        }
+        return nil
     }
 
     private var embeddingModel: String {
@@ -242,7 +256,11 @@ final class AIManager: ObservableObject, AIManaging {
         let candidateModels = buildModelFallbackChain(primary: resolvedModel)
 
         if !didLogConfig {
-            print("✅ [AI] chat.completions base=\(baseURL) modelChain=\(candidateModels.joined(separator: " -> ")) timeout=\(Int(resolvedTimeout))s")
+            if let baseURL {
+                print("✅ [AI] chat.completions base=\(baseURL) modelChain=\(candidateModels.joined(separator: " -> ")) timeout=\(Int(resolvedTimeout))s")
+            } else {
+                print("⚠️ [AI] chat.completions base missing; requests may fail. modelChain=\(candidateModels.joined(separator: " -> ")) timeout=\(Int(resolvedTimeout))s")
+            }
             didLogConfig = true
         } else {
             print("✅ [AI] chat.completions modelChain=\(candidateModels.joined(separator: " -> ")) timeout=\(Int(resolvedTimeout))s")
@@ -329,7 +347,16 @@ final class AIManager: ObservableObject, AIManaging {
         temperature: Double,
         timeout: TimeInterval
     ) async throws -> String {
-        let url = URL(string: "\(baseURL)/chat/completions")!
+        guard let baseURL, !baseURL.isEmpty else {
+            throw AIConfigurationError.missingRuntimeValue("OPENAI_API_BASE")
+        }
+        guard let apiKey, !apiKey.isEmpty else {
+            throw AIConfigurationError.missingRuntimeValue("OPENAI_API_KEY")
+        }
+        let chatURLString = "\(baseURL)/chat/completions"
+        guard let url = URL(string: chatURLString) else {
+            throw AIConfigurationError.invalidRuntimeURL(chatURLString)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -397,7 +424,15 @@ final class AIManager: ObservableObject, AIManaging {
         }
 
         let task = Task<[Double], Error> { [self] in
-            let url = URL(string: embeddingURL)!
+            guard let embeddingURL, !embeddingURL.isEmpty else {
+                throw AIConfigurationError.missingRuntimeValue("OPENAI_EMBEDDING_API_URL / OPENAI_EMBEDDING_API_BASE / OPENAI_API_BASE")
+            }
+            guard let embeddingAPIKey, !embeddingAPIKey.isEmpty else {
+                throw AIConfigurationError.missingRuntimeValue("OPENAI_EMBEDDING_API_KEY / OPENAI_API_KEY")
+            }
+            guard let url = URL(string: embeddingURL) else {
+                throw AIConfigurationError.invalidRuntimeURL(embeddingURL)
+            }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("Bearer \(embeddingAPIKey)", forHTTPHeaderField: "Authorization")

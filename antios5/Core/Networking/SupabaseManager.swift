@@ -209,19 +209,45 @@ enum EvidenceType: String, Codable {
 
 // MARK: - Supabase 配置 (从 Info.plist 读取，由 xcconfig 注入)
 private enum SupabaseConfig {
-    static var url: URL {
-        guard let urlString = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
-              let url = URL(string: urlString.replacingOccurrences(of: "\\", with: "")) else {
-            fatalError("Missing SUPABASE_URL in Info.plist. Please configure Secrets.xcconfig.")
+    private static func runtimeString(_ key: String) -> String? {
+        if let env = ProcessInfo.processInfo.environment[key] {
+            let trimmed = env.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
         }
-        return url
+        if let raw = Bundle.main.infoDictionary?[key] as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !trimmed.hasPrefix("$(") {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
+    static var url: URL? {
+        guard let urlString = runtimeString("SUPABASE_URL") else {
+            return nil
+        }
+        return URL(string: urlString.replacingOccurrences(of: "\\", with: ""))
     }
     
-    static var anonKey: String {
-        guard let key = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String else {
-            fatalError("Missing SUPABASE_ANON_KEY in Info.plist. Please configure Secrets.xcconfig.")
+    static var anonKey: String? {
+        guard let key = runtimeString("SUPABASE_ANON_KEY") else {
+            return nil
         }
         return key
+    }
+
+    static var missingKeys: [String] {
+        var keys: [String] = []
+        if url == nil {
+            keys.append("SUPABASE_URL")
+        }
+        if anonKey == nil {
+            keys.append("SUPABASE_ANON_KEY")
+        }
+        return keys
     }
 }
 
@@ -773,12 +799,13 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     // MARK: - 认证方法
     
     func signUp(email: String, password: String) async throws {
-        let url = SupabaseConfig.url.appendingPathComponent("auth/v1/signup")
+        let config = try validatedSupabaseConfig()
+        let url = config.url.appendingPathComponent("auth/v1/signup")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         
         let body = ["email": email, "password": password]
         request.httpBody = try JSONEncoder().encode(body)
@@ -830,14 +857,26 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     
     func signIn(email: String, password: String) async throws {
         // Supabase Auth API: POST /auth/v1/token?grant_type=password
-        var components = URLComponents(url: SupabaseConfig.url.appendingPathComponent("auth/v1/token"), resolvingAgainstBaseURL: false)!
+        let config = try validatedSupabaseConfig()
+        guard var components = URLComponents(url: config.url.appendingPathComponent("auth/v1/token"), resolvingAgainstBaseURL: false) else {
+            throw makeRequestFailure(
+                context: "Supabase signIn invalid URL components",
+                fallbackReason: "登录地址无效"
+            )
+        }
         components.queryItems = [URLQueryItem(name: "grant_type", value: "password")]
-        
-        var request = URLRequest(url: components.url!)
+
+        guard let requestURL = components.url else {
+            throw makeRequestFailure(
+                context: "Supabase signIn invalid request URL",
+                fallbackReason: "登录地址无效"
+            )
+        }
+        var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
         request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         
         let body = ["email": email, "password": password]
         request.httpBody = try JSONEncoder().encode(body)
@@ -848,10 +887,9 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             hardTimeout: hardTimeout(for: request.timeoutInterval)
         )
         
-        // Debug: Print response for troubleshooting
-        if let responseString = String(data: data, encoding: .utf8) {
-            print("Supabase Auth Response: \(responseString)")
-        }
+        #if DEBUG
+        print("[SupabaseManager] signIn response bytes=\(data.count)")
+        #endif
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw makeRequestFailure(
@@ -953,16 +991,28 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         guard let refreshToken = UserDefaults.standard.string(forKey: "supabase_refresh_token") else {
             throw SupabaseError.notAuthenticated
         }
-        
-        let url = SupabaseConfig.url.appendingPathComponent("auth/v1/token")
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+
+        let config = try validatedSupabaseConfig()
+        let url = config.url.appendingPathComponent("auth/v1/token")
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw makeRequestFailure(
+                context: "Supabase refreshSession invalid URL components",
+                fallbackReason: "会话刷新地址无效"
+            )
+        }
         components.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
-        
-        var request = URLRequest(url: components.url!)
+
+        guard let requestURL = components.url else {
+            throw makeRequestFailure(
+                context: "Supabase refreshSession invalid request URL",
+                fallbackReason: "会话刷新地址无效"
+            )
+        }
+        var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
         request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         
         let body = ["refresh_token": refreshToken]
         request.httpBody = try JSONEncoder().encode(body)
@@ -1016,11 +1066,12 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
 
     
     private func getUser(token: String) async throws -> AuthUser {
-        let url = SupabaseConfig.url.appendingPathComponent("auth/v1/user")
+        let config = try validatedSupabaseConfig()
+        let url = config.url.appendingPathComponent("auth/v1/user")
         var request = URLRequest(url: url)
         request.timeoutInterval = requestTimeout(for: .auth)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         
         let (data, response) = try await performDataRequestWithRetry(
             for: request,
@@ -1063,6 +1114,13 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     
     // MARK: - API 请求辅助
 
+    private func validatedSupabaseConfig() throws -> (url: URL, anonKey: String) {
+        guard let url = SupabaseConfig.url, let anonKey = SupabaseConfig.anonKey else {
+            throw SupabaseError.missingSupabaseConfiguration(keys: SupabaseConfig.missingKeys)
+        }
+        return (url, anonKey)
+    }
+
     private func ensureAccessToken() async throws -> String {
         if let token = UserDefaults.standard.string(forKey: "supabase_access_token"), !token.isEmpty {
             return token
@@ -1076,6 +1134,9 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     }
 
     private func buildRestURL(endpoint: String) -> URL? {
+        guard let baseURL = SupabaseConfig.url else {
+            return nil
+        }
         var endpointPath = endpoint
         var query: String?
 
@@ -1085,7 +1146,6 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
             query = nextIndex < endpoint.endIndex ? String(endpoint[nextIndex...]) : nil
         }
 
-        let baseURL = SupabaseConfig.url
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         let basePath = components?.path ?? ""
         let trimmedBasePath = basePath.hasSuffix("/") ? String(basePath.dropLast()) : basePath
@@ -1140,6 +1200,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         prefer: String? = nil
     ) async throws -> T {
         let token = try await ensureAccessToken()
+        let config = try validatedSupabaseConfig()
         
         guard let url = buildRestURL(endpoint: endpoint) else {
             throw makeRequestFailure(
@@ -1154,7 +1215,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         request.httpMethod = method
         request.timeoutInterval = requestTimeout(for: method == "GET" ? .restRead : .restWrite)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let prefer = prefer {
             request.setValue(prefer, forHTTPHeaderField: "Prefer")
@@ -1217,6 +1278,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         prefer: String? = nil
     ) async throws {
         let token = try await ensureAccessToken()
+        let config = try validatedSupabaseConfig()
 
         guard let url = buildRestURL(endpoint: endpoint) else {
             throw makeRequestFailure(
@@ -1231,7 +1293,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         request.httpMethod = method
         request.timeoutInterval = requestTimeout(for: method == "GET" ? .restRead : .restWrite)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let prefer = prefer {
             request.setValue(prefer, forHTTPHeaderField: "Prefer")
@@ -2392,8 +2454,9 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         guard let token = UserDefaults.standard.string(forKey: "supabase_access_token") else {
             throw SupabaseError.notAuthenticated
         }
+        let config = try validatedSupabaseConfig()
 
-        let baseURL = SupabaseConfig.url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let baseURL = config.url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let timestamp = Int(Date().timeIntervalSince1970)
         let objectPath = "avatars/\(user.id)/avatar-\(timestamp).\(fileExtension)"
         let encodedPath = objectPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? objectPath
@@ -2408,7 +2471,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         request.httpMethod = "POST"
         request.timeoutInterval = requestTimeout(for: .upload)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue(config.anonKey, forHTTPHeaderField: "apikey")
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("true", forHTTPHeaderField: "x-upsert")
         request.setValue("3600", forHTTPHeaderField: "cache-control")
@@ -2838,7 +2901,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                 if let payload = try? JSONDecoder().decode(AppAPIHealthPayload.self, from: data) {
                     if let healthSupabase = payload.supabaseUrl,
                        let healthHost = URL(string: healthSupabase)?.host?.lowercased(),
-                       let localHost = SupabaseConfig.url.host?.lowercased(),
+                       let localHost = SupabaseConfig.url?.host?.lowercased(),
                        healthHost != localHost {
                         print("[AppAPI] Health check mismatch: \(healthHost) != \(localHost)")
                         Self.appAPIHealthCooldownUntil[cooldownKey] = Date().addingTimeInterval(appAPIHealthCooldownTTL)
@@ -6531,6 +6594,7 @@ enum SupabaseError: LocalizedError {
     case notAuthenticated
     case requestFailed
     case decodingFailed
+    case missingSupabaseConfiguration(keys: [String])
     case missingAppApiBaseUrl
     case appApiRequiresRemote
     case appApiCircuitOpen
@@ -6541,6 +6605,9 @@ enum SupabaseError: LocalizedError {
         case .notAuthenticated: return "请先登录"
         case .requestFailed: return "请求失败"
         case .decodingFailed: return "数据解析失败"
+        case .missingSupabaseConfiguration(let keys):
+            let joined = keys.isEmpty ? "SUPABASE_URL, SUPABASE_ANON_KEY" : keys.joined(separator: ", ")
+            return "Supabase 配置缺失：\(joined)"
         case .missingAppApiBaseUrl: return "未配置 APP_API_BASE_URL"
         case .appApiRequiresRemote: return "Max 云端暂不可用，已切换本地模式；请检查 APP_API_BASE_URL 或网络后重试"
         case .appApiCircuitOpen: return "云端连接已短暂熔断，正在快速恢复中，请稍后重试"

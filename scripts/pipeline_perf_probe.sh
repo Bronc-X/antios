@@ -7,6 +7,10 @@ cd "$ROOT_DIR" || exit 1
 SAMPLES="${SAMPLES:-8}"
 MAX_TIME="${MAX_TIME:-10}"
 CONNECT_TIMEOUT="${CONNECT_TIMEOUT:-4}"
+HAS_RG=0
+if command -v rg >/dev/null 2>&1; then
+  HAS_RG=1
+fi
 
 if ! [[ "$SAMPLES" =~ ^[0-9]+$ ]] || [ "$SAMPLES" -lt 1 ]; then
   echo "ERROR: SAMPLES must be a positive integer"
@@ -24,7 +28,34 @@ mkdir -p "$OUTDIR"
 
 extract_secret() {
   local key="$1"
-  awk -F' = ' -v target="$key" '$1==target {print $2}' Secrets.xcconfig 2>/dev/null | sed 's#\\/#/#g' | tr -d '\r'
+  local file value
+  for file in Secrets.private.xcconfig Secrets.xcconfig; do
+    [ -f "$file" ] || continue
+    value=$(awk -v target="$key" '
+      {
+        line = $0
+        if (line ~ /^[[:space:]]*\/\//) { next }
+        pos = index(line, "=")
+        if (pos == 0) { next }
+        k = substr(line, 1, pos - 1)
+        v = substr(line, pos + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+        if (k == target) {
+          last = v
+        }
+      }
+      END {
+        if (length(last) > 0) {
+          print last
+        }
+      }
+    ' "$file" 2>/dev/null | tail -n1 | sed 's#\\/#/#g' | tr -d '\r')
+    if [ -n "${value:-}" ]; then
+      echo "$value"
+      return
+    fi
+  done
 }
 
 trim_spaces() {
@@ -41,6 +72,13 @@ extract_app_base() {
   local from_env="${APP_API_BASE_OVERRIDE:-}"
   if [ -n "$from_env" ]; then
     echo "$from_env"
+    return
+  fi
+
+  local from_secret
+  from_secret=$(extract_secret APP_API_BASE_URL)
+  if [ -n "$from_secret" ]; then
+    echo "$from_secret"
     return
   fi
 
@@ -167,16 +205,36 @@ run_probe() {
     if [ -z "$total_time" ]; then total_time="${MAX_TIME}"; fi
 
     if [ "$http_code" != "000" ]; then reachable=1; else reachable=0; fi
-    if [[ "$http_code" =~ ^[0-9]+$ ]] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
-      success=1
-    else
-      success=0
+    success=0
+    if [[ "$http_code" =~ ^[0-9]+$ ]]; then
+      case "$name" in
+        # With publishable/anon key and no user JWT, Supabase REST may reply 401/403
+        # while connectivity and API gateway are still healthy.
+        supabase_rest)
+          if { [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; } || [ "$http_code" -eq 401 ] || [ "$http_code" -eq 403 ]; then
+            success=1
+          fi
+          ;;
+        *)
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
+            success=1
+          fi
+          ;;
+      esac
     fi
 
-    if rg -qi "ssl|tls|certificate" "$err_file"; then
-      tls_error=1
+    if [ "$HAS_RG" -eq 1 ]; then
+      if rg -qi "ssl|tls|certificate" "$err_file"; then
+        tls_error=1
+      else
+        tls_error=0
+      fi
     else
-      tls_error=0
+      if grep -Eiq "ssl|tls|certificate" "$err_file"; then
+        tls_error=1
+      else
+        tls_error=0
+      fi
     fi
 
     err_msg=$(tr '\n' ' ' < "$err_file" | tr '\t' ' ' | sed 's/  */ /g' | sed 's/^ //; s/ $//')
