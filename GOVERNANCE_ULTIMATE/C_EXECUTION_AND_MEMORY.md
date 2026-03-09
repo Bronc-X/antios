@@ -28,18 +28,23 @@
 - 空/错/加载状态收敛
 - 轻量交互改弹窗（减少无必要跳转）
 
-### 阶段 R1: antios10 重构启动（进行中）
+### 阶段 R1: antios10 重构启动（完成）
 - 蓝图与治理同步
 - `codex/antios10` 分支建立
 - SwiftData local-first 主壳层搭建
 - 3 Tab Shell（Home / Coach / Me）启动
+
+### 阶段 R2: sensor-first + agent-first 基线（进行中）
+- 将 Apple Watch / HealthKit 身体指标升级为最高优先级记忆输入
+- 将 Max/Coach 定义为主要执行表面
+- 将校准 / 计划 / 证据 / 跟进迁移到 agent-led 结构化交互
 
 ### 阶段 5: 发布（待完成）
 - 密钥治理与轮换
 - 签名与打包链路
 - TestFlight 回归与发布记录
 
-当前步骤: 阶段 R1（重构启动）
+当前步骤: 阶段 R2（sensor-first + agent-first 基线）
 
 ---
 
@@ -91,7 +96,7 @@
 
 ## 4. PROGRESS（当前状态）
 
-Last Updated: 2026-03-07 02:36
+Last Updated: 2026-03-07 11:35
 
 Done:
 - 治理模板 4 包已引入
@@ -101,14 +106,17 @@ Done:
 - `Secrets.xcconfig` 已收敛为可提交模板，真实值转入本地私有配置
 - 模拟器 Debug build 已通过
 - `EXECUTION_GOVERNANCE.md` 已补齐
+- `ANTIOS10_BLUEPRINT.md` 已重写为 sensor-first + agent-first 蓝图
+- `ANTIOS10_AGENT_EXECUTION_PLAN.md` 已新增并定义 agent 工作顺序
 
 In Progress:
-- `codex/antios10` 主壳层与旧模块并行校验
-- 模拟器测试会话稳定性复核
+- 将 wearable sync 接入 sensor-derived memory
+- 将 `ai_memory` 从单池写入改为 memory-kind 分层
+- 为 RAG 增加 body memory 优先级
 
 Next:
-- 保持 `main` 为旧版稳定线
-- 保持 `codex/antios10` 为最新 app worktree
+- 让 Coach 承载 check-in / action / review 的结构化卡片
+- 将 Calibration / Plans / Inquiry 迁移为 thread-first
 - 继续拆分 `SupabaseManager`
 
 Known Issues:

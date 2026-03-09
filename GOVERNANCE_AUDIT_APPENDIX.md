@@ -2,15 +2,15 @@
 
 > 审核附录（四文件治理版）
 > 时间: 2026-03-07 01:48
-> 范围: `/Users/mac/Desktop/antios5`
+> 范围: `/Users/mac/Desktop/antios10`
 
 ---
 
 ## A. 审核依据
-- `/Users/mac/Desktop/antios5/GOVERNANCE_ULTIMATE/A_GOVERNANCE_CORE.md`
-- `/Users/mac/Desktop/antios5/GOVERNANCE_ULTIMATE/B_PRODUCT_AND_TECH_SPECS.md`
-- `/Users/mac/Desktop/antios5/GOVERNANCE_ULTIMATE/C_EXECUTION_AND_MEMORY.md`
-- `/Users/mac/Desktop/antios5/GOVERNANCE_ULTIMATE/D_RELEASE_AND_HANDOFF.md`
+- `/Users/mac/Desktop/antios10/GOVERNANCE_ULTIMATE/A_GOVERNANCE_CORE.md`
+- `/Users/mac/Desktop/antios10/GOVERNANCE_ULTIMATE/B_PRODUCT_AND_TECH_SPECS.md`
+- `/Users/mac/Desktop/antios10/GOVERNANCE_ULTIMATE/C_EXECUTION_AND_MEMORY.md`
+- `/Users/mac/Desktop/antios10/GOVERNANCE_ULTIMATE/D_RELEASE_AND_HANDOFF.md`
 
 ---
 
@@ -21,13 +21,13 @@
 - `xcodebuild test` 结果: 编译、签名与 test runner 生成通过；当前模拟器会话下收尾稳定性仍需复核
 
 日志:
-- `/tmp/antios5-xcodebuild-sim-build-20260307.log`
-- `/tmp/antios5-xcodebuild-test-20260307.log`
-- `/tmp/antios5-xcodebuild-unit-test-20260307.log`
+- `/tmp/antios10-xcodebuild-sim-build-20260307.log`
+- `/tmp/antios10-xcodebuild-test-20260307.log`
+- `/tmp/antios10-xcodebuild-unit-test-20260307.log`
 
 ### B2. 安全
 - 当前状态:
-  - `/Users/mac/Desktop/antios5/Secrets.xcconfig` 为可提交模板
+  - `/Users/mac/Desktop/antios10/Secrets.xcconfig` 为可提交模板
   - 真实敏感值应仅存在本地 `Secrets.private.xcconfig` 或 CI Secret
 
 ### B3. i18n

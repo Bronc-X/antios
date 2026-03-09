@@ -113,9 +113,9 @@ Last updated: 2026-02-14
 ## 4. 帧级映射（从视频到组件）
 
 来源：
-- `/Users/mac/Desktop/antios5/.analysis/video8026_all/frames.csv`
-- `/Users/mac/Desktop/antios5/.analysis/video8027_all/frames.csv`
-- 摘要：`/Users/mac/Desktop/antios5/UI_FRAME_BIBLE_8026_8027.md`
+- `/Users/mac/Desktop/antios10/.analysis/video8026_all/frames.csv`
+- `/Users/mac/Desktop/antios10/.analysis/video8027_all/frames.csv`
+- 摘要：`/Users/mac/Desktop/antios10/UI_FRAME_BIBLE_8026_8027.md`
 
 高价值映射：
 - Lovi `f_03558~f_03588` -> 逐字问题动效 + 选项延迟出现
@@ -128,7 +128,7 @@ Last updated: 2026-02-14
 
 ## 5. 本轮已落地代码（容器）
 
-- 文件：`/Users/mac/Desktop/antios5/antios5/Features/Settings/SettingsView.swift`
+- 文件：`/Users/mac/Desktop/antios10/antios10/Features/Settings/SettingsView.swift`
 - 入口：设置 -> 支持与信息 -> 设计系统容器
 - 包含：
   - `LabStylePreset`（紫粉/绿色）

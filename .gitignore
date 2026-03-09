@@ -12,6 +12,11 @@ xcuserdata/
 .analysis/
 .artifacts/
 .build/
+.clang-module-cache/
+.swift-module-cache/
+.derived/
+A10VisualLab/.cache/
+A10VisualLab/.build/
 .derivedData/
 .derivedData_*/
 .derivedData_build/
@@ -19,4 +24,5 @@ xcuserdata/
 .derivedData_preflight/
 .derivedData_release/
 .derivedData_test/
+build/
 PASS

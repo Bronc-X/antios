@@ -83,7 +83,7 @@ extract_app_base() {
   fi
 
   local from_pbx
-  from_pbx=$(awk -F' = ' '/APP_API_BASE_URL = / {gsub(/"|;| /, "", $2); print $2; exit}' antios5.xcodeproj/project.pbxproj 2>/dev/null)
+  from_pbx=$(awk -F' = ' '/APP_API_BASE_URL = / {gsub(/"|;| /, "", $2); print $2; exit}' antios10.xcodeproj/project.pbxproj 2>/dev/null)
   if [ -n "$from_pbx" ]; then
     echo "$from_pbx"
     return
@@ -277,7 +277,7 @@ if [ -n "$OPENAI_BASE" ] && [ -n "$OPENAI_KEY" ]; then
   EMBED_MODEL="${OPENAI_EMBED_MODEL:-text-embedding-3-small}"
   CHAT_MODEL="${OPENAI_MODEL:-deepseek-v3.2}"
   EMBED_ENABLED="${OPENAI_EMBED_ENABLED_RAW:-true}"
-  EMBED_PAYLOAD="{\"model\":\"${EMBED_MODEL}\",\"input\":\"latency probe from antios5\"}"
+  EMBED_PAYLOAD="{\"model\":\"${EMBED_MODEL}\",\"input\":\"latency probe from antios10\"}"
   CHAT_PAYLOAD="{\"model\":\"${CHAT_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"temperature\":0,\"max_tokens\":8}"
 
   if is_truthy "$EMBED_ENABLED"; then

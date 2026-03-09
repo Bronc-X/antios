@@ -1,0 +1,817 @@
+import SwiftUI
+
+struct A10SpatialGlassPanel<Content: View>: View {
+    let cornerRadius: CGFloat
+    let padding: CGFloat
+    let content: Content
+
+    init(
+        cornerRadius: CGFloat = A10SpatialRadius.panel,
+        padding: CGFloat = 24,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.cornerRadius = cornerRadius
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        return content
+            .padding(padding)
+            .background {
+                shape
+                    .fill(A10SpatialPalette.panelFill)
+                    .background(.ultraThinMaterial, in: shape)
+                    .overlay(
+                        shape
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        A10SpatialPalette.panelSheen,
+                                        A10SpatialPalette.panelEdge,
+                                        Color.white.opacity(0.06)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .overlay(alignment: .top) {
+                        shape
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.16),
+                                        Color.clear
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: 100)
+                            .mask(shape)
+                    }
+                    .shadow(color: Color.black.opacity(0.05), radius: 32, y: 8)
+            }
+    }
+}
+
+struct A10GraphitePillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+            .background(
+                Capsule()
+                    .fill(A10SpatialPalette.graphite)
+                    .shadow(color: Color.black.opacity(0.18), radius: 16, y: 8)
+            )
+            .foregroundColor(.white.opacity(0.92))
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .offset(y: configuration.isPressed ? 1 : 0)
+            .animation(A10SpatialMotion.press, value: configuration.isPressed)
+    }
+}
+
+struct A10RoundGraphiteActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(width: 46, height: 46)
+            .background(
+                Circle()
+                    .fill(A10SpatialPalette.graphite)
+                    .shadow(color: Color.black.opacity(0.18), radius: 16, y: 8)
+            )
+            .foregroundColor(.white.opacity(0.9))
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(A10SpatialMotion.press, value: configuration.isPressed)
+    }
+}
+
+struct A10AuraLineChart: View {
+    let model: A10AuraLineChartModel
+    let language: AppLanguage
+
+    var body: some View {
+        GeometryReader { proxy in
+            let plotRect = CGRect(
+                x: 34,
+                y: 18,
+                width: max(proxy.size.width - 68, 0),
+                height: max(proxy.size.height - 58, 0)
+            )
+            let points = chartPoints(in: plotRect)
+
+            TimelineView(.animation) { timeline in
+                let phase = timeline.date.timeIntervalSinceReferenceDate
+                let pulse = 0.78 + (sin(phase * .pi) + 1) * 0.12
+
+                ZStack(alignment: .topLeading) {
+                    chartGrid(in: plotRect)
+                    yAxis(in: plotRect)
+                    xAxis(in: plotRect)
+
+                    curvePath(points: points)
+                        .stroke(Color.white.opacity(0.16 * pulse), style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
+                        .blur(radius: 12)
+
+                    curvePath(points: points)
+                        .stroke(Color.white.opacity(0.22 * pulse), style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round))
+                        .blur(radius: 6)
+
+                    curvePath(points: points)
+                        .stroke(Color.white.opacity(0.3 * pulse), style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                        .blur(radius: 2)
+
+                    curvePath(points: points)
+                        .stroke(Color.white.opacity(0.82), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+
+                    ForEach(Array(points.enumerated()), id: \.offset) { index, point in
+                        Circle()
+                            .fill(Color.white.opacity(index >= points.count - 2 ? 0.85 : 0.45))
+                            .frame(width: index >= points.count - 2 ? 5 : 3, height: index >= points.count - 2 ? 5 : 3)
+                            .shadow(color: Color.white.opacity(0.34), radius: 8)
+                            .position(point)
+                    }
+
+                    ForEach(model.annotations) { annotation in
+                        if points.indices.contains(annotation.pointIndex) {
+                            A10GlassTag(text: annotation.text.resolve(language))
+                                .position(
+                                    x: points[annotation.pointIndex].x + annotation.xOffset,
+                                    y: points[annotation.pointIndex].y + annotation.yOffset
+                                )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func chartPoints(in rect: CGRect) -> [CGPoint] {
+        guard !model.values.isEmpty else { return [] }
+        let maxValue = max(model.values.max() ?? 1, 1)
+        let step = rect.width / CGFloat(max(model.values.count - 1, 1))
+
+        return model.values.enumerated().map { index, value in
+            CGPoint(
+                x: rect.minX + CGFloat(index) * step,
+                y: rect.maxY - CGFloat(value / maxValue) * rect.height
+            )
+        }
+    }
+
+    private func curvePath(points: [CGPoint]) -> Path {
+        var path = Path()
+        guard let first = points.first else { return path }
+        path.move(to: first)
+
+        guard points.count > 1 else { return path }
+
+        for index in 0..<(points.count - 1) {
+            let p0 = index > 0 ? points[index - 1] : points[index]
+            let p1 = points[index]
+            let p2 = points[index + 1]
+            let p3 = index + 2 < points.count ? points[index + 2] : p2
+
+            let control1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) / 6,
+                y: p1.y + (p2.y - p0.y) / 6
+            )
+            let control2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) / 6,
+                y: p2.y - (p3.y - p1.y) / 6
+            )
+
+            path.addCurve(to: p2, control1: control1, control2: control2)
+        }
+
+        return path
+    }
+
+    private func chartGrid(in rect: CGRect) -> some View {
+        Path { path in
+            for row in 0..<4 {
+                let y = rect.minY + (rect.height / 3) * CGFloat(row)
+                path.move(to: CGPoint(x: rect.minX, y: y))
+                path.addLine(to: CGPoint(x: rect.maxX, y: y))
+            }
+
+            for column in 0..<4 {
+                let x = rect.minX + (rect.width / 3) * CGFloat(column)
+                path.move(to: CGPoint(x: x, y: rect.minY))
+                path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            }
+        }
+        .stroke(A10SpatialPalette.fogHint, style: StrokeStyle(lineWidth: 1, dash: [3, 8]))
+    }
+
+    private func yAxis(in rect: CGRect) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(model.yLabels, id: \.self) { value in
+                Text(value)
+                    .font(A10SpatialTypography.label(9, weight: .regular))
+                    .foregroundColor(A10SpatialPalette.fogHint)
+                if value != model.yLabels.last {
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .frame(width: 24, height: rect.height, alignment: .topLeading)
+        .position(x: 12, y: rect.midY)
+    }
+
+    private func xAxis(in rect: CGRect) -> some View {
+        HStack {
+            ForEach(Array(model.xLabels.enumerated()), id: \.offset) { _, label in
+                Text(label.resolve(language))
+                    .font(A10SpatialTypography.label(10, weight: .regular))
+                    .foregroundColor(A10SpatialPalette.fogHint)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(width: rect.width)
+        .position(x: rect.midX, y: rect.maxY + 22)
+    }
+}
+
+struct A10GlassTag: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(A10SpatialTypography.label(10, weight: .medium))
+            .foregroundColor(A10SpatialPalette.fogText.opacity(0.86))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+struct A10DashboardSpatialHeroCard: View {
+    let model: A10DashboardSpatialHeroModel
+    let language: AppLanguage
+
+    var body: some View {
+        A10SpatialGlassPanel(cornerRadius: 38, padding: 24) {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack {
+                    Text(model.eyebrow.resolve(language))
+                        .font(A10SpatialTypography.label(11, weight: .regular))
+                        .foregroundColor(A10SpatialPalette.fogHint)
+
+                    Spacer()
+
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(A10SpatialPalette.fogSubtext)
+                }
+
+                HStack(spacing: 28) {
+                    ForEach(model.topMetrics) { metric in
+                        A10MetricBlock(metric: metric, language: language)
+                    }
+                }
+
+                A10AuraLineChart(model: model.chart, language: language)
+                .frame(height: 236)
+
+                HStack(spacing: 12) {
+                    Button(model.primaryActionTitle.resolve(language)) { }
+                        .font(A10SpatialTypography.body(15, weight: .medium))
+                        .buttonStyle(A10GraphitePillButtonStyle())
+
+                    Button { } label: {
+                        Image(systemName: model.secondaryActionSymbol)
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .buttonStyle(A10RoundGraphiteActionStyle())
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(model.footerTitle.resolve(language))
+                        .font(A10SpatialTypography.label(11, weight: .regular))
+                        .foregroundColor(A10SpatialPalette.fogHint)
+
+                    HStack(spacing: 28) {
+                        ForEach(model.bottomMetrics) { metric in
+                            A10MetricBlock(metric: metric, language: language, large: false)
+                        }
+                    }
+                }
+
+                A10ProductionBarStrip(samples: model.productionSamples)
+                    .frame(height: 48)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct A10MetricBlock: View {
+    let metric: A10SpatialMetric
+    let language: AppLanguage
+    var large: Bool = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(metric.value)
+                .font(large ? A10SpatialTypography.heroNumber(40) : A10SpatialTypography.heroNumber(30))
+                .foregroundColor(A10SpatialPalette.fogText)
+
+            Text(metric.title.resolve(language))
+                .font(A10SpatialTypography.label(11, weight: .regular))
+                .foregroundColor(A10SpatialPalette.fogSubtext)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct A10ProductionBarStrip: View {
+    let samples: [CGFloat]
+
+    var body: some View {
+        GeometryReader { proxy in
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(Array(samples.enumerated()), id: \.offset) { _, value in
+                    Capsule()
+                        .fill(Color.white.opacity(0.36))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(8, proxy.size.height * value))
+                }
+            }
+        }
+    }
+}
+
+struct A10FloatingMenuScaffold: View {
+    let model: A10FloatingMenuModel
+    let language: AppLanguage
+
+    @Namespace private var menuNamespace
+    @State private var selectedDay: Int
+    @State private var isExpanded: Bool
+
+    init(
+        model: A10FloatingMenuModel,
+        language: AppLanguage
+    ) {
+        self.model = model
+        self.language = language
+        _selectedDay = State(initialValue: model.selectedDay)
+        _isExpanded = State(initialValue: model.presentation == .expanded)
+    }
+
+    var body: some View {
+        ZStack {
+            A10SpatialBackdrop(mode: model.stageMode)
+
+            VStack(spacing: 18) {
+                HStack {
+                    Capsule()
+                        .fill(Color.black.opacity(model.stageMode == .darkBackdrop ? 0.24 : 0.1))
+                        .frame(width: 88, height: 28)
+                        .overlay {
+                            Text(model.streamCountLabel.resolve(language))
+                                .font(A10SpatialTypography.label(12, weight: .medium))
+                                .foregroundColor(model.stageMode == .darkBackdrop ? .white.opacity(0.88) : .black.opacity(0.66))
+                        }
+
+                    Spacer()
+
+                    Text(model.progressLabel)
+                        .font(A10SpatialTypography.label(12, weight: .semibold))
+                        .foregroundColor(model.stageMode == .darkBackdrop ? .white.opacity(0.84) : .black.opacity(0.52))
+                }
+
+                Spacer(minLength: 0)
+
+                ZStack {
+                    if isExpanded {
+                        expandedMenu
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    } else {
+                        collapsedRail
+                            .transition(.opacity)
+                    }
+                }
+                .animation(A10SpatialMotion.snap, value: isExpanded)
+
+                Spacer(minLength: 0)
+            }
+            .padding(24)
+        }
+        .frame(height: 360)
+        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+    }
+
+    private var collapsedRail: some View {
+        HStack(alignment: .bottom, spacing: 18) {
+            ForEach(model.days) { day in
+                Button {
+                    withAnimation(A10SpatialMotion.snap) {
+                        selectedDay = day.id
+                        if day.id == model.selectedDay {
+                            isExpanded.toggle()
+                        }
+                    }
+                } label: {
+                    VStack(spacing: 10) {
+                        Text(day.shortLabel)
+                            .font(A10SpatialTypography.label(13, weight: .medium))
+                            .foregroundColor(.black.opacity(0.34))
+
+                        ZStack {
+                            Capsule()
+                                .fill(Color.white.opacity(day.id == selectedDay ? 0.86 : 0.58))
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.74), lineWidth: 1)
+                                )
+                                .shadow(color: A10SpatialPalette.floatingShadow, radius: 18, y: 10)
+                                .frame(width: 58, height: day.id == selectedDay ? 96 : 72)
+                                .matchedGeometryEffect(id: day.id == selectedDay ? "menu-shell" : "shell-\(day.id)", in: menuNamespace)
+
+                            if day.id == selectedDay {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "triangle.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.black.opacity(0.54))
+                                        .rotationEffect(.degrees(180))
+                                        .offset(y: -8)
+
+                                    ZStack {
+                                        Circle()
+                                            .fill(
+                                                RadialGradient(
+                                                    colors: [
+                                                        A10SpatialPalette.signalRedGlow,
+                                                        A10SpatialPalette.signalRed
+                                                    ],
+                                                    center: .topLeading,
+                                                    startRadius: 6,
+                                                    endRadius: 40
+                                                )
+                                            )
+                                            .shadow(color: A10SpatialPalette.signalRed.opacity(0.34), radius: 12, y: 6)
+                                        Text("\(day.id)")
+                                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.white)
+                                    }
+                                    .frame(width: 62, height: 62)
+                                }
+                            } else {
+                                Text("\(day.id)")
+                                    .font(.system(size: 18, weight: .regular, design: .rounded))
+                                    .foregroundColor(.black.opacity(0.2))
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var expandedMenu: some View {
+        VStack(spacing: 18) {
+            ForEach(Array(model.actions.enumerated()), id: \.element.id) { index, action in
+                Button {
+                    withAnimation(A10SpatialMotion.snap) {
+                        isExpanded = false
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(index == model.actions.count - 1 ? 0.38 : 0.1))
+                            .frame(width: index == model.actions.count - 1 ? 72 : 52, height: index == model.actions.count - 1 ? 72 : 52)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                            )
+
+                        Image(systemName: action.symbol)
+                            .font(.system(size: index == model.actions.count - 1 ? 24 : 20, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.82))
+                    }
+                    .opacity(isExpanded ? 1 : 0)
+                    .offset(y: isExpanded ? 0 : 12)
+                    .animation(A10SpatialMotion.snap.delay(Double(index) * 0.04), value: isExpanded)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 22)
+        .frame(width: 106, height: 246)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(model.stageMode == .darkBackdrop ? 0.22 : 0.7))
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.26), radius: 24, y: 14)
+                .matchedGeometryEffect(id: "menu-shell", in: menuNamespace)
+        )
+        .onTapGesture {
+            withAnimation(A10SpatialMotion.snap) {
+                isExpanded = false
+            }
+        }
+    }
+}
+
+struct A10EmotionWheelScaffold: View {
+    let model: A10EmotionWheelModel
+    let language: AppLanguage
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 38, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            A10SpatialPalette.wheelCanvas,
+                            Color(hex: "#2D2A2F")
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            VStack(spacing: 18) {
+                header
+                shortcutRow
+                emotionWheel
+                insightCard
+                bottomDock
+            }
+            .padding(24)
+        }
+        .frame(maxWidth: .infinity, minHeight: 680)
+    }
+
+    private var header: some View {
+        HStack {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(A10SpatialPalette.wheelText)
+
+            Spacer()
+
+            Text(model.brandTitle)
+                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.14))
+                    .frame(width: 28, height: 28)
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.86))
+            }
+        }
+    }
+
+    private var shortcutRow: some View {
+        HStack(spacing: 16) {
+            ForEach(model.shortcuts) { item in
+                VStack(spacing: 6) {
+                    Image(systemName: item.symbol)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(item.title.resolve(language))
+                        .font(A10SpatialTypography.label(9, weight: .regular))
+                }
+                .foregroundColor(A10SpatialPalette.wheelMuted)
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var emotionWheel: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            let baseRadius = size / 2
+            let segment = 2 * CGFloat.pi / CGFloat(model.petals.count)
+            let gap = segment * 0.12
+            let trackInnerRatio: CGFloat = 0.18
+            let trackOuterRatio: CGFloat = 0.78
+            let minimumActiveOuterRatio: CGFloat = 0.34
+            let scoreMax = max(CGFloat(model.maxScore), 1)
+
+            ZStack {
+                Circle()
+                    .stroke(A10SpatialPalette.wheelRing, lineWidth: 1)
+                    .frame(width: size * 0.92, height: size * 0.92)
+
+                ForEach(Array(model.petals.enumerated()), id: \.element.id) { index, petal in
+                    let startAngle = -CGFloat.pi / 2 + CGFloat(index) * segment + gap / 2
+                    let endAngle = startAngle + segment - gap
+                    let scoreRatio = max(0, min(CGFloat(petal.score) / scoreMax, 1))
+                    let activeOuterRatio = minimumActiveOuterRatio + scoreRatio * (trackOuterRatio - minimumActiveOuterRatio)
+                    let labelRadius = baseRadius * ((trackInnerRatio + activeOuterRatio) / 2 + 0.03)
+                    let labelAngle = (startAngle + endAngle) / 2
+                    let labelPoint = CGPoint(
+                        x: center.x + cos(labelAngle) * labelRadius,
+                        y: center.y + sin(labelAngle) * labelRadius
+                    )
+
+                    A10EmotionPetalShape(
+                        startAngle: startAngle,
+                        endAngle: endAngle,
+                        innerRatio: trackInnerRatio,
+                        outerRatio: trackOuterRatio
+                    )
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                A10SpatialPalette.wheelTrack.opacity(0.96),
+                                A10SpatialPalette.wheelTrackDeep.opacity(0.88)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        A10EmotionPetalShape(
+                            startAngle: startAngle,
+                            endAngle: endAngle,
+                            innerRatio: trackInnerRatio,
+                            outerRatio: trackOuterRatio
+                        )
+                        .stroke(A10SpatialPalette.wheelTrackStroke, lineWidth: 1)
+                    )
+
+                    A10EmotionPetalShape(
+                        startAngle: startAngle,
+                        endAngle: endAngle,
+                        innerRatio: trackInnerRatio,
+                        outerRatio: activeOuterRatio
+                    )
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                petal.tint.opacity(0.98),
+                                petal.tint.opacity(0.76 + petal.intensity * 0.14)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        A10EmotionPetalShape(
+                            startAngle: startAngle,
+                            endAngle: endAngle,
+                            innerRatio: trackInnerRatio,
+                            outerRatio: activeOuterRatio
+                        )
+                        .stroke(A10SpatialPalette.wheelPetalStroke, lineWidth: 1)
+                    )
+                    .shadow(color: petal.tint.opacity(0.08), radius: 10, y: 5)
+
+                    VStack(spacing: 2) {
+                        Text("\(petal.score)")
+                            .font(A10SpatialTypography.wheelValue(12))
+                            .foregroundColor(Color.black.opacity(0.58))
+
+                        Text(petal.title.resolve(language))
+                            .font(A10SpatialTypography.wheelLabel(9))
+                            .foregroundColor(Color.black.opacity(0.5))
+                    }
+                    .position(labelPoint)
+                }
+
+                Circle()
+                    .fill(Color(hex: "#252225"))
+                    .frame(width: size * 0.18, height: size * 0.18)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            }
+            .drawingGroup(opaque: false, colorMode: .linear)
+        }
+        .frame(height: 290)
+    }
+
+    private var insightCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(model.insight.eyebrow.resolve(language))
+                .font(A10SpatialTypography.label(11, weight: .medium))
+                .foregroundColor(A10SpatialPalette.wheelMuted)
+
+            Text(model.insight.body.resolve(language))
+                .font(.system(size: 15, weight: .medium, design: .serif))
+                .foregroundColor(Color.black.opacity(0.68))
+                .lineLimit(3)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: A10SpatialRadius.wheelCard, style: .continuous)
+                .fill(A10SpatialPalette.wheelCard)
+        )
+    }
+
+    private var bottomDock: some View {
+        HStack(spacing: 12) {
+            dockButton(action: model.leadingDockAction)
+
+            Spacer()
+
+            dockButton(action: model.centerDockAction)
+                .frame(width: 58, height: 58)
+
+            Spacer()
+
+            HStack(spacing: 10) {
+                ForEach(model.trailingDockActions) { action in
+                    dockButton(action: action)
+                }
+            }
+        }
+    }
+
+    private func dockButton(action: A10DockAction) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(action.isPrimary ? Color(hex: "#242025") : A10SpatialPalette.wheelDock)
+                .shadow(color: Color.black.opacity(action.isPrimary ? 0.34 : 0.28), radius: 14, y: 8)
+
+            Image(systemName: action.symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white.opacity(0.84))
+        }
+        .frame(width: 54, height: 54)
+    }
+}
+
+struct A10EmotionPetalShape: Shape {
+    let startAngle: CGFloat
+    let endAngle: CGFloat
+    let innerRatio: CGFloat
+    let outerRatio: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let baseRadius = min(rect.width, rect.height) / 2
+        let innerRadius = baseRadius * innerRatio
+        let outerRadius = baseRadius * outerRatio
+        let midAngle = (startAngle + endAngle) / 2
+        let span = endAngle - startAngle
+
+        let innerStart = point(center: center, radius: innerRadius, angle: startAngle)
+        let innerEnd = point(center: center, radius: innerRadius, angle: endAngle)
+        let outerStart = point(center: center, radius: outerRadius * 0.9, angle: startAngle + span * 0.2)
+        let outerPeak = point(center: center, radius: outerRadius, angle: midAngle)
+        let outerEnd = point(center: center, radius: outerRadius * 0.9, angle: endAngle - span * 0.2)
+
+        let riseControlA = point(center: center, radius: innerRadius * 1.04, angle: startAngle + span * 0.04)
+        let riseControlB = point(center: center, radius: outerRadius * 0.62, angle: startAngle + span * 0.1)
+        let crestControlA = point(center: center, radius: outerRadius * 1.03, angle: midAngle - span * 0.14)
+        let crestControlB = point(center: center, radius: outerRadius * 1.03, angle: midAngle + span * 0.14)
+        let fallControlA = point(center: center, radius: outerRadius * 0.62, angle: endAngle - span * 0.1)
+        let fallControlB = point(center: center, radius: innerRadius * 1.04, angle: endAngle - span * 0.04)
+        let shoulderLiftA = point(center: center, radius: outerRadius * 0.97, angle: startAngle + span * 0.34)
+        let shoulderLiftB = point(center: center, radius: outerRadius * 0.97, angle: endAngle - span * 0.34)
+
+        var path = Path()
+        path.move(to: innerStart)
+        path.addCurve(to: outerStart, control1: riseControlA, control2: riseControlB)
+        path.addCurve(to: outerPeak, control1: shoulderLiftA, control2: crestControlA)
+        path.addCurve(to: outerEnd, control1: crestControlB, control2: shoulderLiftB)
+        path.addCurve(to: innerEnd, control1: fallControlA, control2: fallControlB)
+        path.addArc(
+            center: center,
+            radius: innerRadius,
+            startAngle: .radians(Double(endAngle)),
+            endAngle: .radians(Double(startAngle)),
+            clockwise: true
+        )
+        path.closeSubpath()
+        return path
+    }
+
+    private func point(center: CGPoint, radius: CGFloat, angle: CGFloat) -> CGPoint {
+        CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
+    }
+}

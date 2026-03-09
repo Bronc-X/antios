@@ -3,7 +3,7 @@
 > AntiAnxiety iOS 项目宪法与总规则（四文件治理版）
 > 版本: v3.1.0
 > 生效日期: 2026-03-07
-> 适用范围: `/Users/mac/Desktop/antios5`
+> 适用范围: `/Users/mac/Desktop/antios10`
 
 ---
 

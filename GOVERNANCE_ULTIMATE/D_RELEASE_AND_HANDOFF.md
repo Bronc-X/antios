@@ -60,7 +60,7 @@
 
 - 阻断 A（P1）: Release 签名 profile
   - 处理人: iOS 发布负责人
-  - 动作: 补齐 `com.youngtony.antios5` 与 widget profile，用于 archive / TestFlight
+  - 动作: 补齐 `com.youngtony.antios10` 与 widget profile，用于 archive / TestFlight
 
 - 阻断 B（P1）: 测试环境
   - 处理人: 开发环境 owner

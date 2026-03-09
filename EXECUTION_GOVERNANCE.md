@@ -1,66 +1,75 @@
-# Antios5 Delivery Governance
+# Antios10 Delivery Governance
 
 ## Project Guardrail
-- All implementation changes for this delivery happen under `/Users/mac/Desktop/antios5`.
-- Do not modify other workspaces or legacy copies unless the task explicitly requires it.
+- All implementation changes for this delivery happen under `/Users/mac/Desktop/antios10`.
+- The active branch for this workspace is `codex/antios10`.
+- Do not switch this workspace back to `main`.
+- If work is requested against `main`, redirect execution to `/Users/mac/Desktop/antios10`.
 
-## Branch and Worktree Discipline
-- `main` is the only long-lived branch for this repository.
-- Temporary build/review branches may exist during execution, but they must merge back into `main` and be removed afterward.
-- Only one active worktree should point at this repository during product work unless a task explicitly requires an additional worktree.
+## Core Delivery Principles
+
+### Principle 1: Sensor-First Memory
+- Apple Watch / HealthKit derived body-state memory is the highest-value grounding input.
+- Raw sensor data stays structured.
+- Only high-value interpretations enter vector memory.
+
+### Principle 2: Agent-First Product
+- `Coach` is the primary operating surface.
+- Critical workflows should be driven through agent-led structured capture before standalone forms.
+- Home and dedicated pages should act as overview and fallback surfaces unless explicitly justified.
 
 ## Dual-Agent Roles
 
-### Agent A: Chief Architecture Planner
+### Agent A: Architecture Planner
 Scope:
-- Translate product and research requirements into stable domain boundaries.
-- Define migration strategy for closed-loop anti-anxiety flows.
-- Record high-risk tradeoffs as ADR-style decisions.
+- Translate product direction into memory contracts, routing rules, and migration phases.
+- Define where sensor memory outranks event logs and chat history.
+- Maintain blueprint and execution-plan alignment.
 
 Deliverables:
-- Gap matrix (target product vs current app)
-- Module refactor map
-- Milestone acceptance checklist
+- blueprint and execution-plan updates
+- ADR-style decisions for risky tradeoffs
+- phase acceptance criteria
 
-### Agent B: Chief Code Engineer
+### Agent B: Code Engineer
 Scope:
-- Implement architecture decisions in production-grade SwiftUI/MVVM code.
-- Maintain the user data, memory, RAG, and evidence pipeline without hard-coded shortcuts.
-- Add build, runtime, and release guardrails.
+- Implement production-grade SwiftUI and service changes.
+- Wire sensor-derived memory, RAG ranking, and agent workflow infrastructure.
+- Maintain buildability and rollout safety.
 
 Deliverables:
-- Working code in `antios5`
-- Integration validation logs
-- Module-level change summary
-
-## Cross-Supervision Protocol
-1. Agent A proposes design intent and risk classification.
-2. Agent B challenges feasibility, coupling cost, and rollout risk.
-3. If conflict exists:
-- record both options;
-- resolve by user value first, system stability second, implementation cost third.
-4. Agent B implementation is blocked until Agent A signs off the constraints.
-5. Agent A review is blocked until Agent B provides build/test/runtime evidence.
+- working code in `antios10`
+- validation evidence
+- module-level change summaries
 
 ## Delivery Threads
 
-### Thread 1: Architecture and PRD Alignment
-- Output: final architecture map and API/data contract list.
+### Thread 1: Memory Contract and RAG Alignment
+- Output: memory kinds, retrieval priority, sensor-memory integration.
 - Priority: highest.
 
-### Thread 2: iOS App Refactor
-- Output: home shell, onboarding, calibration, proactive inquiry, and action closure orchestration.
+### Thread 2: Sensor Data Plane
+- Output: HealthKit ingestion -> structured persistence -> derived body memory -> RAG grounding.
 - Dependency: Thread 1 contracts.
 
-### Thread 3: Data and Intelligence Pipeline
-- Output: profile enrichment, memory capture, RAG evidence assembly, and Max grounding reliability.
-- Dependency: Thread 1 entity definitions.
+### Thread 3: Agent Router and Workflow Migration
+- Output: Coach-led check-in, evidence, action, and follow-up flows.
+- Dependency: Thread 1 and Thread 2.
 
-### Thread 4: Integration and Release Readiness
-- Output: regression pass, telemetry checks, simulator validation, and rollout gates.
-- Dependency: Thread 2 and Thread 3 completion.
+### Thread 4: Home Simplification and Fallback Surfaces
+- Output: Home as state/action launcher, page-level fallback retained where needed.
+- Dependency: Thread 3 direction.
+
+### Thread 5: Integration and Release Readiness
+- Output: telemetry checks, build validation, regression gates, release recovery.
+- Dependency: previous threads.
 
 ## Merge Discipline
-- Merge sequence should preserve contract-first delivery: Thread 1 -> Thread 3 -> Thread 2 -> Thread 4.
-- No key documentation may be dropped when code changes land.
-- Every merge candidate must pass simulator build validation before entering `main`.
+- Merge sequence should preserve contract-first delivery:
+  - Thread 1
+  - Thread 2
+  - Thread 3
+  - Thread 4
+  - Thread 5
+- No code change should land without matching blueprint / execution-plan alignment.
+- Every merge candidate should pass simulator build validation or record a concrete blocker.

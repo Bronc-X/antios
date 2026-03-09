@@ -1,7 +1,7 @@
 # AntiAnxiety iOS Design Baseline (iOS 26 / Liquid Glass)
 
 Last updated: 2026-02-14  
-Scope: `/Users/mac/Desktop/antios5/antios5` (SwiftUI-first)
+Scope: `/Users/mac/Desktop/antios10/antios10` (SwiftUI-first)
 
 ## 0. 角色协作结论（强制定调）
 
@@ -191,10 +191,10 @@ Scope: `/Users/mac/Desktop/antios5/antios5` (SwiftUI-first)
 - `Color(hex: ...)`：69 处
 
 高风险热点：
-- `/Users/mac/Desktop/antios5/antios5/Features/Onboarding/ClinicalOnboardingView.swift`
-- `/Users/mac/Desktop/antios5/antios5/Features/Max/MaxChatView.swift`
-- `/Users/mac/Desktop/antios5/antios5/Features/CoreHub/CoreHubView.swift`
-- `/Users/mac/Desktop/antios5/antios5/Features/ScienceFeed/ScienceFeedView.swift`
+- `/Users/mac/Desktop/antios10/antios10/Features/Onboarding/ClinicalOnboardingView.swift`
+- `/Users/mac/Desktop/antios10/antios10/Features/Max/MaxChatView.swift`
+- `/Users/mac/Desktop/antios10/antios10/Features/CoreHub/CoreHubView.swift`
+- `/Users/mac/Desktop/antios10/antios10/Features/ScienceFeed/ScienceFeedView.swift`
 
 典型问题：
 - 频繁 `.foregroundColor(.white/.black)` 绕过语义文本色。
@@ -236,7 +236,7 @@ Scope: `/Users/mac/Desktop/antios5/antios5` (SwiftUI-first)
 
 ## 10. 本轮已落地到项目（代码）
 
-- 新增入口：`/Users/mac/Desktop/antios5/antios5/Features/Settings/SettingsView.swift`  
+- 新增入口：`/Users/mac/Desktop/antios10/antios10/Features/Settings/SettingsView.swift`  
   路径：设置 -> 支持与信息 -> 设计系统容器。
 - 容器内容：A/B 色调、排版标尺、Button/Input/Card 样机、Lovi 逐字问句、Outsiders 图表、Tab 微交互、BottomSheet 尺寸。
 - 目标：先把规范“跑起来”，再迁移业务页面。

@@ -2,43 +2,58 @@
 
 > Status: active latest-app blueprint for `codex/antios10`
 > Updated: 2026-03-07
-> Scope: local-first iOS rebuild for AntiAnxiety with SwiftData foundation
+> Scope: sensor-first + agent-first iOS rebuild for AntiAnxiety
 
 ---
 
-## 1. Rebuild Goal
+## 1. Product Doctrine
 
-`antios10` is not a cosmetic refresh. It is a controlled product and architecture reset for the first App Store release.
+`antios10` is not a shell refresh. It is a product reset around two non-negotiable rules:
+
+1. `Sensor-first memory`
+2. `Agent-first product`
+
+This branch should stop treating wearable data as a side signal and stop treating chat as one feature among many.
 
 Primary goals:
-- make the core anti-anxiety loop understandable in 10 seconds
-- reduce compile and change blast radius
-- move user-facing state to a local-first SwiftData layer
-- keep remote services only where they create clear product leverage
-- create a reusable iOS delivery pattern for future B-end and C-end AI products
+- make Apple Watch / HealthKit body signals the highest-value memory input
+- turn Max into the main execution surface for calibration, explanation, action, and follow-up
+- reduce manual form burden by replacing it with agent-led structured capture
+- keep `Home / Coach / Me`, but move capability gravity toward `Coach`
+- preserve clinical safety, evidence grounding, and release discipline
 
 Non-goals for this branch:
-- full backend rewrite
-- auth provider migration away from Supabase
-- payment launch in v1
+- full backend rewrite before the new loop is proven
 - non-Apple wearable support
+- payment launch in v1
+- replacing Supabase Auth
 
 ---
 
-## 2. Governance Alignment
+## 2. Core Architecture Decision
 
-This blueprint implements the four governance files as follows:
+### 2.1 Sensor-First Memory
 
-- `A`: preserve the anti-anxiety closed loop and release discipline
-- `B`: consolidate IA into a smaller shell while keeping required capabilities
-- `C`: shift current execution from stabilization-only to rebuild bootstrap
-- `D`: keep the branch in NO-GO state until parity, security, signing, and validation are restored
+The most important user memory is not free text. It is body-state evidence derived from:
+- HRV
+- resting heart rate
+- sleep score / sleep recovery
+- steps / activity load
+- later: respiratory rate, temperature, sleep stages, workout recovery
 
 Rule:
-- capability scope stays
-- shell changes are allowed
-- local data architecture changes are allowed
-- release gates do not soften
+- raw sensor time series stay structured
+- only high-value interpretations enter vector memory
+- body-state memory outranks chat memory and event logs during grounding
+
+### 2.2 Agent-First Product
+
+The main operating system is the agent thread, not a collection of manual forms.
+
+Rule:
+- every critical capability must be invokable from `Coach`
+- input should be primarily agent-led cards, chips, sliders, toggles, and confirmations
+- standalone screens remain as fallback and overview surfaces, not the primary workflow
 
 ---
 
@@ -46,305 +61,275 @@ Rule:
 
 ### 3.1 Primary Navigation
 
-The main app shell becomes 3 tabs:
+The main shell remains:
 
 1. `Home`
 2. `Coach`
 3. `Me`
 
-### 3.2 Capability Mapping
+### 3.2 Capability Gravity
 
-- `Dashboard` capability moves into `Home`
-- `Report` capability becomes `Home > Evidence` section and detail route
-- `Max` capability becomes `Coach`
-- `Plans` capability becomes `Home > Today Plan` plus `Coach` plan handoff
-- `Settings` capability becomes `Me`
+- `Home` becomes the state dashboard and launcher
+- `Coach` becomes the primary operating surface
+- `Me` keeps permissions, sync, account, language, and release/debug info
 
-### 3.3 Entry Flow
+### 3.3 Capability Mapping
 
-`Launch -> Auth -> Clinical Baseline -> Onboarding -> Main Shell`
-
-The existing auth and onboarding gates may remain temporarily while the main shell is rebuilt.
-
----
-
-## 4. UX Blueprint
-
-### 4.1 Home
-
-Purpose:
-- answer three questions immediately:
-  - what state am I in
-  - what is the next smallest useful action
-  - what evidence supports that suggestion
-
-Sections:
-- daily focus hero
-- 4-step loop status
-- today plan card
-- evidence preview
-- quick actions
-
-### 4.2 Coach
-
-Purpose:
-- provide the conversational recovery surface
-- turn free text into one next action, not a wall of output
-
-Sections:
-- active thread
-- quick prompts
-- action summary after each exchange
-- local draft + local history
-
-### 4.3 Me
-
-Purpose:
-- hold settings, permissions, health sync status, language, and release/debug info
-
-Sections:
-- health and permissions
-- language and preferences
-- data and sync status
-- account
+- `Dashboard` -> `Home` summary + `Coach` handoff
+- `Report` -> `Home > Evidence` preview + `Coach` explanation handoff
+- `Max` -> `Coach` primary surface
+- `Plans` -> `Coach` generated plan + `Home` progress card
+- `Calibration` -> agent-led check-in inside `Coach`, page retained as fallback
+- `Inquiry` -> agent-led prompts inside `Coach`
+- `Science Feed` -> evidence browser, but recommendation framing comes from `Coach`
 
 ---
 
-## 5. Design Foundation
+## 4. Flow Blueprint
 
-This rebuild moves away from high-noise purple glass into a calmer, more clinical-but-human direction.
+The anti-anxiety loop becomes:
 
-### 5.1 Color Tokens
+1. `Observe`
+2. `Interpret`
+3. `Initiate`
+4. `Explain`
+5. `Commit`
+6. `Review`
 
-- `bgCanvas`: `#F5F1EA`
-- `bgElevated`: `#FFFDF8`
-- `bgInset`: `#ECE4D7`
-- `inkPrimary`: `#1F2328`
-- `inkSecondary`: `#56606B`
-- `inkTertiary`: `#7B8794`
-- `lineSoft`: `#D8CEBF`
-- `brandPrimary`: `#2F6E62`
-- `brandSecondary`: `#C96F4A`
-- `success`: `#2E7D5B`
-- `warning`: `#C28A2C`
-- `danger`: `#B65454`
-- `info`: `#5073B8`
+### 4.1 Observe
 
-### 5.2 Typography
+Passive first:
+- Apple Watch / HealthKit sync
+- local and remote ingestion
+- baseline body-state assembly
 
-- `display`: 32 / semibold
-- `title1`: 24 / semibold
-- `title2`: 20 / semibold
-- `body`: 16 / regular
-- `bodyStrong`: 16 / semibold
-- `caption`: 13 / medium
+### 4.2 Interpret
 
-### 5.3 Spacing
+System derives high-value body memories such as:
+- low recovery
+- elevated physiological arousal
+- low movement / low decompression
+- post-action improvement patterns
 
-4pt scale only:
-- `4, 8, 12, 16, 20, 24, 32, 40`
+These derived memories are stored for RAG and agent personalization.
 
-### 5.4 Radius
+### 4.3 Initiate
 
-- `sm`: 12
-- `md`: 18
-- `lg`: 24
-- `pill`: 999
+Max opens the next loop step through:
+- proactive prompt
+- daily check-in card
+- one-tap follow-up
+- context-aware reminder
 
-### 5.5 Motion
+### 4.4 Explain
 
-- tap feedback: 100ms ease-out + `selectionChanged`
-- card expand/collapse: 220ms ease-in-out
-- tab switch: native + light haptic only
-- page state transition: 280ms max
-- reduced motion: remove scale/float, keep opacity only
+Max provides:
+- concise understanding
+- mechanism explanation
+- evidence source
+- one low-friction next action
 
----
+### 4.5 Commit
 
-## 6. Component Spec
+The user completes a micro-action through the thread:
+- tap to confirm
+- mark done
+- select how hard it felt
+- pick a follow-up option
 
-Core components required in the rebuild shell:
+### 4.6 Review
 
-- `ShellScaffold`
-  - navigation container
-  - background
-  - section spacing
-
-- `FocusHeroCard`
-  - state headline
-  - supporting note
-  - next action CTA
-
-- `LoopStepRow`
-  - step name
-  - status
-  - optional blocking reason
-
-- `ActionCard`
-  - action title
-  - duration or effort
-  - completion state
-
-- `CoachBubble`
-  - user / assistant variants
-  - compact timestamps
-
-- `ComposerBar`
-  - text input
-  - send
-  - quick prompt insertion
-
-- `SettingsRow`
-  - label
-  - subtitle
-  - accessory
-
-All new components must bind to tokens, never raw visual literals beyond the token table.
+The agent closes the loop by asking:
+- what changed in body sensation
+- what changed in perceived stress / panic
+- whether the action helped
 
 ---
 
-## 7. Data Architecture
+## 5. Memory Architecture
 
-### 7.1 Local-First Rule
+### 5.1 Memory Layers
 
-SwiftData becomes the primary UI data layer.
+The new memory stack is:
 
-SwiftData owns:
-- loop snapshot
-- local plan state
-- coach thread and coach messages
-- local preferences
-- local drafts / cache
+1. `raw sensor store`
+2. `sensor-derived memory`
+3. `behavior loop memory`
+4. `chat memory`
+5. `assistant strategy memory`
 
-Remote services own:
-- auth and session
-- server truth for cross-device records
-- AI orchestration
-- heavy analytics / recommendation generation
+### 5.2 Storage Rule
 
-### 7.2 Initial SwiftData Models
+- `raw sensor store`
+  - keep in structured tables such as `user_health_data`
+- `sensor-derived memory`
+  - write concise body-state summaries into `ai_memory`
+  - highest retrieval priority
+- `behavior loop memory`
+  - calibration completion, habit completion, plan progress, inquiry answers
+- `chat memory`
+  - reflective user statements and selective assistant turns
+- `assistant strategy memory`
+  - proactive brief, validated intervention patterns, reusable follow-up scripts
 
-- `A10LoopSnapshot`
-- `A10ActionPlan`
-- `A10CoachSession`
-- `A10CoachMessage`
-- `A10PreferenceRecord`
+### 5.3 Retrieval Rule
 
-### 7.3 Sync Strategy
+RAG should prefer:
 
-Phase 1:
-- local-only creation and mutation
-- remote sync boundary defined but minimal
+1. body-state memory
+2. recent loop behavior memory
+3. user reflective memory
+4. assistant strategy memory
+5. generic knowledge base
 
-Phase 2:
-- session-aware background sync from SwiftData to Supabase/App API
-- conflict strategy: local optimistic write, server reconciliation on fetch
-
-Phase 3:
-- durable migration from legacy view models to feature-specific clients
+`wearable summary` remains useful, but it is not enough. It must be complemented by vectorized body memories.
 
 ---
 
-## 8. Remote Architecture
+## 6. Agent-First Surface Model
 
-Do not push health and mental-health domain data into iCloud persistence.
+### 6.1 Coach Responsibilities
 
-Recommended remote split:
-- keep `Supabase Auth`
-- keep Postgres/Supabase as canonical synced store
-- keep App API for orchestrated AI workflows
-- progressively replace the monolithic `SupabaseManager` with feature clients:
-  - `AuthClient`
-  - `ProfileClient`
-  - `LoopClient`
-  - `CoachClient`
-  - `HealthSyncClient`
+`Coach` must be able to:
+- start daily check-in
+- ask structured follow-up questions
+- collect plan completion
+- request symptom intensity
+- explain evidence
+- issue the next action
 
----
+### 6.2 Input Patterns
 
-## 9. What To Borrow From ShipSwift
+Prefer these interaction types over manual form pages:
+- single-select chips
+- intensity slider
+- stepper for minutes / repetitions
+- yes / no confirmation row
+- quick-reply cards
+- completion checkmark
+- expandable evidence source row
 
-Directly reusable later:
-- `SWPaywallView` and `SWStoreManager` for a future subscription phase
-- lightweight onboarding / settings / loading component patterns
-- repository organization rules and AI-readable component conventions
+### 6.3 Home Responsibilities
 
-Borrow ideas only:
-- `SWRootTabView`
-- `SWChat`
-- `SWOnboardingView`
+`Home` should answer only:
+- what state am I in
+- what is the next best action
+- why should I trust it
+- do I need to open Coach now
 
-Do not adopt:
-- `SWAuth`
-- `SWTikTokTracking`
-- ShipSwift backend assumptions
-
----
-
-## 10. Execution Plan
-
-### Phase R1: Bootstrap
-
-- write blueprint and governance updates
-- create `codex/antios10`
-- replace legacy 5-tab main shell with 3-tab rebuild shell
-- add SwiftData container and initial models
-- seed local demo/runtime data
-
-### Phase R2: Home Loop
-
-- rebuild Dashboard/Report/Plans capability into `Home`
-- add loop progression state
-- add evidence preview and next-action contract
-
-### Phase R3: Coach
-
-- rebuild Max shell into `Coach`
-- local-first thread model
-- remote bridge adapter for later sync
-
-### Phase R4: Me
-
-- rebuild Settings into `Me`
-- add health permissions summary
-- add language/data/sync/account sections
-
-### Phase R5: Infra Decomposition
-
-- split `SupabaseManager` into feature clients
-- shrink compile hotspots
-- isolate remote DTOs from view state
-
-### Phase R6: Release Recovery
-
-- secrets rotation
-- signing recovery
-- simulator/test gate repair
-- device validation
+Home should not become a second complex workflow surface.
 
 ---
 
-## 11. File-Level Kickoff
+## 7. System Architecture
 
-Immediate code changes in this kickoff:
-- update `antios5App.swift` to host SwiftData
-- replace `ContentView.swift` main shell with `Home / Coach / Me`
-- keep existing auth/onboarding gates for now
-- seed a local SwiftData domain so the rebuild is runnable on day one
+### 7.1 Data Plane
 
-Deferred:
-- full feature extraction into separate folders/files
-- full sync bridge
-- legacy feature deletion
+- `HealthKitService`
+  - ingests raw Apple Watch / HealthKit data
+- `SupabaseManager`
+  - persists raw sensor points
+  - updates unified traits
+  - generates sensor-derived memories
+- `MaxMemoryService`
+  - stores categorized memories
+  - exposes retrieval and fallback
+- `MaxRAGService`
+  - prioritizes body memory and behavior memory
+- later: split into `HealthSyncClient`, `MemoryClient`, `AgentClient`, `EvidenceClient`
+
+### 7.2 Agent Plane
+
+Add an explicit `agent action router` layer:
+- map user intent -> action type
+- map action type -> thread card / remote write / follow-up question
+- own conversation-driven form replacement
+
+Initial route families:
+- `check_in`
+- `inquiry`
+- `plan_commit`
+- `plan_review`
+- `evidence_explain`
+- `sensor_follow_up`
+
+### 7.3 UI Plane
+
+- `Home`
+  - loop overview
+  - evidence preview
+  - next action
+  - open Coach
+- `Coach`
+  - thread
+  - structured cards
+  - action handoff
+  - completion / review loop
+- `Me`
+  - permissions
+  - health sync
+  - language
+  - account
 
 ---
 
-## 12. Success Criteria For This Kickoff
+## 8. Execution Phases
 
-This kickoff is successful when:
-- blueprint is written
-- governance files are aligned
-- branch exists
-- app boots into the new rebuild shell after gates
-- new shell reads and writes SwiftData
-- project still reaches build validation or a concrete blocker is identified
+### Phase A1: Sensor Memory Foundation
+
+- generate sensor-derived memories during Apple Watch / HealthKit sync
+- classify memories by kind
+- make body memory visible to RAG
+
+### Phase A2: Retrieval Reweighting
+
+- add memory-kind-aware ranking
+- reduce mixed-pool event noise
+- preserve lexical fallback for degraded paths
+
+### Phase A3: Agent Action Router
+
+- introduce action routing in Coach
+- define thread cards for check-in, completion, evidence, and follow-up
+
+### Phase A4: Agent-Led Calibration and Plans
+
+- move daily calibration to thread-first capture
+- move plan commit / progress updates into thread actions
+- keep pages as fallback
+
+### Phase A5: Home Simplification
+
+- make Home a launcher and state surface
+- reduce workflow duplication outside Coach
+
+### Phase A6: Infra Decomposition and Release
+
+- split `SupabaseManager`
+- add telemetry and regression coverage
+- recover release readiness
+
+---
+
+## 9. Success Criteria
+
+This direction is successful when:
+- Apple Watch / HealthKit derived memory becomes a first-class grounding source
+- Max can drive the main anti-anxiety loop without requiring page hopping for every step
+- daily check-in completion time drops
+- plan follow-through rate increases
+- evidence explanation is grounded in body state plus scientific sources
+- the app still passes build validation or a concrete blocker is documented
+
+---
+
+## 10. Immediate Agent Work Queue
+
+Immediate code work after this blueprint:
+- add categorized memory storage and body-memory priority
+- capture sensor-derived memories from wearable sync
+- route existing user signals into memory kinds instead of one generic pool
+- prepare Coach for agent-led cards and execution actions
+
+Detailed execution steps live in:
+- `ANTIOS10_AGENT_EXECUTION_PLAN.md`

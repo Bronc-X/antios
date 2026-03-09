@@ -3,7 +3,7 @@
 ## Branch Strategy
 
 - Recommended branch name: `codex/antios-v2-swiftdata`
-- Keep the current `antios5` target intact until V2 reaches beta parity.
+- Keep the current `antios10` target intact until V2 reaches beta parity.
 - Do not port giant files wholesale. Migrate contracts and focused logic only.
 - Treat V2 as a new app shell on top of existing domain assets.
 
@@ -306,17 +306,17 @@ This makes the app feel fast even when the network or AI backend is slow.
 
 ### Reuse Logic
 
-- `antios5/Core/HealthKit/HealthKitService.swift`
-- `antios5/Core/Services/Max/*` domain logic after dependency cleanup
-- `antios5/Models/*`
+- `antios10/Core/HealthKit/HealthKitService.swift`
+- `antios10/Core/Services/Max/*` domain logic after dependency cleanup
+- `antios10/Models/*`
 - selected closed-loop contract types
 
 ### Rebuild, Do Not Port As-Is
 
-- `antios5/ContentView.swift`
-- `antios5/Features/CoreHub/CoreHubView.swift`
-- `antios5/Features/Settings/SettingsView.swift`
-- `antios5/Core/Networking/SupabaseManager.swift`
+- `antios10/ContentView.swift`
+- `antios10/Features/CoreHub/CoreHubView.swift`
+- `antios10/Features/Settings/SettingsView.swift`
+- `antios10/Core/Networking/SupabaseManager.swift`
 
 ### Port By Slicing
 
