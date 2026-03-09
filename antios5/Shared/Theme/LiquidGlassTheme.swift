@@ -48,10 +48,19 @@ struct ScreenMetrics {
         0
     }
 
+    func stableCenteredWidth(
+        maxWidth: CGFloat,
+        minWidth: CGFloat = 0,
+        horizontalInset: CGFloat = 0,
+        fraction: CGFloat = 1
+    ) -> CGFloat {
+        let usableWidth = Swift.max(0, (fixedScreenWidth - horizontalInset * 2) * fraction)
+        return alignToPixel(Swift.max(minWidth, Swift.min(usableWidth, maxWidth)))
+    }
+
     /// TabBar 宽度（基于 fixedScreenWidth，确保布局稳定）
     var tabBarWidth: CGFloat {
-        let baseWidth = fixedScreenWidth - tabBarHorizontalPadding * 2
-        return alignToPixel(min(max(0, baseWidth), 560))
+        stableCenteredWidth(maxWidth: 560, horizontalInset: tabBarHorizontalPadding)
     }
 
     var bottomContentInset: CGFloat {
@@ -60,7 +69,7 @@ struct ScreenMetrics {
 
     var maxContentWidth: CGFloat {
         // iOS 26 下左右 safe-area 可能出现轻微不对称，使用 fixedScreenWidth 作为列宽基准可避免整页横向漂移。
-        max(0, min(fixedScreenWidth - horizontalPadding * 2, 560))
+        stableCenteredWidth(maxWidth: 560, horizontalInset: horizontalPadding)
     }
 
     var ringLarge: CGFloat { isCompactHeight ? 140 : 160 }
@@ -262,11 +271,19 @@ extension Color {
     })
 
     static let textSecondary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#DDD4EC") : UIColor(hex: "#7E70A0")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#DDD4EC") : UIColor(hex: "#675A82")
     })
 
     static let textTertiary = Color(uiColor: UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(hex: "#BDADD8") : UIColor(hex: "#A394C2")
+        trait.userInterfaceStyle == .dark ? UIColor(hex: "#BDADD8") : UIColor(hex: "#7E719C")
+    })
+
+    static let textOnAccent = Color(uiColor: UIColor { _ in
+        UIColor(hex: "#281A38")
+    })
+
+    static let textOnDanger = Color(uiColor: UIColor { _ in
+        UIColor(hex: "#2B1421")
     })
 
     static func textPrimary(for scheme: ColorScheme) -> Color {
@@ -274,11 +291,11 @@ extension Color {
     }
 
     static func textSecondary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#D9D0E8") : Color(hex: "#796A95")
+        scheme == .dark ? Color(hex: "#D9D0E8") : Color(hex: "#685B82")
     }
 
     static func textTertiary(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#B9ABD1") : Color(hex: "#9A8BB6")
+        scheme == .dark ? Color(hex: "#B9ABD1") : Color(hex: "#7F719B")
     }
 
     static func surfaceGlass(for scheme: ColorScheme) -> Color {
@@ -287,6 +304,34 @@ extension Color {
         }
         // Light mode: keep translucency but add subtle chroma depth for better surface separation.
         return Color(hex: "#F3ECFF").opacity(0.9)
+    }
+
+    static func surfaceStroke(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.08)
+    }
+
+    static func mutedSurfaceFill(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.035)
+    }
+
+    static func splashMarkOuterStroke(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color.white.opacity(0.36) : Color(hex: "#DDC8FA")
+    }
+
+    static func splashMarkPlateFill(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color.white.opacity(0.1) : Color(hex: "#F4E8FF")
+    }
+
+    static func splashMarkPlateStroke(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color.white.opacity(0.08) : Color(hex: "#E0CDFC")
+    }
+
+    static func splashLogoPrimary(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color.white.opacity(0.95) : Color(hex: "#634E8B")
+    }
+
+    static func splashLogoSecondary(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: "#D7C9FF") : Color(hex: "#8B67B9")
     }
 }
 

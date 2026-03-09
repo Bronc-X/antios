@@ -217,19 +217,26 @@ private struct AuthBrandMark: View {
                 .frame(width: 108, height: 108)
                 .overlay(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                        .stroke(Color.splashMarkOuterStroke(for: colorScheme), lineWidth: 1)
                 )
-                .shadow(color: Color.liquidGlassAccent.opacity(0.28), radius: 20, y: 10)
+                .shadow(color: Color.liquidGlassAccent.opacity(colorScheme == .dark ? 0.28 : 0.18), radius: 20, y: 10)
 
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.22))
+                .fill(Color.splashMarkPlateFill(for: colorScheme))
                 .frame(width: 80, height: 80)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.splashMarkPlateStroke(for: colorScheme), lineWidth: 1)
+                )
 
             Text("lóvi")
                 .font(GlassTypography.loviTitle(34, weight: .semibold))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.95), Color(hex: "#D7C9FF")],
+                        colors: [
+                            Color.splashLogoPrimary(for: colorScheme),
+                            Color.splashLogoSecondary(for: colorScheme)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

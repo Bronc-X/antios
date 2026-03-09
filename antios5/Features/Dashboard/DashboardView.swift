@@ -168,7 +168,7 @@ struct DashboardView: View {
                                 .foregroundColor(.textPrimary)
                             Text(t("稳定度 /100", "Stability /100"))
                                 .font(.caption)
-                                .foregroundColor(.textTertiary)
+                                .foregroundColor(.textSecondary)
                         }
                     }
                 }
@@ -193,11 +193,10 @@ struct DashboardView: View {
                     } label: {
                         Text(t("查看今日洞察", "View today's insights"))
                             .font(.caption.bold())
-                            .foregroundColor(.liquidGlassAccent)
+                            .foregroundColor(accentActionForeground)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 16)
-                            .background(Color.surfaceGlass(for: colorScheme))
-                            .clipShape(Capsule())
+                            .background(accentActionBackground(cornerRadius: 999))
                     }
                 }
                 .padding(.bottom, 10)
@@ -451,11 +450,10 @@ struct DashboardView: View {
                                     Text(t("打开证据原文", "Open source evidence"))
                                 }
                                 .font(.caption)
-                                .foregroundColor(.liquidGlassAccent)
+                                .foregroundColor(accentActionForeground)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 10)
-                                .background(Color.surfaceGlass(for: colorScheme))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .background(accentActionBackground(cornerRadius: 10))
                             }
                         }
 
@@ -469,11 +467,10 @@ struct DashboardView: View {
                                 Text(t("进入个性化科学期刊", "Open personalized science journal"))
                             }
                             .font(.caption)
-                            .foregroundColor(.liquidGlassAccent)
+                            .foregroundColor(accentActionForeground)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 10)
-                                .background(Color.surfaceGlass(for: colorScheme))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .background(accentActionBackground(cornerRadius: 10))
                         }
                         .buttonStyle(.plain)
                     }
@@ -495,11 +492,10 @@ struct DashboardView: View {
                                     Text(t("打开证据原文", "Open source evidence"))
                                 }
                                 .font(.caption)
-                                .foregroundColor(.liquidGlassAccent)
+                                .foregroundColor(accentActionForeground)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 10)
-                                .background(Color.surfaceGlass(for: colorScheme))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .background(accentActionBackground(cornerRadius: 10))
                             }
                         }
 
@@ -513,11 +509,10 @@ struct DashboardView: View {
                                 Text(t("进入个性化科学期刊", "Open personalized science journal"))
                             }
                             .font(.caption)
-                            .foregroundColor(.liquidGlassAccent)
+                            .foregroundColor(accentActionForeground)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 10)
-                                .background(Color.surfaceGlass(for: colorScheme))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .background(accentActionBackground(cornerRadius: 10))
                         }
                         .buttonStyle(.plain)
                     }
@@ -544,11 +539,10 @@ struct DashboardView: View {
                             Text(t("查看并刷新科学期刊", "View and refresh scientific journals"))
                         }
                         .font(.caption)
-                        .foregroundColor(.liquidGlassAccent)
+                        .foregroundColor(accentActionForeground)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 10)
-                        .background(Color.surfaceGlass(for: colorScheme))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .background(accentActionBackground(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
                 }
@@ -681,6 +675,28 @@ struct DashboardView: View {
         }
     }
 
+    private var accentActionForeground: Color {
+        colorScheme == .dark ? .liquidGlassAccent : .textOnAccent
+    }
+
+    private func accentActionBackground(cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(
+                colorScheme == .dark
+                ? Color.surfaceGlass(for: colorScheme)
+                : Color.liquidGlassAccent.opacity(0.2)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(
+                        colorScheme == .dark
+                        ? Color.liquidGlassAccent.opacity(0.24)
+                        : Color.liquidGlassAccent.opacity(0.42),
+                        lineWidth: 1
+                    )
+            )
+    }
+
     private func explanationRow(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(r(title))
@@ -700,7 +716,7 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(r(title))
                 .font(.caption2)
-                .foregroundColor(.textTertiary)
+                .foregroundColor(.textSecondary)
             Text(r(value))
                 .font(GlassTypography.cnLovi(17, weight: .semibold))
                 .foregroundColor(.textPrimary)

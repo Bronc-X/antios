@@ -15,6 +15,7 @@ struct PlanSelectorView: View {
     @State private var expandedCards: Set<Int> = []
     @State private var editableItemsByIndex: [Int: String] = [:]
     @State private var editableTitleByIndex: [Int: String] = [:]
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         if isConfirmed {
@@ -37,7 +38,7 @@ struct PlanSelectorView: View {
                         .foregroundColor(Color.liquidGlassAccent)
                     Text("选择一个方案开始执行:")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary(for: colorScheme))
                 }
                 
                 // 计划卡片
@@ -65,28 +66,28 @@ struct PlanSelectorView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("可手动修改后再保存")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.65))
+                            .foregroundColor(Color.textSecondary(for: colorScheme))
 
                         TextField("方案标题（可选）", text: titleBinding(for: selectedIndex))
                             .textFieldStyle(.plain)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.06))
+                            .background(Color.mutedSurfaceFill(for: colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.textPrimary(for: colorScheme))
 
                         TextEditor(text: itemBinding(for: selectedIndex))
                             .frame(minHeight: 110)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 8)
                             .scrollContentBackground(.hidden)
-                            .background(Color.white.opacity(0.06))
+                            .background(Color.mutedSurfaceFill(for: colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.textPrimary(for: colorScheme))
 
                         Text("提示：每行一条建议，确认后会保存到计划列表。")
                             .font(.caption2)
-                            .foregroundColor(.white.opacity(0.55))
+                            .foregroundColor(Color.textTertiary(for: colorScheme))
 
                         HStack(spacing: 12) {
                             Button {
@@ -95,14 +96,14 @@ struct PlanSelectorView: View {
                                 HStack(spacing: 6) {
                                     if isSaving {
                                         ProgressView()
-                                            .tint(.black)
+                                            .tint(.textOnAccent)
                                     } else {
                                         Image(systemName: "bolt.fill")
                                     }
                                     Text("确认并保存")
                                 }
                                 .font(.subheadline.bold())
-                                .foregroundColor(.black)
+                                .foregroundColor(.textOnAccent)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
                                 .background(Color.liquidGlassAccent)
@@ -182,6 +183,7 @@ struct PlanCardView: View {
     let isExpanded: Bool
     let onSelect: () -> Void
     let onToggleExpand: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         Button(action: onSelect) {
@@ -190,7 +192,7 @@ struct PlanCardView: View {
                     // 标题
                     Text(option.displayTitle)
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(Color.textPrimary(for: colorScheme))
                     
                     Spacer()
                     
@@ -206,12 +208,12 @@ struct PlanCardView: View {
                     if let difficulty = option.difficulty {
                         Label(difficulty, systemImage: "target")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(Color.textTertiary(for: colorScheme))
                     }
                     if let duration = option.duration {
                         Label(duration, systemImage: "clock")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(Color.textTertiary(for: colorScheme))
                     }
                 }
                 
@@ -219,7 +221,7 @@ struct PlanCardView: View {
                 if let description = option.description, !description.isEmpty {
                     Text(description)
                         .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(Color.textSecondary(for: colorScheme))
                         .lineLimit(isExpanded ? nil : 2)
                 }
                 
@@ -230,12 +232,12 @@ struct PlanCardView: View {
                         ForEach(Array((isExpanded ? items : Array(items.prefix(4))).enumerated()), id: \.offset) { index, item in
                             HStack(alignment: .top, spacing: 6) {
                                 Circle()
-                                    .fill(Color.white.opacity(0.4))
+                                    .fill(Color.textTertiary(for: colorScheme).opacity(0.5))
                                     .frame(width: 4, height: 4)
                                     .padding(.top, 6)
                                 Text(item.text)
                                     .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(Color.textSecondary(for: colorScheme))
                                     .lineLimit(isExpanded ? nil : 1)
                             }
                         }
@@ -259,10 +261,19 @@ struct PlanCardView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.white.opacity(0.08) : Color.white.opacity(0.03))
+                    .fill(
+                        isSelected
+                        ? Color.liquidGlassAccent.opacity(colorScheme == .dark ? 0.14 : 0.18)
+                        : Color.mutedSurfaceFill(for: colorScheme)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? Color.liquidGlassAccent.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(
+                                isSelected
+                                ? Color.liquidGlassAccent.opacity(0.4)
+                                : Color.surfaceStroke(for: colorScheme),
+                                lineWidth: 1
+                            )
                     )
             )
         }

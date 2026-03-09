@@ -8,7 +8,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var supabase: SupabaseManager
     @EnvironmentObject var appSettings: AppSettings
-    @State private var selectedTab: Tab = .dashboard
+    @State private var selectedTab: Tab
     @AppStorage("isOnboardingComplete") private var isOnboardingComplete = false
     @State private var isCalibrationPresented = false
     @State private var isBreathingPresented = false
@@ -38,6 +38,30 @@ struct ContentView: View {
             case .settings: return L10n.text("设置", "Settings", language: language)
             }
         }
+
+        var accessibilityIdentifier: String {
+            switch self {
+            case .dashboard: return "tab.dashboard"
+            case .report: return "tab.report"
+            case .max: return "tab.max"
+            case .plans: return "tab.plans"
+            case .settings: return "tab.settings"
+            }
+        }
+
+        var screenIdentifier: String {
+            switch self {
+            case .dashboard: return "screen.dashboard"
+            case .report: return "screen.report"
+            case .max: return "screen.max"
+            case .plans: return "screen.plans"
+            case .settings: return "screen.settings"
+            }
+        }
+    }
+
+    init() {
+        _selectedTab = State(initialValue: Self.initialTabFromEnvironment())
     }
     
     var body: some View {
@@ -118,26 +142,41 @@ struct ContentView: View {
             // 2. 原生 TabView
             TabView(selection: $selectedTab) {
                 DashboardView()
+                    .overlay(alignment: .topLeading) {
+                        UITestMarker(identifier: Tab.dashboard.screenIdentifier)
+                    }
                     .tag(Tab.dashboard)
                     .tabItem {
                         Label(Tab.dashboard.title(language: appSettings.language), systemImage: Tab.dashboard.icon)
                     }
                 ReportView()
+                    .overlay(alignment: .topLeading) {
+                        UITestMarker(identifier: Tab.report.screenIdentifier)
+                    }
                     .tag(Tab.report)
                     .tabItem {
                         Label(Tab.report.title(language: appSettings.language), systemImage: Tab.report.icon)
                     }
                 MaxChatView()
+                    .overlay(alignment: .topLeading) {
+                        UITestMarker(identifier: Tab.max.screenIdentifier)
+                    }
                     .tag(Tab.max)
                     .tabItem {
                         Label(Tab.max.title(language: appSettings.language), systemImage: Tab.max.icon)
                     }
                 PlansView()
+                    .overlay(alignment: .topLeading) {
+                        UITestMarker(identifier: Tab.plans.screenIdentifier)
+                    }
                     .tag(Tab.plans)
                     .tabItem {
                         Label(Tab.plans.title(language: appSettings.language), systemImage: Tab.plans.icon)
                     }
                 SettingsView()
+                    .overlay(alignment: .topLeading) {
+                        UITestMarker(identifier: Tab.settings.screenIdentifier)
+                    }
                     .tag(Tab.settings)
                     .tabItem {
                         Label(Tab.settings.title(language: appSettings.language), systemImage: Tab.settings.icon)
@@ -152,6 +191,28 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .overlay(alignment: .topLeading) {
+            UITestMarker(identifier: "screen.main")
+        }
+    }
+
+    private static func initialTabFromEnvironment() -> Tab {
+        guard let rawValue = LaunchOverrides.stringValue("UI_TEST_INITIAL_TAB")?.lowercased() else {
+            return .dashboard
+        }
+
+        switch rawValue {
+        case "report":
+            return .report
+        case "max":
+            return .max
+        case "plans":
+            return .plans
+        case "settings":
+            return .settings
+        default:
+            return .dashboard
+        }
     }
 }
 
@@ -191,7 +252,7 @@ private struct LoviLaunchSplashView: View {
                 .offset(x: drift ? 138 : 88, y: drift ? -108 : -142)
 
             Circle()
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.07 : 0.16))
+                .fill(Color(hex: "#F6EAFF").opacity(colorScheme == .dark ? 0.07 : 0.18))
                 .frame(width: 322, height: 322)
                 .blur(radius: 92)
                 .offset(x: drift ? 36 : -24, y: drift ? 34 : 102)
@@ -224,10 +285,10 @@ private struct LoviLaunchSplashView: View {
                 .padding(.vertical, 10)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.white.opacity(colorScheme == .dark ? 0.14 : 0.42))
+                        .fill(Color.surfaceGlass(for: colorScheme))
                         .overlay(
                             Capsule(style: .continuous)
-                                .stroke(Color.white.opacity(colorScheme == .dark ? 0.3 : 0.56), lineWidth: 1)
+                                .stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                         )
                         .shadow(color: Color(hex: "#748CFF").opacity(colorScheme == .dark ? 0.24 : 0.16), radius: 12, y: 7)
                 )
@@ -248,6 +309,7 @@ private struct LoviLaunchSplashView: View {
                 revealContent = true
             }
         }
+        .accessibilityIdentifier("screen.splash")
     }
 }
 
@@ -292,6 +354,7 @@ private struct CustomTabBar: View {
         }
         .frame(width: containerWidth, height: totalHeight)  // 容器锚定到物理屏幕宽度
         .overlay(centerAxisOverlay)
+        .accessibilityIdentifier("tabbar.custom")
     }
 
     private var tabBarBackground: some View {
@@ -343,12 +406,14 @@ private struct CustomTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(tab.accessibilityIdentifier)
     }
 
     private var centerAxisOverlay: some View {
         Group {
             if LayoutDebug.enabled {
                 GeometryReader { proxy in
+                    // ui-audit: ignore-next-line layout-geometry-width-basis
                     let centerX = proxy.size.width / 2
                     Rectangle()
                         .fill(Color.yellow.opacity(0.7))
@@ -369,6 +434,18 @@ private struct CustomTabBar: View {
     }
 }
 
+private struct UITestMarker: View {
+    let identifier: String
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .accessibilityElement()
+            .accessibilityIdentifier(identifier)
+            .allowsHitTesting(false)
+    }
+}
+
 private struct LoviSplashMark: View {
     @Environment(\.colorScheme) private var colorScheme
     let scaleUp: Bool
@@ -380,25 +457,41 @@ private struct LoviSplashMark: View {
                 .frame(width: 118, height: 118)
                 .overlay(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.36), lineWidth: 1)
+                        .stroke(Color.splashMarkOuterStroke(for: colorScheme), lineWidth: 1)
                 )
-                .shadow(color: Color(hex: "#8D80FF").opacity(0.3), radius: 24, y: 10)
+                .shadow(
+                    color: Color(hex: "#8D80FF").opacity(colorScheme == .dark ? 0.3 : 0.18),
+                    radius: 24,
+                    y: 10
+                )
 
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.22))
+                .fill(Color.splashMarkPlateFill(for: colorScheme))
                 .frame(width: 86, height: 86)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.splashMarkPlateStroke(for: colorScheme), lineWidth: 1)
+                )
 
             Text("lóvi")
                 .font(.system(size: 38, weight: .semibold, design: .rounded))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.95), Color(hex: "#D7C9FF")],
+                        colors: [
+                            Color.splashLogoPrimary(for: colorScheme),
+                            Color.splashLogoSecondary(for: colorScheme)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .kerning(-1.2)
                 .scaleEffect(scaleUp ? 1.03 : 0.98)
+                .shadow(
+                    color: Color(hex: "#C6A7EF").opacity(colorScheme == .dark ? 0.12 : 0.18),
+                    radius: 8,
+                    y: 2
+                )
         }
     }
 }

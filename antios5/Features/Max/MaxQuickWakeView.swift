@@ -23,7 +23,7 @@ struct MaxQuickWakeView: View {
                     
                     Image(systemName: "brain.head.profile")
                         .font(.title3)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textOnAccent)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {

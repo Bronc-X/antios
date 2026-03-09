@@ -186,6 +186,7 @@ struct ClinicalOnboardingView: View {
     @StateObject private var viewModel = ClinicalOnboardingViewModel()
     @Binding var isComplete: Bool
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         GeometryReader { geo in
@@ -222,7 +223,7 @@ struct ClinicalOnboardingView: View {
             
             Text("反焦虑基线评估")
                 .font(.largeTitle.bold())
-                .foregroundColor(.white)
+                .foregroundColor(Color.textPrimary(for: colorScheme))
             
             Text("为了建立你的反焦虑基线，\n我们需要先了解当前情绪、睡眠与紧张状态。")
                 .font(.body)
@@ -249,6 +250,7 @@ struct ClinicalOnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, metrics.safeAreaInsets.bottom + 24)
         }
+        .liquidGlassPageWidth(alignment: .center)
     }
     
 
@@ -260,7 +262,7 @@ struct ClinicalOnboardingView: View {
                 .frame(width: 60, alignment: .leading)
             Text(desc)
                 .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(Color.textSecondary(for: colorScheme))
             Spacer()
             Text("\(count)题")
                 .font(.caption)
@@ -268,15 +270,13 @@ struct ClinicalOnboardingView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 16)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.mutedSurfaceFill(for: colorScheme)))
     }
     
     // MARK: - Questions (全屏铺满，动态宽度)
     
     private func questionsView(geo: GeometryProxy) -> some View {
-        let screenWidth = metrics.safeWidth
-        let horizontalPadding: CGFloat = metrics.isCompactWidth ? 14 : 16
-        let contentWidth = max(0, screenWidth - horizontalPadding * 2)
+        let contentWidth = metrics.maxContentWidth
         let rowHorizontalInset: CGFloat = 12
         let availableWidth = max(0, contentWidth - rowHorizontalInset * 2)
         let optionCount = max(viewModel.currentOptionLabels.count, viewModel.currentPageQuestions.map(\.values.count).max() ?? 4)
@@ -310,7 +310,7 @@ struct ClinicalOnboardingView: View {
                     .font(.caption)
                     .foregroundColor(.textSecondary)
             }
-            .padding(.horizontal, 20)
+            .frame(width: contentWidth)
             .padding(.top, 12)
             .padding(.bottom, 8)
             
@@ -321,7 +321,7 @@ struct ClinicalOnboardingView: View {
                 optionSpacing: optionSpacing,
                 rowHorizontalInset: rowHorizontalInset
             )
-                .padding(.horizontal, horizontalPadding)
+            .frame(width: contentWidth)
             
             // 问题列表
             ScrollView {
@@ -337,12 +337,14 @@ struct ClinicalOnboardingView: View {
                         )
                     }
                 }
-                .padding(.horizontal, horizontalPadding)
+                .frame(width: contentWidth)
                 .padding(.vertical, 16)
             }
             
             // 底部导航按钮
             navigationButtons(geo: geo)
+                .frame(width: contentWidth)
+                .frame(maxWidth: .infinity)
         }
     }
     
@@ -383,7 +385,7 @@ struct ClinicalOnboardingView: View {
                     .foregroundColor(.textSecondary.opacity(0.6))
                 Text(question.text)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -395,7 +397,12 @@ struct ClinicalOnboardingView: View {
                 Button(action: { viewModel.answer(questionId: question.id, value: value, globalIndex: globalIndex) }) {
                     ZStack {
                         Circle()
-                            .stroke(viewModel.answers[question.id] == value ? Color.liquidGlassAccent : Color.white.opacity(0.3), lineWidth: 2)
+                            .stroke(
+                                viewModel.answers[question.id] == value
+                                ? Color.liquidGlassAccent
+                                : Color.surfaceStroke(for: colorScheme),
+                                lineWidth: 2
+                            )
                             .frame(width: optionSize, height: optionSize)
                         if viewModel.answers[question.id] == value {
                             Circle()
@@ -412,7 +419,11 @@ struct ClinicalOnboardingView: View {
         .padding(.horizontal, rowHorizontalInset)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(viewModel.answers[question.id] != nil ? Color.liquidGlassAccent.opacity(0.1) : Color.white.opacity(0.04))
+                .fill(
+                    viewModel.answers[question.id] != nil
+                    ? Color.liquidGlassAccent.opacity(colorScheme == .dark ? 0.12 : 0.18)
+                    : Color.mutedSurfaceFill(for: colorScheme)
+                )
         )
     }
     
@@ -470,7 +481,7 @@ struct ClinicalOnboardingView: View {
             
             Text("进展顺利！")
                 .font(.title.bold())
-                .foregroundColor(.white)
+                .foregroundColor(Color.textPrimary(for: colorScheme))
             
             Text("你做得很棒。感谢你的耐心和真诚，\n这将帮助 Max 更好地了解你。")
                 .font(.body)
@@ -488,12 +499,12 @@ struct ClinicalOnboardingView: View {
                     .multilineTextAlignment(.center)
             }
             .padding()
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.06)))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color.mutedSurfaceFill(for: colorScheme)))
             .padding(.horizontal, 32)
             
             Spacer()
             
-        HStack(spacing: 16) {
+            HStack(spacing: 16) {
                 Button(action: { viewModel.goBackFromEncouragement() }) {
                     Label("返回", systemImage: "chevron.left")
                         .frame(maxWidth: .infinity)
@@ -507,10 +518,11 @@ struct ClinicalOnboardingView: View {
                         .frame(height: 52)
                 }
                 .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, metrics.safeAreaInsets.bottom + 24)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, metrics.safeAreaInsets.bottom + 24)
-    }
+        .liquidGlassPageWidth(alignment: .center)
     }
     
     // MARK: - Safety
@@ -528,21 +540,21 @@ struct ClinicalOnboardingView: View {
                 
                 Text("我们关心你")
                     .font(.title.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
                 
                 VStack(spacing: 12) {
                     Text("我注意到你最近可能有些困扰。")
                     Text("如果你正在经历困难，请记住你并不孤单。")
                 }
                 .font(.body)
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(Color.textPrimary(for: colorScheme).opacity(0.9))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
                 
                 VStack(spacing: 16) {
                     HStack {
                         Image(systemName: "phone.fill").foregroundColor(.pink)
-                        Text("24小时危机热线").font(.headline.weight(.bold)).foregroundColor(.white)
+                        Text("24小时危机热线").font(.headline.weight(.bold)).foregroundColor(Color.textPrimary(for: colorScheme))
                     }
                     VStack(spacing: 12) {
                         crisisRow("全国心理援助热线", "400-161-9995")
@@ -551,7 +563,14 @@ struct ClinicalOnboardingView: View {
                     }
                 }
                 .padding()
-                .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.08)).overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.pink.opacity(0.3), lineWidth: 1)))
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.mutedSurfaceFill(for: colorScheme))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.pink.opacity(0.3), lineWidth: 1)
+                        )
+                )
                 .padding(.horizontal, 24)
                 
                 Text("如果你愿意，可以随时和我们聊聊你的感受。")
@@ -580,13 +599,14 @@ struct ClinicalOnboardingView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, bottomPad)
             }
+            .liquidGlassPageWidth(alignment: .center)
         }
     }
     
     private func crisisRow(_ name: String, _ phone: String) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.subheadline.weight(.medium)).foregroundColor(.white)
+                Text(name).font(.subheadline.weight(.medium)).foregroundColor(Color.textPrimary(for: colorScheme))
                 Text(phone).font(.subheadline).foregroundColor(.pink)
             }
             Spacer()
@@ -597,7 +617,7 @@ struct ClinicalOnboardingView: View {
             }) {
                 Image(systemName: "phone.arrow.up.right.fill")
                     .font(.system(size: 16))
-                    .foregroundColor(.white)
+                    .foregroundColor(.textOnAccent)
                     .padding(10)
                     .background(Circle().fill(Color.pink.opacity(0.8)))
             }
@@ -617,7 +637,7 @@ struct ClinicalOnboardingView: View {
             
             Text("基线建立完成")
                 .font(.largeTitle.bold())
-                .foregroundColor(.white)
+                .foregroundColor(Color.textPrimary(for: colorScheme))
             
             Text("你的基线数据已进入个性化建议模型。\n接下来 Max 会基于它进行主动问询与解释。")
                 .font(.body)
@@ -637,6 +657,7 @@ struct ClinicalOnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, metrics.safeAreaInsets.bottom + 24)
         }
+        .liquidGlassPageWidth(alignment: .center)
     }
     
     // MARK: - Loading & Sheet
@@ -649,7 +670,7 @@ struct ClinicalOnboardingView: View {
                     .frame(height: 120)
                 Text("正在分析你的回答...")
                     .font(.subheadline)
-                    .foregroundColor(.white)
+                    .foregroundColor(.textPrimary)
             }
         }
     }
@@ -676,8 +697,8 @@ struct ClinicalOnboardingView: View {
                             .foregroundColor(.liquidGlassAccent)
                         Text(info.fullName)
                             .font(.headline)
-                            .foregroundColor(.white)
-                        Divider().background(Color.white.opacity(0.2))
+                            .foregroundColor(.textPrimary)
+                        Divider().background(Color.surfaceStroke(for: colorScheme))
                         Text(info.description)
                             .font(.subheadline)
                             .foregroundColor(.textSecondary)

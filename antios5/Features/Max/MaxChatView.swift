@@ -36,7 +36,7 @@ struct MaxChatView: View {
                         }
                         .padding()
                         .background(Color.red.opacity(0.8))
-                        .foregroundColor(.white)
+                        .foregroundColor(.textOnDanger)
                         .cornerRadius(8)
                         .padding(.horizontal)
                         .padding(.top, metrics.safeAreaInsets.top + 20)
@@ -215,7 +215,7 @@ struct MaxChatView: View {
     }
 
     private var historyDrawerWidth: CGFloat {
-        min(metrics.safeWidth * 0.78, 320)
+        metrics.stableCenteredWidth(maxWidth: 320, fraction: 0.78)
     }
 
     private var historyEdgeGesture: some Gesture {
@@ -305,6 +305,7 @@ struct MessageBubble: View {
     let message: ChatMessage
     var onPlanConfirm: ((PlanOption) -> Void)? = nil
     @EnvironmentObject private var appSettings: AppSettings
+    @Environment(\.colorScheme) private var colorScheme
     
     // 检测是否包含 plan-options JSON
     private var planOptions: [PlanOption]? {
@@ -323,12 +324,16 @@ struct MessageBubble: View {
                 // AI 头像 - 带光晕
                 ZStack {
                     Circle()
-                        .fill(Color.white)
+                        .fill(Color.surfaceGlass(for: colorScheme))
+                        .overlay(
+                            Circle()
+                                .stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
+                        )
                         .frame(width: 30, height: 30)
                         
                     Image(systemName: "triangle.fill") // Vercel-like logo? Or just existing
                         .font(.system(size: 14))
-                        .foregroundColor(.black)
+                        .foregroundColor(.textPrimary)
                 }
             } else {
                 Spacer()
@@ -360,10 +365,10 @@ struct MessageBubble: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(message.role == .user
                                   ? Color.liquidGlassAccent.opacity(0.22)
-                                  : Color.white.opacity(0.08))
+                                  : Color.surfaceGlass(for: colorScheme))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    .stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                             )
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -513,6 +518,7 @@ struct MessageBubble: View {
 private struct ScientificSoothingCard: View {
     let response: ScientificSoothingResponse
     let language: AppLanguage
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -526,10 +532,10 @@ private struct ScientificSoothingCard: View {
         .padding(.vertical, 12)
         .background {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color.surfaceGlass(for: colorScheme))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                 )
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -558,6 +564,7 @@ struct TypingIndicator: View {
     @State private var pulseScale = 1.0
     @State private var rotation = 0.0
     @State private var thinkingPhase = 0
+    @Environment(\.colorScheme) private var colorScheme
 
     private var thinkingTexts: [String] {
         [
@@ -597,7 +604,7 @@ struct TypingIndicator: View {
                 // 大脑图标 - 轻微旋转
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 20))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
                     .frame(width: 36, height: 36)
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
@@ -613,7 +620,7 @@ struct TypingIndicator: View {
                 // 思考阶段文字
                 Text(thinkingTexts[thinkingPhase % thinkingTexts.count])
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
                     .animation(.easeInOut(duration: 0.3), value: thinkingPhase)
                 
                 // 三点跳动动画
@@ -872,7 +879,7 @@ struct InputBarV2: View {
     private var fieldHorizontalPadding: CGFloat { metrics.isCompactWidth ? 14 : 16 }
     private var fieldVerticalPadding: CGFloat { metrics.isCompactHeight ? 13 : 15 }
     private var barCornerRadius: CGFloat { metrics.isCompactWidth ? 24 : 28 }
-    private var barMaxWidth: CGFloat { max(300, min(metrics.safeWidth - 16, 620)) }
+    private var barMaxWidth: CGFloat { metrics.stableCenteredWidth(maxWidth: 620, minWidth: 300, horizontalInset: 8) }
 
     var body: some View {
         let sidePadding = max(8, metrics.horizontalPadding - 10)
@@ -905,7 +912,7 @@ struct InputBarV2: View {
                     .fill(Color.surfaceGlass(for: colorScheme))
                     .overlay(
                         RoundedRectangle(cornerRadius: barCornerRadius)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            .stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                     )
             )
             .padding(.horizontal, sidePadding)
@@ -938,7 +945,7 @@ struct InputBarV2: View {
                 .background(Color.surfaceGlass(for: colorScheme))
                 .clipShape(Circle())
                 .overlay(
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    Circle().stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                 )
         }
     }
@@ -955,7 +962,7 @@ struct InputBarV2: View {
                 .background(Color.surfaceGlass(for: colorScheme))
                 .clipShape(Circle())
                 .overlay(
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    Circle().stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                 )
         }
         .disabled(isTyping)
@@ -974,7 +981,7 @@ struct InputBarV2: View {
                 .background(Color.surfaceGlass(for: colorScheme))
                 .clipShape(Circle())
                 .overlay(
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    Circle().stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                 )
         }
         .disabled(isTyping)
@@ -1096,6 +1103,7 @@ import Speech
 struct VoiceRecorderView: View {
     let onTranscription: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var isRecording = false
     @State private var transcribedText = ""
@@ -1135,7 +1143,7 @@ struct VoiceRecorderView: View {
                         
                         Image(systemName: isRecording ? "waveform" : "mic.fill")
                             .font(.system(size: 40))
-                            .foregroundColor(.white)
+                            .foregroundColor(isRecording ? .textOnDanger : .textOnAccent)
                     }
                     .onTapGesture {
                         toggleRecording()
@@ -1143,13 +1151,13 @@ struct VoiceRecorderView: View {
                     
                     Text(isRecording ? "点击停止录音" : "点击开始录音")
                         .font(.headline)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(Color.textSecondary(for: colorScheme))
                     
                     // 转录结果
                     if !transcribedText.isEmpty {
                         Text(transcribedText)
                             .font(.body)
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.textPrimary(for: colorScheme))
                             .padding()
                             .frame(maxWidth: .infinity)
                             .background(.ultraThinMaterial)
@@ -1167,7 +1175,7 @@ struct VoiceRecorderView: View {
                         } label: {
                             Text("使用此文本")
                                 .font(.headline)
-                                .foregroundColor(.bgPrimary)
+                                .foregroundColor(.textOnAccent)
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.liquidGlassAccent)

@@ -10,6 +10,7 @@ struct DigitalTwinView: View {
     @State private var isClinicalPresented = false
     @State private var selectedTrendMetric: DigitalTwinTrendMetric = .mood
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -57,7 +58,7 @@ struct DigitalTwinView: View {
                         .font(.headline)
                         .foregroundColor(.textPrimary)
                         .frame(width: 36, height: 36)
-                        .background(Color.textPrimary.opacity(0.1))
+                        .background(Color.mutedSurfaceFill(for: colorScheme))
                         .clipShape(Circle())
                 }
                 .frame(width: sideSlotWidth, alignment: .leading)
@@ -69,7 +70,7 @@ struct DigitalTwinView: View {
                         .font(.headline)
                         .foregroundColor(.textPrimary)
                         .frame(width: 36, height: 36)
-                        .background(Color.textPrimary.opacity(0.1))
+                        .background(Color.mutedSurfaceFill(for: colorScheme))
                         .clipShape(Circle())
                 }
                 .frame(width: sideSlotWidth, alignment: .trailing)
@@ -93,7 +94,7 @@ struct DigitalTwinView: View {
         .padding(.horizontal, metrics.horizontalPadding)
         .padding(.vertical, metrics.isCompactHeight ? 10 : 14)
         .padding(.top, metrics.safeAreaInsets.top)
-        .background(Color.textPrimary.opacity(0.05))
+        .background(Color.mutedSurfaceFill(for: colorScheme))
     }
 
     @ViewBuilder
@@ -153,7 +154,7 @@ struct DigitalTwinView: View {
                             Text("完成基础量表")
                         }
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textOnAccent)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
                         .background(Color.liquidGlassAccent)
@@ -568,6 +569,7 @@ struct DigitalTwinView: View {
                 }
 
                 GeometryReader { geo in
+                    // ui-audit: ignore-next-line layout-geometry-width-basis
                     let width = geo.size.width
                     let progress = min(max(Double(currentWeek ?? 0) / 15.0, 0), 1)
                     ZStack(alignment: .leading) {

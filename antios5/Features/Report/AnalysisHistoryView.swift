@@ -6,6 +6,7 @@ import SwiftUI
 struct AnalysisHistoryView: View {
     @StateObject private var viewModel = AnalysisHistoryViewModel()
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -107,7 +108,7 @@ struct AnalysisHistoryView: View {
                         .padding(.vertical, 8)
 
                         if record.id != viewModel.records.last?.id {
-                            Divider().background(Color.white.opacity(0.1))
+                            Divider().background(Color.surfaceStroke(for: colorScheme))
                         }
                     }
                 }

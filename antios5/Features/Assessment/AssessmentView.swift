@@ -10,6 +10,7 @@ struct AssessmentView: View {
     @Environment(\.dismiss) private var dismiss
     @Namespace private var namespace
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationStack {
@@ -67,7 +68,7 @@ struct AssessmentView: View {
                 
                 Image(systemName: "brain")
                     .font(.system(size: 40))
-                    .foregroundColor(.white)
+                    .foregroundColor(.textOnAccent)
                     .shadow(color: .liquidGlassAccent, radius: 10)
             }
             .padding(.bottom, 20)
@@ -133,9 +134,10 @@ struct AssessmentView: View {
                     
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.1))
+                            Capsule().fill(Color.mutedSurfaceFill(for: colorScheme))
                             Capsule()
                                 .fill(Color.liquidGlassAccent)
+                                // ui-audit: ignore-next-line layout-geometry-width-basis
                                 .frame(width: geo.size.width * Double(viewModel.progress) / 100)
                                 .shadow(color: .liquidGlassAccent, radius: 5)
                         }
@@ -198,7 +200,7 @@ struct AssessmentView: View {
                     
                     Text(viewModel.message ?? "建议立即启动援助协议。")
                         .font(.body)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
@@ -206,7 +208,7 @@ struct AssessmentView: View {
                 LiquidGlassCard(style: .elevated, padding: 20) {
                     VStack(spacing: 20) {
                         ContactRow(icon: "phone.fill", title: "心理援助热线", number: "400-161-9995", color: .statusSuccess)
-                        Divider().background(Color.white.opacity(0.1))
+                        Divider().background(Color.surfaceStroke(for: colorScheme))
                         ContactRow(icon: "cross.fill", title: "危机干预中心", number: "010-82951332", color: .liquidGlassAccent)
                     }
                 }
@@ -245,7 +247,7 @@ struct AssessmentView: View {
             VStack(spacing: 12) {
                 Text("分析完成")
                     .neuroFont(24, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.textPrimary)
                 
                 Text(viewModel.message ?? "数据已进入个性化建议模型。")
                     .font(.subheadline)
@@ -289,6 +291,7 @@ struct AssessmentView: View {
         let title: String
         let number: String
         let color: Color
+        @Environment(\.colorScheme) private var colorScheme
         
         var body: some View {
             HStack {
@@ -298,13 +301,13 @@ struct AssessmentView: View {
                     .frame(width: 40)
                 
                 VStack(alignment: .leading) {
-                    Text(title).font(.headline).foregroundColor(.white)
+                    Text(title).font(.headline).foregroundColor(.textPrimary)
                     Text(number).font(.subheadline).foregroundColor(.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "phone.circle.fill")
                     .font(.title2)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
             }
         }
     }
@@ -315,6 +318,7 @@ struct AssessmentView: View {
 struct QuestionView: View {
     let question: AssessmentQuestion
     let onAnswer: (String) -> Void
+    @Environment(\.colorScheme) private var colorScheme
     
     // 本地状态以支持多种输入
     @State private var sliderValue: Double = 5
@@ -328,7 +332,7 @@ struct QuestionView: View {
                 Text(question.text)
                     .neuroFont(20, weight: .semibold)
                     .multilineTextAlignment(.center)
-                    .foregroundColor(.white)
+                    .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 // 输入机制
@@ -364,13 +368,13 @@ struct QuestionView: View {
                     HStack {
                         Text(option.label)
                             .font(.system(size: 16, design: .rounded))
-                            .foregroundColor(selectedOption == option.value ? .black : .white)
+                            .foregroundColor(selectedOption == option.value ? .textOnAccent : .textPrimary)
                         
                         Spacer()
                         
                         if selectedOption == option.value {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.black)
+                                .foregroundColor(.textOnAccent)
                         }
                     }
                     .padding()
@@ -383,10 +387,10 @@ struct QuestionView: View {
                         } else {
                             // 未激活玻璃态
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white.opacity(0.05))
+                                .fill(Color.mutedSurfaceFill(for: colorScheme))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        .stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1)
                                 )
                         }
                     }
@@ -425,10 +429,10 @@ struct QuestionView: View {
             TextField("请输入你的回答...", text: $textInput)
                 .textFieldStyle(.plain)
                 .padding()
-                .background(Color.white.opacity(0.05))
+                .background(Color.mutedSurfaceFill(for: colorScheme))
                 .cornerRadius(12)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1)))
-                .foregroundColor(.white)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.surfaceStroke(for: colorScheme)))
+                .foregroundColor(.textPrimary)
             
             Button {
                 onAnswer(textInput)

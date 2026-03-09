@@ -251,6 +251,7 @@ struct SliderView: View {
   let question: CalibrationQuestion
   let onAnswer: @MainActor (Int) -> Void
   @State private var value: Double = 5
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     VStack(spacing: 24) {
@@ -267,6 +268,7 @@ struct SliderView: View {
       
       // 滑块
       GeometryReader { geo in
+        // ui-audit: ignore-next-line layout-geometry-width-basis
         let width = geo.size.width
         let minVal = Double(question.min ?? 0)
         let maxVal = Double(question.max ?? 10)
@@ -275,7 +277,7 @@ struct SliderView: View {
         ZStack(alignment: .leading) {
           // 背景轨道
           Capsule()
-            .fill(Color.white.opacity(0.1))
+            .fill(Color.mutedSurfaceFill(for: colorScheme))
             .frame(height: 10)
           
           // 进度轨道

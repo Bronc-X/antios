@@ -814,6 +814,7 @@ class SettingsViewModel: ObservableObject {
 
         let defaults = UserDefaults.standard
         biometricEnabled = defaults.object(forKey: "settings_biometric_enabled") as? Bool ?? false
+        let isLaunchBypass = LaunchOverrides.boolFlag("UI_TEST_BYPASS_GATEKEEPING")
 
         if let user = supabase.currentUser {
             profileEmail = user.email ?? "未设置邮箱"
@@ -825,16 +826,24 @@ class SettingsViewModel: ObservableObject {
             isEmailVerified = false
         }
 
-        do {
-            if let profile = try await supabase.getProfileSettings() {
-                if let fullName = profile.full_name, !fullName.isEmpty {
-                    profileDisplayName = fullName
+        if isLaunchBypass {
+            profileEmail = supabase.currentUser?.email ?? "ui-test@example.com"
+            profileDisplayName = "ui-test"
+            isEmailVerified = true
+            profileAvatarURL = nil
+            alertMessage = nil
+        } else {
+            do {
+                if let profile = try await supabase.getProfileSettings() {
+                    if let fullName = profile.full_name, !fullName.isEmpty {
+                        profileDisplayName = fullName
+                    }
+                    profileAvatarURL = profile.avatar_url
+                    dailyReminderEnabled = profile.reminder_preferences?.morning ?? dailyReminderEnabled
                 }
-                profileAvatarURL = profile.avatar_url
-                dailyReminderEnabled = profile.reminder_preferences?.morning ?? dailyReminderEnabled
+            } catch {
+                alertMessage = "加载设置失败：\(error.localizedDescription)"
             }
-        } catch {
-            alertMessage = "加载设置失败：\(error.localizedDescription)"
         }
 
         let systemGranted = await currentNotificationPermissionGranted()
@@ -1640,7 +1649,7 @@ struct DesignSystemContainerView: View {
                             .foregroundColor(.textTertiary)
                     }
                     .padding(14)
-                    .background(Color.white.opacity(0.7))
+                    .background(Color.surfaceGlass(for: colorScheme))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1743,6 +1752,7 @@ private struct LabGlowButtonStyle: ButtonStyle {
 private struct LoviTypewriterQuestionLabView: View {
     let preset: LabStylePreset
     let replayToken: UUID
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var renderedQuestion = ""
     @State private var task: Task<Void, Never>?
@@ -1769,7 +1779,7 @@ private struct LoviTypewriterQuestionLabView: View {
                         .foregroundColor(.textSecondary)
                 }
                 .padding(14)
-                .background(Color.white.opacity(0.66))
+                .background(Color.surfaceGlass(for: colorScheme))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(spacing: 8) {
@@ -1805,7 +1815,7 @@ private struct LoviTypewriterQuestionLabView: View {
             Spacer()
         }
         .padding(12)
-        .background(Color.white.opacity(0.7))
+        .background(Color.surfaceGlass(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -2009,7 +2019,7 @@ private struct DesignBottomSheetDemoView: View {
                 .overlay(
                     Text("Bottom Sheet Surface")
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textOnAccent)
                 )
         }
         .padding(20)

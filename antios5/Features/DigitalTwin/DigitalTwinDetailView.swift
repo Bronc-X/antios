@@ -10,6 +10,7 @@ struct DigitalTwinDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
 
     private var points: [DigitalTwinMetricPoint] {
         curveData.predictedLongitudinalOutcomes.timepoints.map { point in
@@ -83,9 +84,9 @@ struct DigitalTwinDetailView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
                     .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.1))
+                    .background(Color.mutedSurfaceFill(for: colorScheme))
                     .clipShape(Circle())
             }
 
@@ -99,7 +100,7 @@ struct DigitalTwinDetailView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(metricKey.label)
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(Color.textPrimary(for: colorScheme))
                     Text(metricKey.labelEn)
                         .font(.caption)
                         .foregroundColor(.textSecondary)
@@ -121,7 +122,7 @@ struct DigitalTwinDetailView: View {
                         HStack(alignment: .lastTextBaseline, spacing: 6) {
                             Text(String(format: "%.1f", currentPoint.value))
                                 .font(.system(size: 36, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(Color.textPrimary(for: colorScheme))
                             Text("/ 100")
                                 .font(.caption)
                                 .foregroundColor(.textTertiary)
@@ -159,7 +160,7 @@ struct DigitalTwinDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("15 周预测曲线")
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
 
                 Chart {
                     ForEach(points) { point in
@@ -182,14 +183,14 @@ struct DigitalTwinDetailView: View {
 
                     if currentWeek > 0 {
                         RuleMark(x: .value("CurrentWeek", (currentWeek / 3) * 3))
-                            .foregroundStyle(Color.white.opacity(0.3))
+                            .foregroundStyle(Color.surfaceStroke(for: colorScheme))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     }
                 }
                 .chartYScale(domain: 0...100)
                 .chartXAxis {
                     AxisMarks(values: points.map { $0.week }) { value in
-                        AxisGridLine().foregroundStyle(Color.white.opacity(0.1))
+                        AxisGridLine().foregroundStyle(Color.surfaceStroke(for: colorScheme).opacity(0.7))
                         AxisValueLabel {
                             if let week = value.as(Int.self) {
                                 Text("W\(week)")
@@ -201,7 +202,7 @@ struct DigitalTwinDetailView: View {
                 }
                 .chartYAxis {
                     AxisMarks(position: .leading) { value in
-                        AxisGridLine().foregroundStyle(Color.white.opacity(0.1))
+                        AxisGridLine().foregroundStyle(Color.surfaceStroke(for: colorScheme).opacity(0.7))
                         AxisValueLabel {
                             if let val = value.as(Int.self) {
                                 Text("\(val)")
@@ -246,7 +247,7 @@ struct DigitalTwinDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("各周预测详情")
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color.textPrimary(for: colorScheme))
 
                 ForEach(points) { point in
                     HStack {
@@ -255,11 +256,15 @@ struct DigitalTwinDetailView: View {
                                 .font(.caption)
                                 .foregroundColor(.textSecondary)
                                 .frame(width: 36, height: 24)
-                                .background(point.week <= currentWeek ? Color.statusSuccess.opacity(0.2) : Color.white.opacity(0.1))
+                                .background(
+                                    point.week <= currentWeek
+                                    ? Color.statusSuccess.opacity(0.2)
+                                    : Color.mutedSurfaceFill(for: colorScheme)
+                                )
                                 .cornerRadius(8)
                             Text(String(format: "%.1f", point.value))
                                 .font(.subheadline)
-                                .foregroundColor(.white)
+                                .foregroundColor(Color.textPrimary(for: colorScheme))
                         }
                         Spacer()
                         Text(String(format: "%.1f - %.1f", point.lower, point.upper))
@@ -267,7 +272,7 @@ struct DigitalTwinDetailView: View {
                             .foregroundColor(.textTertiary)
                     }
                     if point.id != points.last?.id {
-                        Divider().background(Color.white.opacity(0.1))
+                        Divider().background(Color.surfaceStroke(for: colorScheme))
                     }
                 }
             }

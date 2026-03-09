@@ -7,6 +7,7 @@ struct BreathingSessionView: View {
     let durationMinutes: Int
     @Environment(\.dismiss) private var dismiss
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var remainingSeconds: Int
     @State private var isRunning = true
@@ -31,7 +32,7 @@ struct BreathingSessionView: View {
                         VStack(spacing: 8) {
                             Text("呼吸练习")
                                 .font(.title2.bold())
-                                .foregroundColor(.white)
+                                .foregroundColor(Color.textPrimary(for: colorScheme))
 
                             Text(formattedTime)
                                 .font(.system(size: 34, weight: .bold, design: .rounded))

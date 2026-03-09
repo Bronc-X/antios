@@ -75,7 +75,12 @@ class MaxChatViewModel: ObservableObject {
     init() {
         setupNetworkMonitor()
         Task {
-            await loadConversations()
+            if !LaunchOverrides.boolFlag("UI_TEST_BYPASS_GATEKEEPING") {
+                await loadConversations()
+            } else {
+                conversations = []
+                error = nil
+            }
             await loadStarterQuestions()
         }
     }

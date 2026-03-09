@@ -410,7 +410,7 @@ struct GoalCard: View {
                             
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(.textOnAccent)
                         }
                     }
                 }

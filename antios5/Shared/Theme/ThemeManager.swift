@@ -52,6 +52,21 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 @MainActor
 class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
+
+    private static let uiTestAppearanceMode: AppearanceMode? = {
+        guard let rawValue = LaunchOverrides.stringValue("UI_TEST_APPEARANCE_MODE")?.lowercased() else {
+            return nil
+        }
+
+        switch rawValue {
+        case "light":
+            return .light
+        case "dark":
+            return .dark
+        default:
+            return .system
+        }
+    }()
     
     @AppStorage("appearanceMode") private var storedMode: String = AppearanceMode.system.rawValue
     
@@ -61,7 +76,7 @@ class ThemeManager: ObservableObject {
     }
     
     var colorScheme: ColorScheme? {
-        appearanceMode.colorScheme
+        Self.uiTestAppearanceMode?.colorScheme ?? appearanceMode.colorScheme
     }
     
     private init() {}

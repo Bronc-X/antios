@@ -247,6 +247,15 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     private var userHealthDataTableAvailable: Bool?
     
     private init() {
+        if LaunchOverrides.boolFlag("UI_TEST_BYPASS_GATEKEEPING") {
+            print("[SupabaseManager] Launch override bypass active")
+            currentUser = AuthUser(id: "ui-test-user", email: "ui-test@example.com", phone: nil, createdAt: nil)
+            isAuthenticated = true
+            isSessionRestored = true
+            isClinicalComplete = true
+            return
+        }
+
         // 初始化时检查会话
         Task {
             await checkSession()
@@ -910,6 +919,14 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     }
     
     func checkSession() async {
+        if LaunchOverrides.boolFlag("UI_TEST_BYPASS_GATEKEEPING") {
+            currentUser = AuthUser(id: "ui-test-user", email: "ui-test@example.com", phone: nil, createdAt: nil)
+            isAuthenticated = true
+            isSessionRestored = true
+            isClinicalComplete = true
+            return
+        }
+
         guard let token = UserDefaults.standard.string(forKey: "supabase_access_token") else {
             isAuthenticated = false
             isSessionRestored = true
@@ -3373,6 +3390,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
         lastUserMessage: ChatMessage?,
         assistantReply: String
     ) {
+        let forceAssistantEmbedding = MaxMemoryService.shouldForceAssistantEmbedding(for: assistantReply)
         if let lastUserMessage {
             let userContent = lastUserMessage.content
             Task(priority: .utility) {
@@ -3380,7 +3398,12 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                     userId: userId,
                     userContent: userContent,
                     assistantReply: assistantReply,
-                    metadata: ["source": "max_chat"]
+                    metadata: [
+                        "source": "max_chat",
+                        "memory_kind": "chat_turn",
+                        "importance": forceAssistantEmbedding ? "high" : "medium"
+                    ],
+                    forceAssistantEmbedding: forceAssistantEmbedding
                 )
             }
         } else {
@@ -3389,7 +3412,12 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
                     userId: userId,
                     content: assistantReply,
                     role: "assistant",
-                    metadata: ["source": "max_chat"]
+                    metadata: [
+                        "source": "max_chat",
+                        "memory_kind": "assistant_guidance",
+                        "importance": forceAssistantEmbedding ? "high" : "medium"
+                    ],
+                    forceEmbedding: forceAssistantEmbedding
                 )
             }
         }
@@ -6170,10 +6198,13 @@ extension SupabaseManager {
         guard !cleanedDomain.isEmpty, !cleanedAction.isEmpty else { return }
 
         var mergedMetadata = metadata ?? [:]
+        let memoryAttributes = signalMemoryAttributes(domain: cleanedDomain, action: cleanedAction)
         mergedMetadata["domain"] = cleanedDomain
         mergedMetadata["action"] = cleanedAction
         mergedMetadata["source"] = "ios"
         mergedMetadata["captured_at"] = ISO8601DateFormatter().string(from: Date())
+        mergedMetadata["memory_kind"] = memoryAttributes.kind
+        mergedMetadata["importance"] = memoryAttributes.importance
 
         let content = "[\(cleanedDomain)] \(cleanedAction): \(trimmedSummary)"
         _ = await MaxMemoryService.storeMemory(
@@ -6307,11 +6338,35 @@ title, understanding, mechanism, micro_action, follow_up_question, evidence_titl
             metadata: [
                 "source": "proactive_brief",
                 "language": lang,
-                "confidence": brief.confidence ?? 0.55
-            ]
+                "confidence": brief.confidence ?? 0.55,
+                "memory_kind": "assistant_guidance",
+                "importance": "high"
+            ],
+            forceEmbedding: true
         )
 
         return brief
+    }
+
+    private func signalMemoryAttributes(
+        domain: String,
+        action: String
+    ) -> (kind: String, importance: String) {
+        let normalizedDomain = domain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedAction = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        switch normalizedDomain {
+        case "wearable", "clinical", "calibration", "inquiry":
+            return ("state_signal", "high")
+        case "plans", "plan", "habits", "dashboard", "bayesian":
+            return ("action_loop", "medium")
+        case "science_feed":
+            return ("preference_signal", normalizedAction.contains("disliked") ? "medium" : "low")
+        case "profile":
+            return ("profile_signal", "medium")
+        default:
+            return ("user_signal", "medium")
+        }
     }
 
     private func buildProactiveSignalSnapshot(

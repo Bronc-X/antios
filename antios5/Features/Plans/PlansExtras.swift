@@ -108,6 +108,7 @@ struct PlanCreatorView: View {
     @State private var category: PlanCategory = .general
     @State private var items: [String] = [""]
     @Environment(\.screenMetrics) private var metrics
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -126,8 +127,8 @@ struct PlanCreatorView: View {
                                 .padding(12)
                                 .background(Color.bgSecondary.opacity(0.6))
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                                .foregroundColor(.white)
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.surfaceStroke(for: colorScheme), lineWidth: 1))
+                                .foregroundColor(.textPrimary)
                                 .scrollContentBackground(.hidden)
 
                             Picker("类型", selection: $category) {
@@ -156,7 +157,7 @@ struct PlanCreatorView: View {
                                         .padding(.vertical, 8)
                                         .background(Color.bgSecondary.opacity(0.6))
                                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(.textPrimary)
 
                                     if items.count > 1 {
                                         Button {

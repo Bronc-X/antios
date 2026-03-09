@@ -202,6 +202,7 @@ struct FeedCategoryTabs: View {
     let language: AppLanguage
     let selectedCategory: ScienceFeedCategory
     let onSelect: (ScienceFeedCategory) -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -216,18 +217,27 @@ struct FeedCategoryTabs: View {
                     } label: {
                         Text(category.title(language: language))
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(selectedCategory == category ? .bgPrimary : .textSecondary)
+                            .foregroundColor(
+                                selectedCategory == category
+                                ? .textOnAccent
+                                : Color.textSecondary(for: colorScheme)
+                            )
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(
                                 selectedCategory == category
                                 ? Color.liquidGlassAccent
-                                : Color.white.opacity(0.08)
+                                : Color.mutedSurfaceFill(for: colorScheme)
                             )
                             .clipShape(Capsule())
                             .overlay(
                                 Capsule()
-                                    .stroke(Color.white.opacity(selectedCategory == category ? 0.0 : 0.16), lineWidth: 1)
+                                    .stroke(
+                                        selectedCategory == category
+                                        ? Color.clear
+                                        : Color.surfaceStroke(for: colorScheme),
+                                        lineWidth: 1
+                                    )
                             )
                     }
                     .buttonStyle(.plain)
@@ -241,6 +251,7 @@ struct FeedCategoryTabs: View {
 struct CategoryEmptyView: View {
     let language: AppLanguage
     let category: ScienceFeedCategory
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 10) {
@@ -256,7 +267,7 @@ struct CategoryEmptyView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
-        .background(Color.white.opacity(0.03))
+        .background(Color.mutedSurfaceFill(for: colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
@@ -550,6 +561,7 @@ struct ExpandableText: View {
 struct AILoadingView: View {
     let message: String
     let language: AppLanguage
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.screenMetrics) private var metrics
     @State private var progress: CGFloat = 0
     
@@ -576,12 +588,13 @@ struct AILoadingView: View {
 
                 // Progress bar
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.white.opacity(0.1))
+                    .fill(Color.mutedSurfaceFill(for: colorScheme))
                     .frame(width: 200, height: 4)
                     .overlay(
                         GeometryReader { geo in
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(Color.liquidGlassAccent)
+                                // ui-audit: ignore-next-line layout-geometry-width-basis
                                 .frame(width: geo.size.width * progress)
                         },
                         alignment: .leading

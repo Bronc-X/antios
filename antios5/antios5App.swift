@@ -5,6 +5,64 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
+enum LaunchOverrides {
+    private static let environment = ProcessInfo.processInfo.environment
+    private static let arguments = ProcessInfo.processInfo.arguments
+    private static let defaults = UserDefaults.standard
+
+    static func boolFlag(_ key: String) -> Bool {
+        if let value = stringValue(key) {
+            return ["1", "true", "yes"].contains(value.lowercased())
+        }
+
+        return arguments.contains("-\(key)") || arguments.contains("--\(key)")
+    }
+
+    static func stringValue(_ key: String) -> String? {
+        if let environmentValue = environment[key], !environmentValue.isEmpty {
+            return environmentValue
+        }
+
+        if let argumentValue = argumentValue(key) {
+            return argumentValue
+        }
+
+        if let defaultsValue = defaults.string(forKey: key), !defaultsValue.isEmpty {
+            return defaultsValue
+        }
+
+        if let numberValue = defaults.object(forKey: key) as? NSNumber {
+            return numberValue.boolValue ? "1" : "0"
+        }
+
+        return nil
+    }
+
+    private static func argumentValue(_ key: String) -> String? {
+        let markers = ["-\(key)", "--\(key)"]
+
+        for marker in markers {
+            guard let index = arguments.firstIndex(of: marker) else { continue }
+            let nextIndex = arguments.index(after: index)
+            guard arguments.indices.contains(nextIndex) else { continue }
+
+            let value = arguments[nextIndex]
+            if value.hasPrefix("-") {
+                continue
+            }
+
+            return value
+        }
+
+        return nil
+    }
+}
+
+private enum RuntimeFlags {
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    static let uiTestBypassGatekeeping = LaunchOverrides.boolFlag("UI_TEST_BYPASS_GATEKEEPING")
+}
+
 final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = AppNotificationDelegate()
 
@@ -55,6 +113,18 @@ struct antios5App: App {
         print("🚀 [App] AntiAnxiety iOS 启动")
         UNUserNotificationCenter.current().delegate = AppNotificationDelegate.shared
 
+        if LaunchOverrides.stringValue("UI_TEST_INITIAL_TAB") != nil || RuntimeFlags.uiTestBypassGatekeeping {
+            let initialTab = LaunchOverrides.stringValue("UI_TEST_INITIAL_TAB") ?? "nil"
+            let appearance = LaunchOverrides.stringValue("UI_TEST_APPEARANCE_MODE") ?? "nil"
+            print(
+                "[LaunchOverrides] bypass=\(RuntimeFlags.uiTestBypassGatekeeping) tab=\(initialTab) appearance=\(appearance)"
+            )
+        }
+
+        if RuntimeFlags.uiTestBypassGatekeeping {
+            UserDefaults.standard.set(true, forKey: "isOnboardingComplete")
+        }
+
         configureTabBarAppearance()
         configureNavigationBarAppearance()
         
@@ -99,13 +169,14 @@ struct antios5App: App {
                 .environment(\.locale, Locale(identifier: appSettings.language.localeIdentifier))
                 .preferredColorScheme(themeManager.colorScheme)
                 .task {
+                    guard !RuntimeFlags.isRunningTests, !RuntimeFlags.uiTestBypassGatekeeping else { return }
                     await supabase.refreshAppAPIBaseURL()
                     // 应用启动时检查会话
                     await supabase.checkSession()
                     await supabase.prewarmProactiveCare(language: appSettings.language.apiCode, force: false)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    guard phase == .active else { return }
+                    guard phase == .active, !RuntimeFlags.isRunningTests, !RuntimeFlags.uiTestBypassGatekeeping else { return }
                     Task {
                         await supabase.prewarmProactiveCare(language: appSettings.language.apiCode, force: false)
                     }
