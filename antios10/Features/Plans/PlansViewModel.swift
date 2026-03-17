@@ -474,8 +474,8 @@ class PlansViewModel: ObservableObject {
 
     guard let profile = try? await supabase.getUnifiedProfile() else {
       error = language == .en
-        ? "No unified profile found. Complete daily check-ins first."
-        : "未找到统一画像，请先完成每日校准。"
+        ? "There isn't enough information yet. Start with one daily state note."
+        : "现在的信息还不够，请先完成一次今日记录。"
       return
     }
 
@@ -963,8 +963,8 @@ private func buildPersonalizedPlanDraft(from profile: UnifiedProfile, language: 
 
   if items.isEmpty {
     items.append(PlanRuleItem(
-      title: isEn ? "Daily Check-in" : "每日状态记录",
-      action: isEn ? "Complete daily calibration and log sleep/mood." : "每天完成每日校准，记录睡眠和情绪。",
+      title: isEn ? "Daily state note" : "每日状态记录",
+      action: isEn ? "Record your state once a day and note sleep and mood." : "每天记录一下状态，顺手记下睡眠和情绪。",
       science: isEn
         ? "Self-monitoring is the first step to sustainable behavior change."
         : "自我监测是行为改变的第一步，有助于稳定反焦虑恢复节奏。",

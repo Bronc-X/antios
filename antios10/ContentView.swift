@@ -26,228 +26,21 @@ struct ContentView: View {
     }
 }
 
-enum A10Tab: String, CaseIterable, Identifiable {
-    case home
-    case max
-    case me
-
-    var id: String { rawValue }
-}
-
-enum A10LoopStage: String, CaseIterable, Identifiable, Codable {
-    case inquiry
-    case calibration
-    case evidence
-    case action
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .inquiry: return "bubble.left.and.bubble.right"
-        case .calibration: return "waveform.path.ecg"
-        case .evidence: return "doc.text.magnifyingglass"
-        case .action: return "checklist"
-        }
-    }
-
-    func title(language: AppLanguage) -> String {
-        switch self {
-        case .inquiry:
-            return L10n.text("问询", "Inquiry", language: language)
-        case .calibration:
-            return L10n.text("校准", "Calibration", language: language)
-        case .evidence:
-            return L10n.text("解释", "Evidence", language: language)
-        case .action:
-            return L10n.text("行动", "Action", language: language)
-        }
-    }
-
-    func summary(language: AppLanguage) -> String {
-        switch self {
-        case .inquiry:
-            return L10n.text("用一句话说出今天最明显的触发点。", "Name today's clearest trigger in one sentence.", language: language)
-        case .calibration:
-            return L10n.text("补齐今日主观状态与身体信号。", "Capture today's subjective and body signals.", language: language)
-        case .evidence:
-            return L10n.text("把建议和证据链解释清楚。", "Turn the recommendation into an evidence-backed explanation.", language: language)
-        case .action:
-            return L10n.text("执行一个最低阻力动作。", "Complete one lowest-friction action.", language: language)
-        }
-    }
-
-    var next: A10LoopStage {
-        switch self {
-        case .inquiry: return .calibration
-        case .calibration: return .evidence
-        case .evidence: return .action
-        case .action: return .action
-        }
-    }
-}
-
-enum A10MaxRole: String, Codable {
-    case user
-    case assistant
-}
-
-enum A10PlanSource: String, Codable {
-    case local
-    case habit
-    case recommendation
-}
-
-@Model
-final class A10LoopSnapshot {
-    var headline: String
-    var summary: String
-    var nextActionTitle: String
-    var nextActionDetail: String
-    var evidenceNote: String
-    var currentStageRaw: String
-    var stressScore: Int
-    var updatedAt: Date
-
-    init(
-        headline: String,
-        summary: String,
-        nextActionTitle: String,
-        nextActionDetail: String,
-        evidenceNote: String,
-        currentStageRaw: String,
-        stressScore: Int,
-        updatedAt: Date = .now
-    ) {
-        self.headline = headline
-        self.summary = summary
-        self.nextActionTitle = nextActionTitle
-        self.nextActionDetail = nextActionDetail
-        self.evidenceNote = evidenceNote
-        self.currentStageRaw = currentStageRaw
-        self.stressScore = stressScore
-        self.updatedAt = updatedAt
-    }
-
-    var stage: A10LoopStage {
-        get { A10LoopStage(rawValue: currentStageRaw) ?? .inquiry }
-        set { currentStageRaw = newValue.rawValue }
-    }
-}
-
-@Model
-final class A10ActionPlan {
-    var title: String
-    var detail: String
-    var effortLabel: String
-    var estimatedMinutes: Int
-    var isCompleted: Bool
-    var remoteID: String?
-    var sourceRaw: String
-    var sortOrder: Int
-    var updatedAt: Date
-
-    init(
-        title: String,
-        detail: String,
-        effortLabel: String,
-        estimatedMinutes: Int,
-        isCompleted: Bool = false,
-        remoteID: String? = nil,
-        sourceRaw: String = A10PlanSource.local.rawValue,
-        sortOrder: Int = 0,
-        updatedAt: Date = .now
-    ) {
-        self.title = title
-        self.detail = detail
-        self.effortLabel = effortLabel
-        self.estimatedMinutes = estimatedMinutes
-        self.isCompleted = isCompleted
-        self.remoteID = remoteID
-        self.sourceRaw = sourceRaw
-        self.sortOrder = sortOrder
-        self.updatedAt = updatedAt
-    }
-
-    var source: A10PlanSource {
-        get { A10PlanSource(rawValue: sourceRaw) ?? .local }
-        set { sourceRaw = newValue.rawValue }
-    }
-}
-
-@Model
-final class A10CoachSession {
-    var title: String
-    var createdAt: Date
-    var updatedAt: Date
-
-    @Relationship(deleteRule: .cascade, inverse: \A10CoachMessage.session)
-    var messages: [A10CoachMessage] = []
-
-    init(title: String, createdAt: Date = .now, updatedAt: Date = .now) {
-        self.title = title
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
-}
-
-// Keep the persisted SwiftData entity names stable while migrating runtime code to Max naming.
-typealias A10MaxSession = A10CoachSession
-
-@Model
-final class A10CoachMessage {
-    var roleRaw: String
-    var body: String
-    var createdAt: Date
-    var session: A10CoachSession?
-
-    init(
-        roleRaw: String,
-        body: String,
-        createdAt: Date = .now,
-        session: A10CoachSession? = nil
-    ) {
-        self.roleRaw = roleRaw
-        self.body = body
-        self.createdAt = createdAt
-        self.session = session
-    }
-
-    var role: A10MaxRole {
-        A10MaxRole(rawValue: roleRaw) ?? .assistant
-    }
-}
-
-// Keep the persisted SwiftData entity names stable while migrating runtime code to Max naming.
-typealias A10MaxMessage = A10CoachMessage
-
-@Model
-final class A10PreferenceRecord {
-    var languageCode: String
-    var healthSyncEnabled: Bool
-    var notificationsEnabled: Bool
-    var dailyCheckInHour: Int
-    var updatedAt: Date
-
-    init(
-        languageCode: String,
-        healthSyncEnabled: Bool,
-        notificationsEnabled: Bool,
-        dailyCheckInHour: Int,
-        updatedAt: Date = .now
-    ) {
-        self.languageCode = languageCode
-        self.healthSyncEnabled = healthSyncEnabled
-        self.notificationsEnabled = notificationsEnabled
-        self.dailyCheckInHour = dailyCheckInHour
-        self.updatedAt = updatedAt
-    }
+func A10NonEmpty(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
 }
 
 private struct A10AppShell: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var syncCoordinator = A10ShellSyncCoordinator()
+    @StateObject private var maxChatViewModel = MaxChatViewModel()
     @State private var selectedTab: A10Tab = .home
+    #if DEBUG
+    @AppStorage("debug_max_command") private var debugMaxCommand = ""
+    @AppStorage("debug_max_batch_file") private var debugMaxBatchFile = ""
+    #endif
 
     let language: AppLanguage
 
@@ -267,7 +60,9 @@ private struct A10AppShell: View {
             }
             .tag(A10Tab.home)
 
-            MaxChatView()
+            NavigationStack {
+                MaxChatView(viewModel: maxChatViewModel)
+            }
             .tabItem {
                 Label(
                     A10Tab.max.title(language: language),
@@ -297,16 +92,116 @@ private struct A10AppShell: View {
         .onReceive(NotificationCenter.default.publisher(for: .openDashboard)) { _ in
             selectedTab = .home
         }
+        #if DEBUG
+        .onAppear {
+            processDebugMaxCommand(debugLaunchMaxCommand)
+            processDebugMaxCommand(debugMaxCommand)
+            processDebugMaxBatch(debugLaunchMaxBatchFile)
+            processDebugMaxBatch(debugMaxBatchFile)
+        }
+        .onChange(of: debugMaxCommand) { _, newValue in
+            processDebugMaxCommand(newValue)
+        }
+        .onChange(of: debugMaxBatchFile) { _, newValue in
+            processDebugMaxBatch(newValue)
+        }
+        #endif
         .environmentObject(syncCoordinator)
         .tint(A10Palette.brand)
         .background {
             AuroraBackground()
         }
     }
+
+    #if DEBUG
+    private var debugLaunchMaxCommand: String {
+        let prefix = "-debug-max-command="
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return ""
+        }
+        return String(argument.dropFirst(prefix.count))
+    }
+
+    private var debugLaunchMaxBatchFile: String {
+        let prefix = "-debug-max-batch-file="
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return ""
+        }
+        return String(argument.dropFirst(prefix.count))
+    }
+
+    private func processDebugMaxCommand(_ rawCommand: String) {
+        let command = rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !command.isEmpty else { return }
+
+        switch command {
+        case "open":
+            selectedTab = .max
+        case "close":
+            selectedTab = .home
+        case "home":
+            selectedTab = .home
+        default:
+            if command.hasPrefix("ask:") {
+                let question = String(command.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+                selectedTab = .max
+                if !question.isEmpty {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        NotificationCenter.default.post(
+                            name: .askMax,
+                            object: nil,
+                            userInfo: ["question": question]
+                        )
+                    }
+                }
+            }
+        }
+
+        DispatchQueue.main.async {
+            if debugMaxCommand == rawCommand {
+                debugMaxCommand = ""
+            }
+        }
+    }
+
+    private func processDebugMaxBatch(_ rawFilePath: String) {
+        let filePath = rawFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !filePath.isEmpty else { return }
+
+        let prompts: [String]
+        do {
+            let contents = try String(contentsOfFile: filePath, encoding: .utf8)
+            prompts = contents
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        } catch {
+            print("[MaxDebugBatch] failed to read prompts file: \(filePath) error=\(error.localizedDescription)")
+            return
+        }
+
+        guard !prompts.isEmpty else {
+            print("[MaxDebugBatch] prompts file is empty: \(filePath)")
+            return
+        }
+
+        selectedTab = .max
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            maxChatViewModel.startDebugBatch(prompts: prompts, source: filePath)
+        }
+
+        DispatchQueue.main.async {
+            if debugMaxBatchFile == rawFilePath {
+                debugMaxBatchFile = ""
+            }
+        }
+    }
+    #endif
 }
 
 private struct A10HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.screenMetrics) private var metrics
     @EnvironmentObject private var syncCoordinator: A10ShellSyncCoordinator
     @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
     @Query(sort: \A10ActionPlan.sortOrder) private var plans: [A10ActionPlan]
@@ -317,116 +212,111 @@ private struct A10HomeView: View {
     private var currentSnapshot: A10LoopSnapshot? { loopSnapshots.first }
     private var activePlansCount: Int { plans.filter { !$0.isCompleted }.count }
     private var completedPlansCount: Int { plans.filter(\.isCompleted).count }
+    private var remoteContext: A10ShellRemoteContext? { syncCoordinator.remoteContext }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let currentSnapshot {
-                    A10HomeOverviewCard(
-                        snapshot: currentSnapshot,
-                        activePlansCount: activePlansCount,
-                        completedPlansCount: completedPlansCount,
-                        language: language
-                    )
-                    A10FocusHeroCard(snapshot: currentSnapshot, language: language)
-                } else {
-                    A10EmptyStateCard(
-                        title: L10n.text("正在建立今日闭环", "Creating today's loop", language: language),
-                        message: L10n.text("SwiftData 已接入，正在和远端数据对齐。", "SwiftData is active and aligning with remote data.", language: language)
-                    )
-                }
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
 
-                A10RemoteStatusCard(language: language)
-
-                A10SectionHeader(
-                    title: L10n.text("闭环状态", "Loop status", language: language),
-                    subtitle: L10n.text("先让用户知道自己在哪一步。", "Show the current recovery step first.", language: language)
-                )
-
-                A10Card {
-                    VStack(spacing: 14) {
-                        ForEach(A10LoopStage.allCases) { stage in
-                            A10LoopStepRow(
-                                stage: stage,
-                                currentStage: currentSnapshot?.stage ?? .inquiry,
-                                language: language
+            VStack(spacing: 0) {
+                A10ShellPageHeader(
+                    eyebrow: L10n.text("今日状态", "Today", language: language),
+                    title: A10Tab.home.title(language: language),
+                    subtitle: homeHeaderSubtitle,
+                    badgeTitle: homeHeaderBadgeTitle,
+                    badgeTint: homeHeaderBadgeTint
+                ) {
+                    A10HeaderRefreshControl(isSyncing: syncCoordinator.isSyncing) {
+                        Task {
+                            await syncCoordinator.sync(
+                                context: modelContext,
+                                language: language,
+                                force: true,
+                                trigger: "home_header_refresh"
                             )
                         }
                     }
                 }
 
-                A10SectionHeader(
-                    title: L10n.text("今日行动", "Today plan", language: language),
-                    subtitle: L10n.text("把建议收敛成最小动作。", "Turn guidance into the smallest useful action.", language: language)
-                )
-
-                VStack(spacing: 12) {
-                    ForEach(plans.prefix(3), id: \.persistentModelID) { plan in
-                        A10ActionCard(
-                            plan: plan,
-                            language: language,
-                            onToggle: { toggle(plan: plan) }
-                        )
-                    }
-                }
-
-                A10SectionHeader(
-                    title: L10n.text("快速动作", "Quick actions", language: language),
-                    subtitle: L10n.text("先推进闭环，再决定是否深入。", "Progress the loop first, then decide whether to go deeper.", language: language)
-                )
-
-                HStack(spacing: 12) {
-                    Button {
-                        advanceLoop()
-                    } label: {
-                        A10ActionButtonLabel(
-                            title: L10n.text("推进下一步", "Advance next step", language: language),
-                            subtitle: L10n.text("更新本地闭环状态", "Update the local loop state", language: language),
-                            systemImage: "arrow.right.circle.fill"
-                        )
-                    }
-                    .buttonStyle(A10PrimaryButtonStyle())
-
-                    Button {
-                        UISelectionFeedbackGenerator().selectionChanged()
-                        onOpenMax()
-                    } label: {
-                        A10ActionButtonLabel(
-                            title: L10n.text("打开 Max", "Open Max", language: language),
-                            subtitle: L10n.text("进入对话与行动收口", "Enter chat and action handoff", language: language),
-                            systemImage: "bubble.left.and.bubble.right.fill"
-                        )
-                    }
-                    .buttonStyle(A10SecondaryButtonStyle())
-                }
-            }
-            .padding(20)
-        }
-        .background {
-            AuroraBackground()
-        }
-        .navigationTitle(A10Tab.home.title(language: language))
-        .navigationBarTitleDisplayMode(.large)
-        .refreshable {
-            await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "home_refresh")
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if syncCoordinator.isSyncing {
-                    ProgressView()
-                        .tint(A10Palette.brand)
-                } else {
-                    Button {
-                        Task {
-                            await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "home_toolbar_refresh")
+                ScrollView {
+                    VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+                        if let currentSnapshot {
+                            A10HomeOverviewCard(
+                                snapshot: currentSnapshot,
+                                activePlansCount: activePlansCount,
+                                completedPlansCount: completedPlansCount,
+                                language: language
+                            )
+                            A10DashboardSpatialHeroCard(
+                                model: spatialDashboardModel(snapshot: currentSnapshot),
+                                language: language,
+                                onPrimaryAction: handleHeroPrimaryAction,
+                                onSecondaryAction: handleHeroSecondaryAction
+                            )
+                        } else {
+                            A10EmptyStateCard(
+                                title: L10n.text("正在整理今天重点", "Preparing today's overview", language: language),
+                                message: L10n.text("正在同步你的最新状态和建议。", "Syncing your latest state and guidance.", language: language)
+                            )
                         }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
+
+                        A10RemoteStatusCard(language: language)
+
+                        A10SectionHeader(
+                            title: L10n.text("当前进度", "Current progress", language: language),
+                            subtitle: L10n.text("先让你知道现在最适合做什么。", "Show what fits you best right now.", language: language)
+                        )
+
+                        A10Card {
+                            VStack(spacing: 14) {
+                                ForEach(A10LoopStage.allCases) { stage in
+                                    A10LoopStepRow(
+                                        stage: stage,
+                                        currentStage: currentSnapshot?.stage ?? .inquiry,
+                                        language: language
+                                    )
+                                }
+                            }
+                        }
+
+                        A10SectionHeader(
+                            title: L10n.text("今日行动", "Today plan", language: language),
+                            subtitle: L10n.text("把建议收敛成最小动作。", "Turn guidance into the smallest useful action.", language: language)
+                        )
+
+                        VStack(spacing: 12) {
+                            ForEach(plans.prefix(3), id: \.persistentModelID) { plan in
+                                A10ActionCard(
+                                    plan: plan,
+                                    language: language,
+                                    onToggle: { toggle(plan: plan) }
+                                )
+                            }
+                        }
+
+                        A10SectionHeader(
+                            title: L10n.text("快速动作", "Quick actions", language: language),
+                            subtitle: L10n.text("先完成眼前这一步，再决定要不要继续。", "Finish the step in front of you, then decide whether to go deeper.", language: language)
+                        )
+
+                        LazyVGrid(columns: homeQuickActionColumns, alignment: .leading, spacing: 12) {
+                            homeQuickActionAdvanceButton
+                            homeQuickActionMaxButton
+                        }
                     }
-                    .tint(A10Palette.brand)
+                    .frame(maxWidth: metrics.maxContentWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 0)
+                    .padding(.bottom, metrics.bottomContentInset)
+                }
+                .scrollIndicators(.hidden)
+                .refreshable {
+                    await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "home_refresh")
                 }
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private func advanceLoop() {
@@ -438,8 +328,8 @@ private struct A10HomeView: View {
 
         if snapshot.stage == .evidence {
             snapshot.evidenceNote = L10n.text(
-                "本地闭环会先推进，下一次同步会补齐远端证据与推荐。",
-                "The local loop advances first, and the next sync will pull remote evidence and guidance.",
+                "先按你现在的状态继续，下一次同步会补充更多依据和建议。",
+                "Keep going with your current state first. The next sync will add more context and guidance.",
                 language: language
             )
         }
@@ -475,154 +365,630 @@ private struct A10HomeView: View {
             await syncCoordinator.syncPlanToggle(plan, context: modelContext, language: language)
         }
     }
+
+    private var homeQuickActionColumns: [GridItem] {
+        let minimumWidth: CGFloat = metrics.fixedScreenWidth <= 360 ? 156 : 168
+        return [GridItem(.adaptive(minimum: minimumWidth), spacing: 12, alignment: .top)]
+    }
+
+    private var homeQuickActionAdvanceButton: some View {
+        Button {
+            advanceLoop()
+        } label: {
+            A10ActionButtonLabel(
+                title: L10n.text("推进下一步", "Advance next step", language: language),
+                subtitle: L10n.text("更新今天的进度", "Update today's progress", language: language),
+                systemImage: "arrow.right.circle.fill"
+            )
+        }
+        .buttonStyle(A10PrimaryButtonStyle())
+    }
+
+    private var homeQuickActionMaxButton: some View {
+        Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            onOpenMax()
+        } label: {
+            A10ActionButtonLabel(
+                title: L10n.text("打开 Max", "Open Max", language: language),
+                subtitle: L10n.text("直接和 Max 聊，继续下一步", "Talk to Max and continue the next step", language: language),
+                systemImage: "bubble.left.and.bubble.right.fill"
+            )
+        }
+        .buttonStyle(A10SecondaryButtonStyle())
+    }
+
+    private var homeHeaderSubtitle: String {
+        if syncCoordinator.isSyncing {
+            return L10n.text(
+                "正在同步今天的状态和安排",
+                "Syncing today's state and plans",
+                language: language
+            )
+        }
+
+        if syncCoordinator.lastSyncAt != nil {
+            return L10n.text(
+                "今天的状态和建议已同步",
+                "Today's state and guidance are ready",
+                language: language
+            )
+        }
+
+        return L10n.text(
+            "等待首次同步",
+            "Waiting for first sync",
+            language: language
+        )
+    }
+
+    private var homeHeaderBadgeTitle: String {
+        if syncCoordinator.isSyncing {
+            return L10n.text("同步中", "Syncing", language: language)
+        }
+
+        if syncCoordinator.lastSyncAt != nil {
+            return L10n.text("已接入", "Connected", language: language)
+        }
+
+        return L10n.text("待同步", "Pending", language: language)
+    }
+
+    private var homeHeaderBadgeTint: Color {
+        if syncCoordinator.isSyncing {
+            return A10Palette.info
+        }
+
+        if syncCoordinator.lastSyncAt != nil {
+            return A10Palette.success
+        }
+
+        return A10Palette.warning
+    }
+
+    private func spatialDashboardModel(snapshot: A10LoopSnapshot) -> A10DashboardSpatialHeroModel {
+        let heroStage = inferredHeroStage(fallback: snapshot.stage)
+        let stageIndex = A10LoopStage.allCases.firstIndex(of: heroStage) ?? 0
+        let remoteStress = remoteContext?.effectiveStressScore ?? snapshot.stressScore
+        let nextMinutes = heroNextActionMinutes()
+        let openActionCount = max(
+            activePlansCount,
+            max(remoteContext?.openHabitsCount ?? 0, remoteContext?.recommendationCount ?? 0)
+        )
+        let chartValues = [
+            inquiryProgressScore(fallback: snapshot),
+            calibrationProgressScore(fallback: snapshot),
+            evidenceProgressScore(fallback: snapshot),
+            actionProgressScore(fallback: snapshot)
+        ]
+
+        let nextAnnotation: A10AuraChartAnnotation
+        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
+            nextAnnotation = A10AuraChartAnnotation(
+                id: "next",
+                pointIndex: 3,
+                text: A10LocalizedText(
+                    zh: "\(activePlan.progress)% 进行中",
+                    en: "\(activePlan.progress)% in progress"
+                ),
+                xOffset: 36,
+                yOffset: -56
+            )
+        } else if remoteContext?.pendingInquiry != nil {
+            nextAnnotation = A10AuraChartAnnotation(
+                id: "next",
+                pointIndex: 0,
+                text: A10LocalizedText(zh: "1 个问题待回答", en: "1 question waiting"),
+                xOffset: 44,
+                yOffset: -22
+            )
+        } else if remoteContext?.proactiveBrief != nil {
+            nextAnnotation = A10AuraChartAnnotation(
+                id: "next",
+                pointIndex: 2,
+                text: A10LocalizedText(zh: "今日关怀已生成", en: "Care brief ready"),
+                xOffset: 44,
+                yOffset: -46
+            )
+        } else {
+            nextAnnotation = A10AuraChartAnnotation(
+                id: "next",
+                pointIndex: 3,
+                text: A10LocalizedText(
+                    zh: "\(max(openActionCount, 1)) 个动作待完成",
+                    en: "\(max(openActionCount, 1)) actions waiting"
+                ),
+                xOffset: 34,
+                yOffset: -56
+            )
+        }
+
+        return A10DashboardSpatialHeroModel(
+            eyebrow: remoteContext?.focusText != nil
+                ? A10LocalizedText(zh: "当前重点", en: "Current focus")
+                : A10LocalizedText(zh: "今日主控", en: "Today overview"),
+            topMetrics: [
+                A10SpatialMetric(
+                    id: "stress",
+                    title: A10LocalizedText(zh: "当前压力", en: "Stress"),
+                    value: "\(remoteStress)/10"
+                ),
+                A10SpatialMetric(
+                    id: "remote_actions",
+                    title: A10LocalizedText(zh: "待办动作", en: "Open actions"),
+                    value: "\(max(openActionCount, 1))"
+                )
+            ],
+            chart: A10AuraLineChartModel(
+                values: chartValues,
+                xLabels: [
+                    A10LocalizedText(zh: "了解", en: "Check in"),
+                    A10LocalizedText(zh: "记录", en: "Track"),
+                    A10LocalizedText(zh: "分析", en: "Explain"),
+                    A10LocalizedText(zh: "行动", en: "Action")
+                ],
+                yLabels: ["10", "7", "4", "0"],
+                annotations: [
+                    A10AuraChartAnnotation(
+                        id: "stage",
+                        pointIndex: stageIndex,
+                        text: A10LocalizedText(
+                            zh: "当前 · \(heroStage.title(language: .zhHans))",
+                            en: "Now · \(heroStage.title(language: .en))"
+                        ),
+                        xOffset: 44,
+                        yOffset: -18
+                    ),
+                    nextAnnotation
+                ]
+            ),
+            primaryActionTitle: heroPrimaryActionTitle(),
+            secondaryActionSymbol: heroSecondaryActionSymbol(stressScore: remoteStress),
+            footerTitle: A10LocalizedText(zh: "今日安排", en: "Today's plan"),
+            bottomMetrics: [
+                A10SpatialMetric(
+                    id: "focus",
+                    title: A10LocalizedText(zh: "当前焦点", en: "Current focus"),
+                    value: remoteContext?.focusText ?? heroStage.title(language: language)
+                ),
+                A10SpatialMetric(
+                    id: "next",
+                    title: A10LocalizedText(zh: "下一步", en: "Next step"),
+                    value: heroNextActionValue(fallbackMinutes: nextMinutes)
+                )
+            ],
+            productionSamples: spatialProductionSamples(stressScore: remoteStress)
+        )
+    }
+
+    private func spatialProductionSamples(stressScore: Int) -> [CGFloat] {
+        let remoteCompletions = CGFloat(remoteContext?.completedHabitsCount ?? 0) * 0.02
+        let completionBoost = CGFloat(completedPlansCount) * 0.02 + remoteCompletions
+        let stressBase = CGFloat(max(1, 10 - stressScore)) * 0.03
+        let recommendationBoost = CGFloat(min(remoteContext?.recommendationCount ?? 0, 3)) * 0.015
+        return (0..<18).map { index in
+            let wave = (sin(CGFloat(index) * 0.55) + 1) / 2
+            return min(0.9, max(0.16, 0.18 + wave * 0.44 + completionBoost + stressBase + recommendationBoost))
+        }
+    }
+
+    private func heroPrimaryActionTitle() -> A10LocalizedText {
+        if remoteContext?.pendingInquiry != nil {
+            return A10LocalizedText(zh: "回答问题", en: "Answer question")
+        }
+        if remoteContext?.hasActivePlan == true || activePlansCount > 0 {
+            return A10LocalizedText(zh: "推进计划", en: "Continue plan")
+        }
+        if remoteContext?.proactiveBrief != nil {
+            return A10LocalizedText(zh: "查看关怀", en: "Open care brief")
+        }
+        if remoteContext?.hasSignals == false {
+            return A10LocalizedText(zh: "记录状态", en: "Record state")
+        }
+        return A10LocalizedText(zh: "进入 Max", en: "Open Max")
+    }
+
+    private func heroSecondaryActionSymbol(stressScore: Int) -> String {
+        if stressScore >= 7 {
+            return "wind"
+        }
+        if remoteContext?.hasActivePlan == true || activePlansCount > 0 {
+            return "checklist"
+        }
+        if remoteContext?.pendingInquiry != nil {
+            return "questionmark.bubble"
+        }
+        return "arrow.clockwise"
+    }
+
+    private func inferredHeroStage(fallback: A10LoopStage) -> A10LoopStage {
+        guard let remoteContext else { return fallback }
+
+        if remoteContext.pendingInquiry != nil {
+            return .inquiry
+        }
+        if remoteContext.hasActivePlan || remoteContext.completedHabitsCount > 0 {
+            return .action
+        }
+        if remoteContext.proactiveBrief != nil || remoteContext.recommendationCount > 0 {
+            return .evidence
+        }
+        if remoteContext.hasSignals {
+            return .calibration
+        }
+        return fallback
+    }
+
+    private func inquiryProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
+        guard let remoteContext else {
+            return min(Double(snapshot.stressScore + 2), 10)
+        }
+        if remoteContext.pendingInquiry != nil {
+            return 3.6
+        }
+        if remoteContext.hasSignals {
+            return 8.4
+        }
+        return 6.1
+    }
+
+    private func calibrationProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
+        guard let remoteContext else {
+            return min(Double(snapshot.stressScore + (A10LoopStage.allCases.firstIndex(of: snapshot.stage) ?? 0)), 10)
+        }
+        let base = Double(min(remoteContext.signalCount, 5)) * 1.45
+        let todayLogBoost = remoteContext.dashboard?.todayLog != nil ? 2.2 : 0
+        return min(10, max(2.6, base + todayLogBoost))
+    }
+
+    private func evidenceProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
+        guard let remoteContext else {
+            return max(2, Double(6 + completedPlansCount - activePlansCount))
+        }
+        let recommendationFactor = Double(min(remoteContext.recommendationCount, 3)) * 1.9
+        let briefFactor = remoteContext.proactiveBrief != nil ? 2.5 : 0
+        let confidenceFactor = (remoteContext.proactiveBrief?.confidence ?? 0) * 2.4
+        return min(10, max(2.4, recommendationFactor + briefFactor + confidenceFactor))
+    }
+
+    private func actionProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
+        guard let remoteContext else {
+            return max(1, Double(10 - snapshot.stressScore))
+        }
+        let activePlanFactor = remoteContext.hasActivePlan ? Double(max(20, remoteContext.activePlan?.progress ?? 0)) / 10 : 0
+        let habitsFactor = Double(remoteContext.completedHabitsCount) * 2.1
+        let localFactor = Double(completedPlansCount) * 1.1
+        return min(10, max(2.2, activePlanFactor + habitsFactor + localFactor))
+    }
+
+    private func heroNextActionMinutes() -> Int {
+        if let remoteHabit = remoteContext?.habits.first(where: { !$0.isCompleted }) {
+            return estimatedRemoteMinutes(forHabitResistance: remoteHabit.minResistanceLevel)
+        }
+        return plans.first(where: { !$0.isCompleted })?.estimatedMinutes ?? 3
+    }
+
+    private func heroNextActionValue(fallbackMinutes: Int) -> String {
+        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
+            return activePlan.title
+        }
+        if let remoteHabit = remoteContext?.habits.first(where: { !$0.isCompleted }) {
+            return remoteHabit.title
+        }
+        if let remoteRecommendation = remoteContext?.recommendations.first {
+            return A10NonEmpty(remoteRecommendation.action) ?? remoteRecommendation.title
+        }
+        return "\(fallbackMinutes) min"
+    }
+
+    private func estimatedRemoteMinutes(forHabitResistance level: Int?) -> Int {
+        switch level ?? 2 {
+        case ...2:
+            return 3
+        case 3:
+            return 5
+        default:
+            return 8
+        }
+    }
+
+    private func handleHeroPrimaryAction() {
+        UISelectionFeedbackGenerator().selectionChanged()
+
+        let summary: String
+        if let remoteContext {
+            if remoteContext.pendingInquiry != nil {
+                summary = "pending_inquiry"
+                openMaxFromHero(intent: "inquiry")
+            } else if remoteContext.hasActivePlan {
+                summary = remoteContext.activePlan?.title ?? "active_plan"
+                openMaxFromHero(intent: "plan_review")
+            } else if remoteContext.proactiveBrief != nil {
+                summary = remoteContext.proactiveBrief?.title ?? "proactive_brief"
+                openMaxFromHero(intent: "proactive_brief")
+            } else if !remoteContext.hasSignals {
+                summary = "start_check_in"
+                triggerMaxExecutionFromHero(.startCalibration)
+            } else {
+                summary = "body_signal_follow_up"
+                openMaxFromHero(intent: "body_signal")
+            }
+        } else {
+            summary = "open_max"
+            onOpenMax()
+        }
+
+        Task {
+            await SupabaseManager.shared.captureUserSignal(
+                domain: "a10_shell",
+                action: "hero_primary_tapped",
+                summary: summary,
+                metadata: [
+                    "source": "a10_dashboard_hero",
+                    "has_remote_context": remoteContext != nil
+                ]
+            )
+        }
+    }
+
+    private func handleHeroSecondaryAction() {
+        let stressScore = remoteContext?.effectiveStressScore ?? currentSnapshot?.stressScore ?? 6
+        let summary: String
+
+        if stressScore >= 7 {
+            summary = "breathing_reset"
+            triggerMaxExecutionFromHero(.startBreathing, userInfo: ["duration": 3])
+        } else if remoteContext?.hasActivePlan == true || activePlansCount > 0 {
+            summary = "plan_review"
+            openMaxFromHero(intent: "plan_review")
+        } else if remoteContext?.pendingInquiry != nil {
+            summary = "pending_inquiry"
+            openMaxFromHero(intent: "inquiry")
+        } else {
+            summary = "force_sync"
+            Task {
+                await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "home_hero_secondary")
+            }
+        }
+
+        Task {
+            await SupabaseManager.shared.captureUserSignal(
+                domain: "a10_shell",
+                action: "hero_secondary_tapped",
+                summary: summary,
+                metadata: [
+                    "source": "a10_dashboard_hero",
+                    "stress_score": stressScore
+                ]
+            )
+        }
+    }
+
+    private func openMaxFromHero(intent: String? = nil, question: String? = nil) {
+        onOpenMax()
+
+        var payload: [AnyHashable: Any] = [:]
+        if let intent { payload["intent"] = intent }
+        if let question { payload["question"] = question }
+        guard !payload.isEmpty else { return }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            NotificationCenter.default.post(name: .askMax, object: nil, userInfo: payload)
+        }
+    }
+
+    private func triggerMaxExecutionFromHero(
+        _ notification: Notification.Name,
+        userInfo: [AnyHashable: Any]? = nil
+    ) {
+        onOpenMax()
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            NotificationCenter.default.post(name: notification, object: nil, userInfo: userInfo)
+        }
+    }
 }
 
 private struct A10MeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.screenMetrics) private var metrics
     @EnvironmentObject private var supabase: SupabaseManager
     @EnvironmentObject private var syncCoordinator: A10ShellSyncCoordinator
+    @EnvironmentObject private var themeManager: ThemeManager
     @Query(sort: \A10PreferenceRecord.updatedAt, order: .reverse) private var preferenceRecords: [A10PreferenceRecord]
     @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
     @Query(sort: \A10ActionPlan.sortOrder) private var plans: [A10ActionPlan]
+    @State private var selectedEmotionShortcutID: String?
 
     let language: AppLanguage
 
     private var preferences: A10PreferenceRecord? { preferenceRecords.first }
     private var currentSnapshot: A10LoopSnapshot? { loopSnapshots.first }
+    private var remoteContext: A10ShellRemoteContext? { syncCoordinator.remoteContext }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                A10MeOverviewCard(
-                    snapshot: currentSnapshot,
-                    preferences: preferences,
-                    planCount: plans.count,
-                    language: language,
-                    isSyncing: syncCoordinator.isSyncing
-                )
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
 
-                A10SectionHeader(
-                    title: L10n.text("系统与偏好", "System and preferences", language: language),
-                    subtitle: L10n.text("把设置和远端同步状态都收口到一个运维面板。", "Keep settings and remote sync status in one operating panel.", language: language)
-                )
-
-                A10Card {
-                    VStack(spacing: 16) {
-                        A10SettingsToggleRow(
-                            title: L10n.text("Health 数据同步", "Health data sync", language: language),
-                            subtitle: L10n.text("保持 Apple Health 为首选输入来源。", "Keep Apple Health as the preferred signal source.", language: language),
-                            isOn: Binding(
-                                get: { preferences?.healthSyncEnabled ?? true },
-                                set: { newValue in
-                                    updatePreferences { record in
-                                        record.healthSyncEnabled = newValue
-                                    }
-                                }
-                            )
-                        )
-
-                        A10Divider()
-
-                        A10SettingsToggleRow(
-                            title: L10n.text("每日提醒", "Daily reminders", language: language),
-                            subtitle: L10n.text("仅保留高价值提醒，不制造噪音。", "Keep reminders high value and low noise.", language: language),
-                            isOn: Binding(
-                                get: { preferences?.notificationsEnabled ?? true },
-                                set: { newValue in
-                                    updatePreferences { record in
-                                        record.notificationsEnabled = newValue
-                                    }
-                                }
-                            )
-                        )
-                    }
-                }
-
-                A10SectionHeader(
-                    title: L10n.text("数据层状态", "Data layer status", language: language),
-                    subtitle: L10n.text("确认新壳层已由 SwiftData 驱动，并正在桥接后端。", "Confirm that the rebuild shell is driven by SwiftData and bridged to the backend.", language: language)
-                )
-
-                A10RemoteStatusCard(language: language)
-
-                A10Card {
-                    VStack(spacing: 14) {
-                        A10MetricRow(
-                            title: "SwiftData",
-                            value: L10n.text("已接管本地状态", "Local state is active", language: language)
-                        )
-                        A10MetricRow(
-                            title: L10n.text("闭环快照", "Loop snapshots", language: language),
-                            value: "\(loopSnapshots.count)"
-                        )
-                        A10MetricRow(
-                            title: L10n.text("行动计划", "Plans", language: language),
-                            value: "\(plans.count)"
-                        )
-                        A10MetricRow(
-                            title: "Max",
-                            value: L10n.text("已作为统一 agent 入口", "Now acts as the unified agent entry", language: language)
-                        )
-                        A10MetricRow(
-                            title: "Remote",
-                            value: L10n.text("Dashboard / Habits / Max 已桥接", "Dashboard / Habits / Max are bridged", language: language)
-                        )
-                    }
-                }
-
-                Button {
-                    Task {
-                        await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "me_manual_sync")
-                    }
-                } label: {
-                    A10ActionButtonLabel(
-                        title: L10n.text("立即同步", "Sync now", language: language),
-                        subtitle: L10n.text("刷新闭环、计划与远端建议", "Refresh loop, plans, and remote guidance", language: language),
-                        systemImage: "arrow.triangle.2.circlepath.circle.fill"
-                    )
-                }
-                .buttonStyle(A10PrimaryButtonStyle())
-
-                A10SectionHeader(
-                    title: L10n.text("账户", "Account", language: language),
-                    subtitle: L10n.text("当前先保留 Supabase Auth，不在本轮迁移提供商。", "Supabase Auth remains in place for this rebuild pass.", language: language)
-                )
-
-                A10Card {
-                    VStack(alignment: .leading, spacing: 14) {
-                        A10MetricRow(
-                            title: "Supabase",
-                            value: supabase.isAuthenticated
-                            ? L10n.text("已连接当前账户", "Connected to the current account", language: language)
-                            : L10n.text("当前未登录", "Not signed in", language: language)
-                        )
-                        A10MetricRow(
-                            title: L10n.text("通知", "Notifications", language: language),
-                            value: preferences?.notificationsEnabled == true
-                            ? L10n.text("已开启低噪提醒", "Low-noise reminders enabled", language: language)
-                            : L10n.text("暂未开启", "Currently off", language: language)
-                        )
-
-                        Button {
-                            Task { await supabase.signOut() }
-                        } label: {
-                            A10ActionButtonLabel(
-                                title: L10n.text("退出登录", "Sign out", language: language),
-                                subtitle: L10n.text("保留本地状态，断开当前远端账户", "Keep local state and disconnect the current remote account", language: language),
-                                systemImage: "rectangle.portrait.and.arrow.right"
+            VStack(spacing: 0) {
+                A10ShellPageHeader(
+                    eyebrow: L10n.text("我的概览", "Overview", language: language),
+                    title: A10Tab.me.title(language: language),
+                    subtitle: meHeaderSubtitle,
+                    badgeTitle: meHeaderBadgeTitle,
+                    badgeTint: meHeaderBadgeTint
+                ) {
+                    A10HeaderRefreshControl(isSyncing: syncCoordinator.isSyncing) {
+                        Task {
+                            await syncCoordinator.sync(
+                                context: modelContext,
+                                language: language,
+                                force: true,
+                                trigger: "me_header_refresh"
                             )
                         }
-                        .buttonStyle(A10SecondaryButtonStyle())
                     }
                 }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+                        A10MeOverviewCard(
+                            snapshot: currentSnapshot,
+                            preferences: preferences,
+                            planCount: plans.count,
+                            language: language,
+                            isSyncing: syncCoordinator.isSyncing
+                        )
+
+                        A10EmotionWheelScaffold(
+                            model: emotionWheelModel,
+                            language: language,
+                            selectedShortcutID: resolvedEmotionShortcutID,
+                            onSelectShortcut: handleEmotionShortcut,
+                            onSelectDockAction: handleEmotionDockAction
+                        )
+
+                        A10SectionHeader(
+                            title: L10n.text("系统与偏好", "System and preferences", language: language),
+                            subtitle: L10n.text("把设置和同步状态放在一起，少一点来回切换。", "Keep settings and sync status together in one place.", language: language)
+                        )
+
+                        A10Card {
+                            VStack(spacing: 16) {
+                                A10AppearanceModeRow(
+                                    title: L10n.text("外观模式", "Appearance", language: language),
+                                    subtitle: L10n.text("直接切换跟随系统、浅色或深色。", "Switch between system, light, and dark instantly.", language: language),
+                                    selectedMode: themeManager.appearanceMode,
+                                    language: language
+                                ) { mode in
+                                    themeManager.appearanceMode = mode
+                                }
+
+                                A10Divider()
+
+                                A10SettingsToggleRow(
+                                    title: L10n.text("Health 数据同步", "Health data sync", language: language),
+                                    subtitle: L10n.text("保持 Apple Health 为首选输入来源。", "Keep Apple Health as the preferred signal source.", language: language),
+                                    isOn: Binding(
+                                        get: { preferences?.healthSyncEnabled ?? true },
+                                        set: { newValue in
+                                            updatePreferences { record in
+                                                record.healthSyncEnabled = newValue
+                                            }
+                                        }
+                                    )
+                                )
+
+                                A10Divider()
+
+                                A10SettingsToggleRow(
+                                    title: L10n.text("每日提醒", "Daily reminders", language: language),
+                                    subtitle: L10n.text("仅保留高价值提醒，不制造噪音。", "Keep reminders high value and low noise.", language: language),
+                                    isOn: Binding(
+                                        get: { preferences?.notificationsEnabled ?? true },
+                                        set: { newValue in
+                                            updatePreferences { record in
+                                                record.notificationsEnabled = newValue
+                                            }
+                                        }
+                                    )
+                                )
+                            }
+                        }
+
+                        A10SectionHeader(
+                            title: L10n.text("同步状态", "Sync status", language: language),
+                            subtitle: L10n.text("看看本地记录、账号和建议是不是都正常。", "Check whether local data, account, and guidance are all in sync.", language: language)
+                        )
+
+                        A10RemoteStatusCard(language: language)
+
+                        A10Card {
+                            VStack(spacing: 14) {
+                                A10MetricRow(
+                                    title: L10n.text("本地记录", "Local data", language: language),
+                                    value: L10n.text("已正常保存", "Saving normally", language: language)
+                                )
+                                A10MetricRow(
+                                    title: L10n.text("今日记录", "Today logs", language: language),
+                                    value: "\(loopSnapshots.count)"
+                                )
+                                A10MetricRow(
+                                    title: L10n.text("行动计划", "Plans", language: language),
+                                    value: "\(plans.count)"
+                                )
+                                A10MetricRow(
+                                    title: "Max",
+                                    value: L10n.text("聊天、建议和计划都在这里", "Chat, guidance, and plans all live here", language: language)
+                                )
+                                A10MetricRow(
+                                    title: L10n.text("已同步内容", "Synced items", language: language),
+                                    value: L10n.text("首页、计划和 Max 已联通", "Home, plans, and Max are connected", language: language)
+                                )
+                            }
+                        }
+
+                        Button {
+                            Task {
+                                await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "me_manual_sync")
+                            }
+                        } label: {
+                            A10ActionButtonLabel(
+                                title: L10n.text("立即同步", "Sync now", language: language),
+                                subtitle: L10n.text("刷新今天的状态、计划和建议", "Refresh today's state, plans, and guidance", language: language),
+                                systemImage: "arrow.triangle.2.circlepath.circle.fill"
+                            )
+                        }
+                        .buttonStyle(A10PrimaryButtonStyle())
+
+                        A10SectionHeader(
+                            title: L10n.text("账户", "Account", language: language),
+                            subtitle: L10n.text("管理当前登录状态、提醒和退出操作。", "Manage sign-in, reminders, and sign-out here.", language: language)
+                        )
+
+                        A10Card {
+                            VStack(alignment: .leading, spacing: 14) {
+                                A10MetricRow(
+                                    title: L10n.text("登录状态", "Sign-in", language: language),
+                                    value: supabase.isAuthenticated
+                                    ? L10n.text("已连接当前账户", "Connected to the current account", language: language)
+                                    : L10n.text("当前未登录", "Not signed in", language: language)
+                                )
+                                A10MetricRow(
+                                    title: L10n.text("通知", "Notifications", language: language),
+                                    value: preferences?.notificationsEnabled == true
+                                    ? L10n.text("已开启低噪提醒", "Low-noise reminders enabled", language: language)
+                                    : L10n.text("暂未开启", "Currently off", language: language)
+                                )
+
+                                Button {
+                                    Task { await supabase.signOut() }
+                                } label: {
+                                    A10ActionButtonLabel(
+                                        title: L10n.text("退出登录", "Sign out", language: language),
+                                        subtitle: L10n.text("保留本地记录，退出当前账户", "Keep local data and sign out of this account", language: language),
+                                        systemImage: "rectangle.portrait.and.arrow.right"
+                                    )
+                                }
+                                .buttonStyle(A10SecondaryButtonStyle())
+                            }
+                        }
+                    }
+                    .frame(maxWidth: metrics.maxContentWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 0)
+                    .padding(.bottom, metrics.bottomContentInset)
+                }
+                .scrollIndicators(.hidden)
+                .refreshable {
+                    await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "me_refresh")
+                }
             }
-            .padding(20)
         }
-        .background {
-            AuroraBackground()
-        }
-        .navigationTitle(A10Tab.me.title(language: language))
-        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private func updatePreferences(_ mutate: (A10PreferenceRecord) -> Void) {
@@ -633,6 +999,415 @@ private struct A10MeView: View {
         try? modelContext.save()
         Task {
             await syncCoordinator.syncPreferences(record, language: language)
+        }
+    }
+
+    private var meHeaderSubtitle: String {
+        if syncCoordinator.isSyncing {
+            return L10n.text(
+                "同步偏好与系统状态",
+                "Syncing preferences and system state",
+                language: language
+            )
+        }
+
+        return L10n.text(
+            "偏好与系统状态已对齐",
+            "Preferences and system state are aligned",
+            language: language
+        )
+    }
+
+    private var meHeaderBadgeTitle: String {
+        if syncCoordinator.isSyncing {
+            return L10n.text("同步中", "Syncing", language: language)
+        }
+
+        if remoteContext != nil {
+            return L10n.text("已就绪", "Ready", language: language)
+        }
+
+        return L10n.text("初始化", "Booting", language: language)
+    }
+
+    private var meHeaderBadgeTint: Color {
+        if syncCoordinator.isSyncing {
+            return A10Palette.info
+        }
+
+        if remoteContext != nil {
+            return A10Palette.success
+        }
+
+        return A10Palette.brandSecondary
+    }
+
+    private var emotionWheelModel: A10EmotionWheelModel {
+        let stressScore = remoteContext?.effectiveStressScore ?? currentSnapshot?.stressScore ?? 5
+        let readinessScore = remoteContext?.readinessScore ?? 60
+        let calmScore = min(10, max(1, 11 - stressScore + max(0, readinessScore - 60) / 20))
+        let activeCount = max(
+            plans.filter { !$0.isCompleted }.count,
+            max(remoteContext?.openHabitsCount ?? 0, remoteContext?.hasActivePlan == true ? 1 : 0)
+        )
+        let completedCount = max(plans.filter(\.isCompleted).count, remoteContext?.completedHabitsCount ?? 0)
+        let healthOn = preferences?.healthSyncEnabled ?? remoteContext?.hasSignals ?? true
+        let remoteReminders = remoteContext?.profile?.reminder_preferences
+        let remindersOn = preferences?.notificationsEnabled
+            ?? [remoteReminders?.morning, remoteReminders?.evening, remoteReminders?.breathing]
+                .compactMap { $0 }
+                .contains(true)
+        let focusScore = min(
+            10,
+            max(3, (remoteContext?.focusText != nil ? 5 : 0) + max(completedCount, (remoteContext?.activePlan?.progress ?? 0) / 20))
+        )
+        let signalScore = min(10, max(3, (remoteContext?.signalCount ?? (healthOn ? 4 : 1)) * 2))
+        let quietScore = min(10, max(2, (remindersOn ? 6 : 4) + (stressScore <= 4 ? 2 : 0)))
+        let planScore = min(
+            10,
+            max(2, activeCount + completedCount + min((remoteContext?.activePlan?.progress ?? 0) / 25, 3))
+        )
+        let trustScore = min(
+            10,
+            max(3, (remoteContext != nil ? 4 : 0) + (remoteContext?.profile != nil ? 2 : 0) + (remoteContext?.hasSignals == true ? 2 : 0))
+        )
+        let readyScore = min(
+            10,
+            max(3, (syncCoordinator.isSyncing ? 4 : 6) + (remoteContext?.proactiveBrief != nil ? 2 : 0) + (remoteContext?.pendingInquiry == nil ? 1 : 0))
+        )
+        let insightBody = emotionInsightBody()
+
+        return A10EmotionWheelModel(
+            brandTitle: "antios10",
+            shortcuts: [
+                A10EmotionShortcut(id: "state", symbol: "waveform.path.ecg", title: A10LocalizedText(zh: "状态", en: "State")),
+                A10EmotionShortcut(id: "plan", symbol: "checklist", title: A10LocalizedText(zh: "计划", en: "Plans")),
+                A10EmotionShortcut(id: "signal", symbol: "heart.fill", title: A10LocalizedText(zh: "信号", en: "Signals")),
+                A10EmotionShortcut(id: "focus", symbol: "scope", title: A10LocalizedText(zh: "聚焦", en: "Focus")),
+                A10EmotionShortcut(id: "max", symbol: "sparkles", title: A10LocalizedText(zh: "Max", en: "Max"))
+            ],
+            maxScore: 10,
+            petals: [
+                A10EmotionPetal(id: "calm", title: A10LocalizedText(zh: "平静", en: "Calm"), score: calmScore, intensity: 0.82, tint: A10SpatialPalette.wheelPetals[0]),
+                A10EmotionPetal(id: "stress", title: A10LocalizedText(zh: "张力", en: "Tension"), score: max(1, stressScore), intensity: 0.74, tint: A10SpatialPalette.wheelPetals[1]),
+                A10EmotionPetal(id: "focus", title: A10LocalizedText(zh: "专注", en: "Focus"), score: focusScore, intensity: 0.76, tint: A10SpatialPalette.wheelPetals[2]),
+                A10EmotionPetal(id: "signals", title: A10LocalizedText(zh: "信号", en: "Signals"), score: signalScore, intensity: 0.72, tint: A10SpatialPalette.wheelPetals[3]),
+                A10EmotionPetal(id: "quiet", title: A10LocalizedText(zh: "安静", en: "Quiet"), score: quietScore, intensity: 0.7, tint: A10SpatialPalette.wheelPetals[4]),
+                A10EmotionPetal(id: "plans", title: A10LocalizedText(zh: "执行", en: "Execution"), score: planScore, intensity: 0.78, tint: A10SpatialPalette.wheelPetals[5]),
+                A10EmotionPetal(id: "trust", title: A10LocalizedText(zh: "稳定", en: "Steady"), score: trustScore, intensity: 0.74, tint: A10SpatialPalette.wheelPetals[6]),
+                A10EmotionPetal(id: "ready", title: A10LocalizedText(zh: "就绪", en: "Ready"), score: readyScore, intensity: 0.8, tint: A10SpatialPalette.wheelPetals[7])
+            ],
+            insight: A10InsightCardModel(
+                eyebrow: A10LocalizedText(zh: "状态摘要", en: "State summary"),
+                body: insightBody
+            ),
+            leadingDockAction: A10DockAction(id: "home", symbol: "house.fill", isPrimary: false),
+            centerDockAction: A10DockAction(id: "max", symbol: "bubble.left.and.bubble.right.fill", isPrimary: true),
+            trailingDockActions: [
+                A10DockAction(id: "sync", symbol: "arrow.triangle.2.circlepath", isPrimary: false)
+            ]
+        )
+    }
+
+    private func handleEmotionDockAction(_ action: A10DockAction) {
+        switch action.id {
+        case "home":
+            NotificationCenter.default.post(name: .openDashboard, object: nil)
+        case "max":
+            NotificationCenter.default.post(name: .openMaxChat, object: nil)
+        case "sync":
+            Task {
+                await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "me_wheel_sync")
+            }
+        default:
+            break
+        }
+    }
+
+    private var resolvedEmotionShortcutID: String {
+        if let selectedEmotionShortcutID {
+            return selectedEmotionShortcutID
+        }
+        if remoteContext?.pendingInquiry != nil {
+            return "state"
+        }
+        if remoteContext?.hasActivePlan == true {
+            return "plan"
+        }
+        if remoteContext?.hasSignals == false {
+            return "signal"
+        }
+        if remoteContext?.focusText != nil {
+            return "focus"
+        }
+        return "max"
+    }
+
+    private func emotionInsightBody() -> A10LocalizedText {
+        if let proactiveBrief = remoteContext?.proactiveBrief {
+            let text = "\(proactiveBrief.understanding) \(proactiveBrief.microAction)"
+            return A10LocalizedText(zh: text, en: text)
+        }
+        if let inquiry = remoteContext?.pendingInquiry {
+            return A10LocalizedText(
+                zh: "待回答问题：\(inquiry.questionText)",
+                en: "Question waiting: \(inquiry.questionText)"
+            )
+        }
+        if let focus = remoteContext?.focusText {
+            return A10LocalizedText(
+                zh: "现在最值得先处理的是「\(focus)」，让 Max 先围绕它给你下一步。",
+                en: "The most important thing right now is \"\(focus)\". Let Max build the next step around it."
+            )
+        }
+        let fallback = currentSnapshot?.summary ?? "先看今天的状态，再决定要不要补记录或刷新数据。"
+        return A10LocalizedText(
+            zh: fallback,
+            en: currentSnapshot?.summary ?? "Review today's state first, then decide whether to add more detail or refresh data."
+        )
+    }
+
+    private func handleEmotionShortcut(_ shortcut: A10EmotionShortcut) {
+        selectedEmotionShortcutID = shortcut.id
+
+        Task {
+            await SupabaseManager.shared.captureUserSignal(
+                domain: "a10_shell",
+                action: "emotion_shortcut_tapped",
+                summary: shortcut.id,
+                metadata: [
+                    "source": "a10_emotion_wheel"
+                ]
+            )
+        }
+
+        switch shortcut.id {
+        case "state":
+            if remoteContext?.pendingInquiry != nil {
+                openMaxFromMe(intent: "inquiry")
+            } else if remoteContext?.hasSignals == true {
+                openMaxFromMe(intent: "body_signal")
+            } else {
+                triggerMaxExecutionFromMe(.startCalibration)
+            }
+        case "plan":
+            if remoteContext?.hasActivePlan == true || plans.contains(where: { !$0.isCompleted }) {
+                openMaxFromMe(intent: "plan_review")
+            } else {
+                openMaxFromMe(
+                    question: L10n.text(
+                        "请基于我当前状态，给我一个今天 10 分钟内可以完成的动作。",
+                        "Based on my current state, give me one action I can complete within 10 minutes today.",
+                        language: language
+                    )
+                )
+            }
+        case "signal":
+            Task {
+                await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "me_shortcut_signal")
+            }
+            if remoteContext?.hasSignals == true {
+                openMaxFromMe(intent: "body_signal")
+            } else {
+                triggerMaxExecutionFromMe(.startCalibration)
+            }
+        case "focus":
+            if let focus = remoteContext?.focusText {
+                openMaxFromMe(
+                    question: language == .en
+                        ? "Use my current focus \"\(focus)\" to decide the next smallest action and one follow-up question."
+                        : "请围绕我当前焦点「\(focus)」决定下一步最小动作，并给我一个跟进问题。"
+                )
+            } else {
+                NotificationCenter.default.post(name: .openDashboard, object: nil)
+            }
+        case "max":
+            NotificationCenter.default.post(name: .openMaxChat, object: nil)
+        default:
+            break
+        }
+    }
+
+    private func openMaxFromMe(intent: String? = nil, question: String? = nil) {
+        NotificationCenter.default.post(name: .openMaxChat, object: nil)
+
+        var payload: [AnyHashable: Any] = [:]
+        if let intent { payload["intent"] = intent }
+        if let question { payload["question"] = question }
+        guard !payload.isEmpty else { return }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            NotificationCenter.default.post(name: .askMax, object: nil, userInfo: payload)
+        }
+    }
+
+    private func triggerMaxExecutionFromMe(
+        _ notification: Notification.Name,
+        userInfo: [AnyHashable: Any]? = nil
+    ) {
+        NotificationCenter.default.post(name: .openMaxChat, object: nil)
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            NotificationCenter.default.post(name: notification, object: nil, userInfo: userInfo)
+        }
+    }
+}
+
+private struct A10ShellPageHeader<Trailing: View>: View {
+    @Environment(\.screenMetrics) private var metrics
+
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+    let badgeTitle: String?
+    let badgeTint: Color
+    let trailing: Trailing
+
+    init(
+        eyebrow: String,
+        title: String,
+        subtitle: String,
+        badgeTitle: String? = nil,
+        badgeTint: Color = A10Palette.brand,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.subtitle = subtitle
+        self.badgeTitle = badgeTitle
+        self.badgeTint = badgeTint
+        self.trailing = trailing()
+    }
+
+    private var contentTopInset: CGFloat {
+        max(metrics.safeAreaInsets.top - 30, 6)
+    }
+
+    private var mistHeight: CGFloat {
+        max(metrics.safeAreaInsets.top + 44, 74)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text(eyebrow)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+
+                    if let badgeTitle, !badgeTitle.isEmpty {
+                        Text(badgeTitle)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(badgeTint)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(badgeTint.opacity(0.12))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                            )
+                    }
+                }
+
+                Text(title)
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+                    .lineLimit(1)
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            trailing
+                .padding(.top, 2)
+        }
+        .frame(maxWidth: metrics.maxContentWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, contentTopInset)
+        .padding(.bottom, 10)
+        .background(alignment: .top) {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.22),
+                            badgeTint.opacity(0.08),
+                            Color.white.opacity(0.03),
+                            Color.clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.16),
+                            Color.white.opacity(0.06),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .mask(
+                    LinearGradient(
+                        colors: [
+                            Color.white,
+                            Color.white.opacity(0.78),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(height: mistHeight)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct A10HeaderRefreshControl: View {
+    let isSyncing: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if isSyncing {
+                ProgressView()
+                    .tint(A10Palette.brand)
+                    .frame(width: 34, height: 34)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                    )
+            } else {
+                Button(action: action) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(A10Palette.ink)
+                        .frame(width: 34, height: 34)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }
@@ -733,62 +1508,70 @@ private struct A10HomeOverviewCard: View {
     let language: AppLanguage
 
     var body: some View {
-        A10Card {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
+        LiquidGlassCard(style: .standard, padding: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(L10n.text("恢复总览", "Recovery overview", language: language))
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(A10Palette.inkSecondary)
                         Text(snapshot.stage.title(language: language))
-                            .font(.system(size: 32, weight: .light, design: .rounded))
+                            .font(.system(size: 18, weight: .light, design: .rounded))
                             .foregroundStyle(A10Palette.ink)
                         Text(snapshot.evidenceNote)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
                             .foregroundStyle(A10Palette.inkSecondary)
-                            .lineLimit(2)
+                            .lineLimit(1)
                     }
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: 4) {
                         Text(L10n.text("压力读数", "Stress reading", language: language))
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
                             .foregroundStyle(A10Palette.inkSecondary)
                         Text("\(snapshot.stressScore)/10")
-                            .font(.system(size: 30, weight: .light, design: .rounded))
+                            .font(.system(size: 18, weight: .light, design: .rounded))
                             .foregroundStyle(A10Palette.ink)
                     }
                 }
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    A10OverviewMetricCard(
-                        title: L10n.text("当前阶段", "Current stage", language: language),
-                        value: snapshot.stage.title(language: language),
-                        detail: L10n.text("以闭环推进为主", "Drive the loop first", language: language),
-                        tint: A10Palette.brand
-                    )
-                    A10OverviewMetricCard(
-                        title: L10n.text("进行中动作", "Active plans", language: language),
-                        value: "\(activePlansCount)",
-                        detail: L10n.text("待执行或待确认", "Awaiting execution", language: language),
-                        tint: A10Palette.info
-                    )
-                    A10OverviewMetricCard(
-                        title: L10n.text("已完成动作", "Completed plans", language: language),
-                        value: "\(completedPlansCount)",
-                        detail: L10n.text("形成正反馈", "Closing the loop", language: language),
-                        tint: A10Palette.success
-                    )
-                    A10OverviewMetricCard(
-                        title: L10n.text("下一步", "Next move", language: language),
-                        value: snapshot.nextActionTitle,
-                        detail: L10n.text("保持最低阻力", "Keep resistance low", language: language),
-                        tint: A10Palette.brandSecondary
-                    )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        A10OverviewMetricCard(
+                            title: L10n.text("当前", "Stage", language: language),
+                            value: snapshot.stage.title(language: language),
+                            detail: L10n.text("进度", "Progress", language: language),
+                            tint: A10Palette.brand
+                        )
+                        A10OverviewMetricCard(
+                            title: L10n.text("动作", "Plans", language: language),
+                            value: "\(activePlansCount)",
+                            detail: L10n.text("待执行", "Queued", language: language),
+                            tint: A10Palette.info
+                        )
+                        A10OverviewMetricCard(
+                            title: L10n.text("完成", "Done", language: language),
+                            value: "\(completedPlansCount)",
+                            detail: L10n.text("反馈", "Closed", language: language),
+                            tint: A10Palette.success
+                        )
+                        A10OverviewMetricCard(
+                            title: L10n.text("下一步", "Next", language: language),
+                            value: snapshot.nextActionTitle,
+                            detail: L10n.text("低阻力", "Low friction", language: language),
+                            tint: A10Palette.brandSecondary,
+                            width: 132
+                        )
+                    }
                 }
             }
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(A10Palette.line.opacity(0.68), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 }
 
@@ -800,23 +1583,24 @@ private struct A10MeOverviewCard: View {
     let isSyncing: Bool
 
     var body: some View {
-        A10Card(highlighted: true) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L10n.text("系统面板", "System panel", language: language))
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+        LiquidGlassCard(style: .elevated, padding: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.text("我的概览", "Overview", language: language))
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(A10Palette.inkSecondary)
                         Text(L10n.text("antios10", "antios10", language: language))
-                            .font(.system(size: 30, weight: .light, design: .rounded))
+                            .font(.system(size: 18, weight: .light, design: .rounded))
                             .foregroundStyle(A10Palette.ink)
                         Text(
                             isSyncing
-                            ? L10n.text("远端数据正在回流", "Remote data is flowing in", language: language)
-                            : L10n.text("偏好、状态与远端桥接保持一致", "Preferences, state, and remote bridge are aligned", language: language)
+                            ? L10n.text("数据正在更新", "Updating data", language: language)
+                            : L10n.text("偏好和状态已经保持一致", "Preferences and status are aligned", language: language)
                         )
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(A10Palette.inkSecondary)
+                        .lineLimit(1)
                     }
 
                     Spacer()
@@ -829,36 +1613,43 @@ private struct A10MeOverviewCard: View {
                     )
                 }
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    A10OverviewMetricCard(
-                        title: L10n.text("闭环阶段", "Loop stage", language: language),
-                        value: snapshot?.stage.title(language: language) ?? "A10",
-                        detail: L10n.text("当前体验重心", "Current experience focus", language: language),
-                        tint: A10Palette.brand
-                    )
-                    A10OverviewMetricCard(
-                        title: L10n.text("语言", "Language", language: language),
-                        value: preferences?.languageCode.uppercased() ?? language.rawValue.uppercased(),
-                        detail: L10n.text("界面与文案偏好", "Interface preference", language: language),
-                        tint: A10Palette.brandSecondary
-                    )
-                    A10OverviewMetricCard(
-                        title: L10n.text("提醒", "Reminders", language: language),
-                        value: preferences?.notificationsEnabled == true
-                        ? L10n.text("开启", "On", language: language)
-                        : L10n.text("关闭", "Off", language: language),
-                        detail: L10n.text("只保留高价值触达", "High-value only", language: language),
-                        tint: A10Palette.warning
-                    )
-                    A10OverviewMetricCard(
-                        title: L10n.text("行动池", "Plan pool", language: language),
-                        value: "\(planCount)",
-                        detail: L10n.text("本地与远端统一编排", "Local and remote orchestration", language: language),
-                        tint: A10Palette.info
-                    )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        A10OverviewMetricCard(
+                            title: L10n.text("阶段", "Stage", language: language),
+                            value: snapshot?.stage.title(language: language) ?? "A10",
+                            detail: L10n.text("体验重心", "Focus", language: language),
+                            tint: A10Palette.brand
+                        )
+                        A10OverviewMetricCard(
+                            title: L10n.text("语言", "Language", language: language),
+                            value: preferences?.languageCode.uppercased() ?? language.rawValue.uppercased(),
+                            detail: L10n.text("文案", "Copy", language: language),
+                            tint: A10Palette.brandSecondary
+                        )
+                        A10OverviewMetricCard(
+                            title: L10n.text("提醒", "Reminders", language: language),
+                            value: preferences?.notificationsEnabled == true
+                            ? L10n.text("开启", "On", language: language)
+                            : L10n.text("关闭", "Off", language: language),
+                            detail: L10n.text("高价值", "High value", language: language),
+                            tint: A10Palette.warning
+                        )
+                        A10OverviewMetricCard(
+                            title: L10n.text("计划数", "Plans", language: language),
+                            value: "\(planCount)",
+                            detail: L10n.text("已安排", "Ready", language: language),
+                            tint: A10Palette.info
+                        )
+                    }
                 }
             }
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(A10Palette.brand.opacity(0.14), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 12, y: 6)
     }
 }
 
@@ -1004,7 +1795,7 @@ private struct A10RemoteStatusCard: View {
         A10Card {
             VStack(alignment: .leading, spacing: 12) {
                 A10MetricRow(
-                    title: "Remote",
+                    title: L10n.text("同步状态", "Sync", language: language),
                     value: remoteStatusText
                 )
 
@@ -1024,7 +1815,7 @@ private struct A10RemoteStatusCard: View {
 
                 if let error = syncCoordinator.lastErrorMessage, !error.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.text("最近一次远端同步失败", "The last remote sync attempt failed", language: language))
+                        Text(L10n.text("最近一次同步失败", "The last sync failed", language: language))
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(A10Palette.warning)
                         Text(error)
@@ -1038,18 +1829,18 @@ private struct A10RemoteStatusCard: View {
 
     private var remoteStatusText: String {
         if syncCoordinator.isSyncing {
-            return L10n.text("正在同步 Dashboard / Habits / Recommendations", "Syncing Dashboard / Habits / Recommendations", language: language)
+            return L10n.text("正在同步今天的状态和建议", "Syncing today's state and guidance", language: language)
         }
         if syncCoordinator.lastSyncAt != nil {
-            return L10n.text("远端数据已接入当前壳层", "Remote data is connected to the current shell", language: language)
+            return L10n.text("今天的数据已经同步到位", "Today's data is synced", language: language)
         }
-        return L10n.text("等待首次远端同步", "Waiting for the first remote sync", language: language)
+        return L10n.text("等待首次同步", "Waiting for the first sync", language: language)
     }
 
     private func sourceLabel(for source: String) -> String {
         switch source {
         case "dashboard":
-            return L10n.text("Dashboard 与计划数据", "Dashboard and plan data", language: language)
+            return L10n.text("首页与计划数据", "Home and plan data", language: language)
         case "plans":
             return L10n.text("今日行动回写", "Today plan writeback", language: language)
         case "coach", "max":
@@ -1104,6 +1895,68 @@ private struct A10SettingsToggleRow: View {
     }
 }
 
+private struct A10AppearanceModeRow: View {
+    let title: String
+    let subtitle: String
+    let selectedMode: AppearanceMode
+    let language: AppLanguage
+    let onSelect: (AppearanceMode) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
+                        onSelect(mode)
+                    } label: {
+                        Text(modeTitle(mode))
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(selectedMode == mode ? Color.white.opacity(0.96) : A10Palette.inkSecondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                Capsule()
+                                    .fill(selectedMode == mode ? A10Palette.brand : A10Palette.inset.opacity(0.94))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(
+                                        selectedMode == mode ? A10Palette.brand.opacity(0.16) : A10Palette.line.opacity(0.72),
+                                        lineWidth: 1
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func modeTitle(_ mode: AppearanceMode) -> String {
+        switch mode {
+        case .system:
+            return L10n.text("跟随系统", "System", language: language)
+        case .light:
+            return L10n.text("浅色", "Light", language: language)
+        case .dark:
+            return L10n.text("深色", "Dark", language: language)
+        }
+    }
+}
+
 private struct A10ActionButtonLabel: View {
     let title: String
     let subtitle: String
@@ -1121,17 +1974,25 @@ private struct A10ActionButtonLabel: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .opacity(0.8)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
             Spacer()
             Image(systemName: "arrow.right")
                 .font(.system(size: 12, weight: .bold))
                 .opacity(0.65)
         }
+        .frame(minHeight: 78)
         .padding(14)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1165,36 +2026,39 @@ private struct A10OverviewMetricCard: View {
     let value: String
     let detail: String
     let tint: Color
+    var width: CGFloat = 96
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
                 Circle()
                     .fill(tint.opacity(0.16))
-                    .frame(width: 10, height: 10)
+                    .frame(width: 7, height: 7)
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(A10Palette.inkSecondary)
             }
 
             Text(value)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundStyle(A10Palette.ink)
-                .lineLimit(2)
+                .lineLimit(width > 120 ? 2 : 1)
 
             Text(detail)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 9, weight: .medium, design: .rounded))
                 .foregroundStyle(A10Palette.inkSecondary)
-                .lineLimit(2)
+                .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
-        .padding(14)
+        .frame(width: width, alignment: .topLeading)
+        .frame(minHeight: 52, alignment: .topLeading)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
         .background(A10Palette.inset.opacity(0.96))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(tint.opacity(0.14), lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -1261,618 +2125,6 @@ private enum A10Palette {
     static let info = Color.liquidGlassSecondary
 }
 
-private enum A10SeedData {
-    @MainActor
-    static func ensureSeedData(context: ModelContext, language: AppLanguage) {
-        do {
-            var snapshotDescriptor = FetchDescriptor<A10LoopSnapshot>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
-            snapshotDescriptor.fetchLimit = 1
-            let hasSnapshot = try !context.fetch(snapshotDescriptor).isEmpty
-
-            var planDescriptor = FetchDescriptor<A10ActionPlan>(sortBy: [SortDescriptor(\.sortOrder)])
-            planDescriptor.fetchLimit = 1
-            let hasPlans = try !context.fetch(planDescriptor).isEmpty
-
-            var preferenceDescriptor = FetchDescriptor<A10PreferenceRecord>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
-            preferenceDescriptor.fetchLimit = 1
-            let existingPreferences = try context.fetch(preferenceDescriptor).first
-
-            if !hasSnapshot {
-                context.insert(
-                    A10LoopSnapshot(
-                        headline: L10n.text("先让系统知道你今天最难的点。", "Let the system understand your hardest point today first.", language: language),
-                        summary: L10n.text("新壳层先围绕一个问题、一条解释、一个动作来组织信息。", "The new shell starts by organizing the experience around one question, one explanation, and one action.", language: language),
-                        nextActionTitle: L10n.text("用 20 秒说出触发点", "Name the trigger in 20 seconds", language: language),
-                        nextActionDetail: L10n.text("例如：今天开会前胸口发紧，注意力被拉走。", "Example: before today's meeting my chest tightened and my attention drifted away.", language: language),
-                        evidenceNote: L10n.text("壳层启动后会用远端证据替换这条占位摘要。", "Shell startup will replace this placeholder summary with remote evidence.", language: language),
-                        currentStageRaw: A10LoopStage.inquiry.rawValue,
-                        stressScore: 6
-                    )
-                )
-            }
-
-            if !hasPlans {
-                context.insert(
-                    A10ActionPlan(
-                        title: L10n.text("做 3 分钟呼吸", "Do a 3-minute breathing reset", language: language),
-                        detail: L10n.text("不用追求完整闭环，先做最低阻力动作。", "Do not chase the full loop yet. Start with the lowest-friction action.", language: language),
-                        effortLabel: L10n.text("低负担", "Low load", language: language),
-                        estimatedMinutes: 3,
-                        sortOrder: 0
-                    )
-                )
-                context.insert(
-                    A10ActionPlan(
-                        title: L10n.text("记录一句触发语境", "Log one trigger sentence", language: language),
-                        detail: L10n.text("保留最真实的上下文，后面给解释和行动用。", "Capture the most real context for later explanation and action.", language: language),
-                        effortLabel: L10n.text("1 句话", "1 line", language: language),
-                        estimatedMinutes: 1,
-                        sortOrder: 1
-                    )
-                )
-            }
-
-            if let existingPreferences {
-                existingPreferences.languageCode = language.rawValue
-                existingPreferences.updatedAt = .now
-            } else {
-                context.insert(
-                    A10PreferenceRecord(
-                        languageCode: language.rawValue,
-                        healthSyncEnabled: true,
-                        notificationsEnabled: true,
-                        dailyCheckInHour: 21
-                    )
-                )
-            }
-
-            try context.save()
-        } catch {
-            print("[A10SeedData] failed: \(error)")
-        }
-    }
-
-    @MainActor
-    static func createPreferences(context: ModelContext, language: AppLanguage) -> A10PreferenceRecord {
-        let record = A10PreferenceRecord(
-            languageCode: language.rawValue,
-            healthSyncEnabled: true,
-            notificationsEnabled: true,
-            dailyCheckInHour: 21
-        )
-        context.insert(record)
-        return record
-    }
-}
-
-@MainActor
-private final class A10ShellSyncCoordinator: ObservableObject {
-    @Published private(set) var isSyncing = false
-    @Published private(set) var lastSyncAt: Date?
-    @Published private(set) var lastErrorMessage: String?
-    @Published private(set) var lastRemoteSource: String?
-
-    private let supabase = SupabaseManager.shared
-
-    func sync(
-        context: ModelContext,
-        language: AppLanguage,
-        force: Bool,
-        trigger: String
-    ) async {
-        guard !isSyncing else { return }
-        isSyncing = true
-        defer { isSyncing = false }
-
-        if force || lastSyncAt == nil {
-            await supabase.triggerDailyRecommendations(force: force, language: language.apiCode)
-        }
-
-        async let dashboardTask: DashboardData? = loadOptional { [self] in
-            try await self.supabase.getDashboardData()
-        }
-        async let recommendationsTask: [DailyAIRecommendationItem] = loadDefault([]) { [self] in
-            try await self.supabase.getDailyRecommendations()
-        }
-        async let habitsTask: [SupabaseManager.HabitStatus] = loadDefault([]) { [self] in
-            try await self.supabase.getHabitsForToday()
-        }
-        async let profileTask: ProfileSettings? = loadProfileSettings()
-
-        let dashboard = await dashboardTask
-        let recommendations = await recommendationsTask
-        let habits = await habitsTask
-        let profile = await profileTask
-
-        guard dashboard != nil || profile != nil || !recommendations.isEmpty || !habits.isEmpty else {
-            lastErrorMessage = "No usable remote data returned."
-            return
-        }
-
-        do {
-            try applyRemoteData(
-                dashboard: dashboard,
-                recommendations: recommendations,
-                habits: habits,
-                profile: profile,
-                context: context,
-                language: language
-            )
-            lastSyncAt = .now
-            lastErrorMessage = nil
-            lastRemoteSource = "dashboard"
-
-            await supabase.captureUserSignal(
-                domain: "a10_shell",
-                action: "remote_hydrated",
-                summary: "\(trigger): habits=\(habits.count), recommendations=\(recommendations.count)",
-                metadata: [
-                    "trigger": trigger,
-                    "habits_count": habits.count,
-                    "recommendations_count": recommendations.count,
-                    "has_dashboard": dashboard != nil,
-                    "has_profile": profile != nil
-                ]
-            )
-        } catch {
-            lastErrorMessage = error.localizedDescription
-        }
-    }
-
-    func syncPlanToggle(_ plan: A10ActionPlan, context: ModelContext, language: AppLanguage) async {
-        guard plan.source == .habit, let remoteID = nonEmpty(plan.remoteID) else { return }
-
-        do {
-            try await supabase.setHabitCompletion(habitId: remoteID, isCompleted: plan.isCompleted)
-            lastSyncAt = .now
-            lastErrorMessage = nil
-            lastRemoteSource = "plans"
-            await sync(context: context, language: language, force: false, trigger: "habit_toggle")
-        } catch {
-            lastErrorMessage = error.localizedDescription
-        }
-    }
-
-    func syncPreferences(_ record: A10PreferenceRecord, language: AppLanguage) async {
-        let reminders = ReminderPreferences(
-            morning: record.notificationsEnabled,
-            evening: record.notificationsEnabled,
-            breathing: record.notificationsEnabled
-        )
-
-        do {
-            _ = try await supabase.updateProfileSettings(
-                ProfileSettingsUpdate(
-                    preferred_language: language.apiCode,
-                    reminder_preferences: reminders
-                )
-            )
-            await supabase.captureUserSignal(
-                domain: "a10_shell",
-                action: "preferences_synced",
-                summary: "notifications=\(record.notificationsEnabled), health_sync=\(record.healthSyncEnabled)",
-                metadata: [
-                    "language": language.rawValue,
-                    "notifications_enabled": record.notificationsEnabled,
-                    "health_sync_enabled": record.healthSyncEnabled,
-                    "daily_check_in_hour": record.dailyCheckInHour
-                ]
-            )
-            lastSyncAt = .now
-            lastErrorMessage = nil
-            lastRemoteSource = "profile"
-        } catch {
-            lastErrorMessage = error.localizedDescription
-        }
-    }
-
-    private func applyRemoteData(
-        dashboard: DashboardData?,
-        recommendations: [DailyAIRecommendationItem],
-        habits: [SupabaseManager.HabitStatus],
-        profile: ProfileSettings?,
-        context: ModelContext,
-        language: AppLanguage
-    ) throws {
-        let snapshot = latestSnapshot(in: context) ?? createSnapshot(context: context, language: language)
-        let preferences = latestPreferences(in: context) ?? A10SeedData.createPreferences(context: context, language: language)
-        let planDrafts = buildPlanDrafts(habits: habits, recommendations: recommendations, language: language)
-
-        if !planDrafts.isEmpty {
-            replacePlans(planDrafts, in: context)
-        }
-
-        let inferredStage = inferStage(dashboard: dashboard, recommendations: recommendations, habits: habits)
-        if Calendar.current.isDate(snapshot.updatedAt, inSameDayAs: .now) {
-            snapshot.stage = snapshot.stage.rank >= inferredStage.rank ? snapshot.stage : inferredStage
-        } else {
-            snapshot.stage = inferredStage
-        }
-
-        snapshot.headline = buildHeadline(
-            dashboard: dashboard,
-            recommendations: recommendations,
-            habits: habits,
-            profile: profile,
-            language: language
-        )
-        snapshot.summary = buildSummary(
-            dashboard: dashboard,
-            profile: profile,
-            language: language
-        )
-        snapshot.evidenceNote = buildEvidenceNote(
-            dashboard: dashboard,
-            language: language
-        )
-
-        if let primaryPlan = planDrafts.first(where: { !$0.isCompleted }) ?? planDrafts.first {
-            snapshot.nextActionTitle = primaryPlan.title
-            snapshot.nextActionDetail = primaryPlan.detail
-        }
-        snapshot.stressScore = buildStressScore(dashboard: dashboard, habits: habits)
-        snapshot.updatedAt = .now
-
-        preferences.languageCode = language.rawValue
-        if let reminders = profile?.reminder_preferences {
-            preferences.notificationsEnabled = [reminders.morning, reminders.evening, reminders.breathing].contains(true)
-        }
-        if dashboard?.hardwareData != nil {
-            preferences.healthSyncEnabled = true
-        }
-        preferences.updatedAt = .now
-
-        try context.save()
-    }
-
-    private func replacePlans(_ drafts: [A10RemotePlanDraft], in context: ModelContext) {
-        let descriptor = FetchDescriptor<A10ActionPlan>(sortBy: [SortDescriptor(\.sortOrder)])
-        let existingPlans = (try? context.fetch(descriptor)) ?? []
-        for plan in existingPlans {
-            context.delete(plan)
-        }
-
-        for (index, draft) in drafts.enumerated() {
-            context.insert(
-                A10ActionPlan(
-                    title: draft.title,
-                    detail: draft.detail,
-                    effortLabel: draft.effortLabel,
-                    estimatedMinutes: draft.estimatedMinutes,
-                    isCompleted: draft.isCompleted,
-                    remoteID: draft.remoteID,
-                    sourceRaw: draft.source.rawValue,
-                    sortOrder: index,
-                    updatedAt: .now
-                )
-            )
-        }
-    }
-
-    private func buildPlanDrafts(
-        habits: [SupabaseManager.HabitStatus],
-        recommendations: [DailyAIRecommendationItem],
-        language: AppLanguage
-    ) -> [A10RemotePlanDraft] {
-        var drafts = habits.map { habit in
-            A10RemotePlanDraft(
-                title: habit.title,
-                detail: nonEmpty(habit.description) ?? defaultHabitDetail(language: language),
-                effortLabel: effortLabel(for: habit.minResistanceLevel, language: language),
-                estimatedMinutes: estimatedMinutes(forHabitResistance: habit.minResistanceLevel),
-                isCompleted: habit.isCompleted,
-                remoteID: habit.id,
-                source: .habit
-            )
-        }
-
-        let recommendationDrafts = recommendations.compactMap { item -> A10RemotePlanDraft? in
-            let title = nonEmpty(item.action) ?? nonEmpty(item.title) ?? nonEmpty(item.summary)
-            guard let title else { return nil }
-
-            let detailParts = [nonEmpty(item.summary), nonEmpty(item.reason)].compactMap { $0 }
-            return A10RemotePlanDraft(
-                title: title,
-                detail: detailParts.isEmpty ? defaultRecommendationDetail(language: language) : detailParts.joined(separator: " "),
-                effortLabel: L10n.text("AI 建议", "AI recommendation", language: language),
-                estimatedMinutes: estimateMinutes(from: [item.action, item.title, item.summary, item.reason]),
-                isCompleted: false,
-                remoteID: item.id,
-                source: .recommendation
-            )
-        }
-
-        if drafts.count < 3 {
-            let existingTitles = Set(drafts.map(\.title))
-            drafts.append(contentsOf: recommendationDrafts.filter { !existingTitles.contains($0.title) })
-        }
-
-        return Array(drafts.prefix(6))
-    }
-
-    private func buildHeadline(
-        dashboard: DashboardData?,
-        recommendations: [DailyAIRecommendationItem],
-        habits: [SupabaseManager.HabitStatus],
-        profile: ProfileSettings?,
-        language: AppLanguage
-    ) -> String {
-        if let focus = nonEmpty(profile?.current_focus ?? profile?.primary_goal) {
-            return language == .en
-                ? "Start by collapsing today's state around \(focus)."
-                : "今天先围绕「\(focus)」收口状态。"
-        }
-
-        if let title = nonEmpty(recommendations.first?.title) {
-            return title
-        }
-
-        if let aiRecommendation = nonEmpty(dashboard?.todayLog?.ai_recommendation) {
-            return aiRecommendation
-        }
-
-        if let habit = habits.first(where: { !$0.isCompleted }) ?? habits.first {
-            return language == .en
-                ? "The smallest useful action now is \(habit.title)."
-                : "当前最小可执行动作是：\(habit.title)"
-        }
-
-        return L10n.text(
-            "先让系统知道你今天最难的点。",
-            "Let the system understand your hardest point today first.",
-            language: language
-        )
-    }
-
-    private func buildSummary(
-        dashboard: DashboardData?,
-        profile: ProfileSettings?,
-        language: AppLanguage
-    ) -> String {
-        var parts: [String] = []
-
-        if let focus = nonEmpty(profile?.current_focus) {
-            parts.append(language == .en ? "Current focus: \(focus)" : "当前焦点：\(focus)")
-        }
-
-        if let stress = dashboard?.todayLog?.anxiety_level ?? dashboard?.todayLog?.stress_level {
-            parts.append(language == .en ? "stress \(stress)/10" : "压力 \(stress)/10")
-        }
-
-        if let sleepMinutes = dashboard?.todayLog?.sleep_duration_minutes, sleepMinutes > 0 {
-            let sleepHours = Double(sleepMinutes) / 60
-            let value = String(format: "%.1f", sleepHours)
-            parts.append(language == .en ? "sleep \(value)h" : "睡眠 \(value) 小时")
-        }
-
-        if let hrv = dashboard?.hardwareData?.hrv?.value {
-            parts.append("HRV \(Int(hrv.rounded()))")
-        }
-
-        if let readiness = dashboard?.todayLog?.overall_readiness {
-            parts.append(language == .en ? "readiness \(readiness)/100" : "就绪度 \(readiness)/100")
-        }
-
-        if parts.isEmpty {
-            return L10n.text(
-                "远端数据尚未补齐时，壳层会继续使用本地闭环状态。",
-                "When remote data is still sparse, the shell keeps working from the local loop state.",
-                language: language
-            )
-        }
-
-        return parts.joined(separator: language == .en ? " | " : "｜")
-    }
-
-    private func buildEvidenceNote(
-        dashboard: DashboardData?,
-        language: AppLanguage
-    ) -> String {
-        var parts: [String] = []
-
-        if let bodyTension = dashboard?.todayLog?.body_tension {
-            parts.append(language == .en ? "body tension \(bodyTension)/10" : "身体紧绷 \(bodyTension)/10")
-        }
-
-        if let clarity = dashboard?.todayLog?.mental_clarity {
-            parts.append(language == .en ? "clarity \(clarity)/10" : "清晰度 \(clarity)/10")
-        }
-
-        if let sleepQuality = nonEmpty(dashboard?.todayLog?.sleep_quality) {
-            parts.append(language == .en ? "sleep quality \(sleepQuality)" : "睡眠质量 \(sleepQuality)")
-        }
-
-        if let scores = dashboard?.clinicalScaleScores, !scores.isEmpty {
-            let scoreText = scores
-                .sorted { $0.key < $1.key }
-                .prefix(2)
-                .map { "\($0.key.uppercased()) \($0.value)" }
-                .joined(separator: language == .en ? ", " : "，")
-            if !scoreText.isEmpty {
-                parts.append(scoreText)
-            }
-        }
-
-        if parts.isEmpty {
-            return L10n.text(
-                "已接入 Dashboard、Habits 和 Recommendations，等待更多证据样本。",
-                "Dashboard, Habits, and Recommendations are connected; waiting for more evidence samples.",
-                language: language
-            )
-        }
-
-        return parts.joined(separator: language == .en ? " | " : "｜")
-    }
-
-    private func inferStage(
-        dashboard: DashboardData?,
-        recommendations: [DailyAIRecommendationItem],
-        habits: [SupabaseManager.HabitStatus]
-    ) -> A10LoopStage {
-        if habits.contains(where: \.isCompleted) {
-            return .action
-        }
-        if !recommendations.isEmpty || nonEmpty(dashboard?.todayLog?.ai_recommendation) != nil {
-            return .evidence
-        }
-        if dashboard?.todayLog != nil || dashboard?.hardwareData != nil || !(dashboard?.clinicalScaleScores?.isEmpty ?? true) {
-            return .calibration
-        }
-        return .inquiry
-    }
-
-    private func buildStressScore(
-        dashboard: DashboardData?,
-        habits: [SupabaseManager.HabitStatus]
-    ) -> Int {
-        if let value = dashboard?.todayLog?.anxiety_level ?? dashboard?.todayLog?.stress_level ?? dashboard?.todayLog?.body_tension {
-            return min(max(value, 1), 10)
-        }
-
-        if let scores = dashboard?.clinicalScaleScores?.values, !scores.isEmpty {
-            let average = Double(scores.reduce(0, +)) / Double(scores.count)
-            let normalized = Int((average / 2.1).rounded())
-            return min(max(normalized, 1), 10)
-        }
-
-        if habits.contains(where: \.isCompleted) {
-            return 4
-        }
-
-        return 6
-    }
-
-    private func latestSnapshot(in context: ModelContext) -> A10LoopSnapshot? {
-        var descriptor = FetchDescriptor<A10LoopSnapshot>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
-        descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
-    }
-
-    private func latestPreferences(in context: ModelContext) -> A10PreferenceRecord? {
-        var descriptor = FetchDescriptor<A10PreferenceRecord>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
-        descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
-    }
-
-    private func createSnapshot(context: ModelContext, language: AppLanguage) -> A10LoopSnapshot {
-        let snapshot = A10LoopSnapshot(
-            headline: L10n.text("先让系统知道你今天最难的点。", "Let the system understand your hardest point today first.", language: language),
-            summary: L10n.text("正在把本地壳层和远端数据桥接到一起。", "Bridging the local shell with remote data.", language: language),
-            nextActionTitle: L10n.text("等待远端建议", "Waiting for remote guidance", language: language),
-            nextActionDetail: L10n.text("如果远端暂时没有返回，系统会继续使用本地闭环。", "If remote data is still unavailable, the shell keeps using the local loop.", language: language),
-            evidenceNote: L10n.text("等待第一批远端证据。", "Waiting for the first remote evidence batch.", language: language),
-            currentStageRaw: A10LoopStage.inquiry.rawValue,
-            stressScore: 6
-        )
-        context.insert(snapshot)
-        return snapshot
-    }
-
-    private func effortLabel(for level: Int?, language: AppLanguage) -> String {
-        switch level ?? 2 {
-        case ...2:
-            return L10n.text("低负担", "Low load", language: language)
-        case 3:
-            return L10n.text("中负担", "Medium load", language: language)
-        default:
-            return L10n.text("高价值", "High value", language: language)
-        }
-    }
-
-    private func estimatedMinutes(forHabitResistance level: Int?) -> Int {
-        switch level ?? 2 {
-        case ...2:
-            return 3
-        case 3:
-            return 5
-        default:
-            return 8
-        }
-    }
-
-    private func estimateMinutes(from texts: [String?]) -> Int {
-        let pool = texts.compactMap { $0?.lowercased() }.joined(separator: " ")
-        if let match = pool.range(of: #"(\d+)\s*(min|mins|minute|minutes|分钟)"#, options: .regularExpression) {
-            let fragment = String(pool[match])
-            if let value = Int(fragment.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) {
-                return value
-            }
-        }
-        return 5
-    }
-
-    private func defaultHabitDetail(language: AppLanguage) -> String {
-        L10n.text(
-            "把这个动作作为今天的低阻力锚点，先完成再决定是否加码。",
-            "Use this as today's low-friction anchor before deciding whether to do more.",
-            language: language
-        )
-    }
-
-    private func defaultRecommendationDetail(language: AppLanguage) -> String {
-        L10n.text(
-            "这是后端根据今日状态整理出来的优先动作。",
-            "This is the backend-prioritized action for today's state.",
-            language: language
-        )
-    }
-
-    private func loadProfileSettings() async -> ProfileSettings? {
-        do {
-            return try await supabase.getProfileSettings()
-        } catch {
-            return nil
-        }
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func loadOptional<T>(_ operation: @escaping () async throws -> T) async -> T? {
-        do {
-            return try await operation()
-        } catch {
-            return nil
-        }
-    }
-
-    private func loadDefault<T>(_ fallback: T, operation: @escaping () async throws -> T) async -> T {
-        do {
-            return try await operation()
-        } catch {
-            return fallback
-        }
-    }
-}
-
-private struct A10RemotePlanDraft {
-    let title: String
-    let detail: String
-    let effortLabel: String
-    let estimatedMinutes: Int
-    let isCompleted: Bool
-    let remoteID: String?
-    let source: A10PlanSource
-}
-
-private extension A10LoopStage {
-    var rank: Int {
-        switch self {
-        case .inquiry:
-            return 0
-        case .calibration:
-            return 1
-        case .evidence:
-            return 2
-        case .action:
-            return 3
-        }
-    }
-}
-
 private extension A10Tab {
     var icon: String {
         switch self {
@@ -1885,11 +2137,11 @@ private extension A10Tab {
     func title(language: AppLanguage) -> String {
         switch self {
         case .home:
-            return L10n.text("Home", "Home", language: language)
+            return L10n.text("首页", "Home", language: language)
         case .max:
             return "Max"
         case .me:
-            return L10n.text("Me", "Me", language: language)
+            return L10n.text("我的", "Me", language: language)
         }
     }
 }

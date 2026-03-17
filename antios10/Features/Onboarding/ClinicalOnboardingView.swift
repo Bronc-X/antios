@@ -184,6 +184,7 @@ class ClinicalOnboardingViewModel: ObservableObject {
 
 struct ClinicalOnboardingView: View {
     @StateObject private var viewModel = ClinicalOnboardingViewModel()
+    @State private var showAgentEntry = false
     @Binding var isComplete: Bool
     @Environment(\.screenMetrics) private var metrics
     
@@ -198,6 +199,12 @@ struct ClinicalOnboardingView: View {
         }
         .animation(.easeInOut, value: viewModel.phase)
         .sheet(isPresented: $viewModel.showScaleInfo) { scaleInfoSheet }
+        .fullScreenCover(isPresented: $showAgentEntry) {
+            MaxChatView(rootPresentation: .modal) {
+                showAgentEntry = false
+            }
+            .interactiveDismissDisabled()
+        }
     }
     
     @ViewBuilder
@@ -214,11 +221,12 @@ struct ClinicalOnboardingView: View {
     // MARK: - Welcome
     
     private func welcomeView(geo: GeometryProxy) -> some View {
-        VStack(spacing: 24) {
-            Spacer()
-            
-            BreathingLogo(size: 140, color: .liquidGlassAccent)
-                .frame(height: 180)
+        VStack(spacing: 18) {
+            // 头部范围压缩：从原先约 180pt 缩到约 60pt（约 1/3）
+            Color.clear.frame(height: metrics.safeAreaInsets.top + 6)
+
+            BreathingLogo(size: 48, color: .liquidGlassAccent)
+                .frame(height: 60)
             
             LiquidGlassCard(style: .elevated, padding: 24) {
                 VStack(spacing: 18) {
@@ -245,15 +253,25 @@ struct ClinicalOnboardingView: View {
             }
             .padding(.horizontal, 24)
             
-            Spacer()
-            
-            Button(action: { viewModel.start() }) {
-                Text("开始评估")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
+            Spacer(minLength: 12)
+
+            VStack(spacing: 10) {
+                Button(action: { viewModel.start() }) {
+                    Text("开始评估")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                }
+                .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
+
+                Button(action: { showAgentEntry = true }) {
+                    Text("进入 Max")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                }
+                .buttonStyle(LiquidGlassButtonStyle(isProminent: false))
             }
-            .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
             .padding(.horizontal, 24)
             .padding(.bottom, metrics.safeAreaInsets.bottom + 24)
         }
@@ -286,19 +304,20 @@ struct ClinicalOnboardingView: View {
     // MARK: - Questions (全屏铺满，动态宽度)
     
     private func questionsView(geo: GeometryProxy) -> some View {
-        let screenWidth = metrics.safeWidth
-        let horizontalPadding: CGFloat = metrics.isCompactWidth ? 14 : 16
-        let contentWidth = max(0, screenWidth - horizontalPadding * 2)
-        let rowHorizontalInset: CGFloat = 12
+        let horizontalPadding: CGFloat = metrics.isCompactWidth ? 12 : 16
+        // 使用稳定列宽（maxContentWidth）并显式居中，避免 safe-area 左右不对称导致视觉偏移。
+        let contentWidth = max(0, min(metrics.maxContentWidth, geo.size.width - horizontalPadding * 2))
+        let rowHorizontalInset: CGFloat = metrics.isCompactWidth ? 10 : 12
         let availableWidth = max(0, contentWidth - rowHorizontalInset * 2)
         let optionCount = max(viewModel.currentOptionLabels.count, viewModel.currentPageQuestions.map(\.values.count).max() ?? 4)
-        let optionSpacing: CGFloat = 8
-        let minOptionWidth: CGFloat = metrics.isCompactWidth ? 22 : 26
+        let optionSpacing: CGFloat = metrics.isCompactWidth ? 6 : 8
+        let minQuestionWidth: CGFloat = metrics.isCompactWidth ? 94 : 110
+        let minTapOptionWidth: CGFloat = metrics.isCompactWidth ? 20 : 22
         let spacingTotal = CGFloat(optionCount) * optionSpacing
-        let minOptionsTotal = CGFloat(optionCount) * minOptionWidth
-        let maxQuestionWidth = max(80, availableWidth - minOptionsTotal - spacingTotal)
-        let questionWidth = min(availableWidth * 0.55, maxQuestionWidth)
-        let optionWidth = max(minOptionWidth, (availableWidth - questionWidth - spacingTotal) / CGFloat(optionCount))
+        let preferredQuestionWidth = availableWidth * (metrics.isCompactWidth ? 0.56 : 0.58)
+        let questionUpperBound = availableWidth - CGFloat(optionCount) * minTapOptionWidth - spacingTotal
+        let questionWidth = min(max(minQuestionWidth, preferredQuestionWidth), max(84, questionUpperBound))
+        let optionWidth = max(0, (availableWidth - questionWidth - spacingTotal) / CGFloat(optionCount))
         
         return VStack(spacing: 0) {
             // 顶部安全区占位
@@ -333,7 +352,8 @@ struct ClinicalOnboardingView: View {
                 optionSpacing: optionSpacing,
                 rowHorizontalInset: rowHorizontalInset
             )
-                .padding(.horizontal, horizontalPadding)
+            .frame(width: contentWidth)
+            .frame(maxWidth: .infinity, alignment: .center)
             
             // 问题列表
             ScrollView {
@@ -349,13 +369,15 @@ struct ClinicalOnboardingView: View {
                         )
                     }
                 }
-                .padding(.horizontal, horizontalPadding)
+                .frame(width: contentWidth, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 16)
             }
             
             // 底部导航按钮
             navigationButtons(geo: geo)
         }
+        .offset(x: metrics.centerAxisOffset)
     }
     
     private func optionLabelsRow(
@@ -372,9 +394,13 @@ struct ClinicalOnboardingView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.textSecondary)
                     .frame(width: optionWidth)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.74)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, rowHorizontalInset)
         .padding(.vertical, 8)
         .background(
@@ -406,7 +432,7 @@ struct ClinicalOnboardingView: View {
             .frame(width: questionWidth, alignment: .leading)
             
             // 选项圆圈
-            let optionSize = min(28, optionWidth)
+            let optionSize = max(18, min(28, optionWidth * 0.9))
             ForEach(Array(question.values.enumerated()), id: \.offset) { _, value in
                 Button(action: { viewModel.answer(questionId: question.id, value: value, globalIndex: globalIndex) }) {
                     ZStack {
@@ -424,6 +450,7 @@ struct ClinicalOnboardingView: View {
                 .frame(width: optionWidth)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 16)
         .padding(.horizontal, rowHorizontalInset)
         .background(
@@ -642,7 +669,7 @@ struct ClinicalOnboardingView: View {
                 .font(.largeTitle.bold())
                 .foregroundColor(.textPrimary)
             
-            Text("你的基线数据已进入个性化建议模型。\n接下来 Max 会基于它进行主动问询与解释。")
+            Text("你的基础信息已经准备好。\n接下来 Max 会根据这些信息继续了解你，并给出更贴近你的建议。")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.textSecondary)

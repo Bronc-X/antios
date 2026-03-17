@@ -118,15 +118,15 @@ struct OnboardingView: View {
                             .font(GlassTypography.cnLovi(30, weight: .semibold))
                             .foregroundColor(.bioTextPrimary(for: colorScheme))
                         
-                        Text("你的反焦虑跟进助手\n主动问询、每日校准、科学解释、行动跟进")
+                        Text("陪你记录状态、理清原因、安排下一步")
                             .font(GlassTypography.cnLovi(16, weight: .regular))
                             .foregroundColor(.bioTextSecondary(for: colorScheme))
                             .multilineTextAlignment(.center)
                     }
 
                     HStack(spacing: 10) {
-                        OnboardingSignalPill(text: "问询", tint: .liquidGlassAccent)
-                        OnboardingSignalPill(text: "校准", tint: .liquidGlassWarm)
+                        OnboardingSignalPill(text: "了解", tint: .liquidGlassAccent)
+                        OnboardingSignalPill(text: "记录", tint: .liquidGlassWarm)
                         OnboardingSignalPill(text: "行动", tint: .statusSuccess)
                     }
                 }
@@ -165,7 +165,7 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             stepHeader(
                 title: "基本信息",
-                subtitle: "用于初始化你的反焦虑画像"
+                subtitle: "帮助 Max 先认识你"
             )
             
             ScrollView {
@@ -263,7 +263,7 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             stepHeader(
                 title: "反焦虑优先目标",
-                subtitle: "这一项会决定 Max 的问询与行动方向"
+                subtitle: "这一项会决定 Max 今天更关注什么"
             )
             
             ScrollView {
@@ -322,7 +322,7 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             stepHeader(
                 title: "日常与触发因素",
-                subtitle: "用于每日校准与机制解释"
+                subtitle: "用于记录日常状态，让建议更贴近你"
             )
             
             ScrollView {
@@ -462,7 +462,7 @@ struct OnboardingView: View {
                                     Text("启用跟进提醒")
                                         .font(GlassTypography.cnLovi(16, weight: .medium))
                                         .foregroundColor(.bioTextPrimary(for: colorScheme))
-                                    Text("接收每日校准与跟进提醒")
+                                    Text("接收每日状态提醒")
                                         .font(GlassTypography.cnLovi(13, weight: .regular))
                                         .foregroundColor(.bioTextSecondary(for: colorScheme))
                                 }
@@ -790,8 +790,8 @@ private struct OnboardingStepGuideSheet: View {
             ]
         case 2:
             return [
-                "名字、年龄、性别用于初始化你的个体画像。",
-                "这些信息会影响后续问询文案与建议颗粒度。"
+                "这些基本信息会帮 Max 更快了解你。",
+                "这些信息会影响之后的问题和建议。"
             ]
         case 3:
             return [
@@ -800,7 +800,7 @@ private struct OnboardingStepGuideSheet: View {
             ]
         case 4:
             return [
-                "睡眠、激活频率、紧张度决定每日校准节奏。",
+                "睡眠和紧张程度会影响每天提醒你的节奏。",
                 "系统会根据你的输入动态调整建议强度。"
             ]
         case 5:

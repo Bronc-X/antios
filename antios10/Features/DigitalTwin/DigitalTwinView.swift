@@ -475,19 +475,20 @@ struct DigitalTwinView: View {
         let currentPoint = curveData.predictedLongitudinalOutcomes.timepoints.last(where: { $0.week <= currentWeek }) ?? curveData.predictedLongitudinalOutcomes.timepoints.last
         let selectedValue = currentPoint.map { selectedTrendMetric.value(in: $0.metrics) } ?? 0
 
-        return LiquidGlassCard(style: .elevated, padding: 18) {
-            VStack(alignment: .leading, spacing: 16) {
+        return LiquidGlassCard(style: .elevated, padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("趋势总览")
                             .font(.caption.weight(.semibold))
                             .foregroundColor(.liquidGlassAccent)
                         Text("先看恢复方向，再判断是否需要补基线或刷新数据。")
-                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .foregroundColor(.textPrimary)
                         Text(dataStatus.isGood ? "当前数据可以支持趋势判断。" : "当前数据仍有缺口，建议先补齐基础输入。")
                             .font(.caption)
                             .foregroundColor(.textSecondary)
+                            .lineLimit(2)
                     }
 
                     Spacer(minLength: 0)
@@ -497,12 +498,12 @@ struct DigitalTwinView: View {
                             .font(.caption2.weight(.semibold))
                             .foregroundColor(.textTertiary)
                         Text("W\(currentWeek)")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundColor(.textPrimary)
                     }
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     twinHeroChip(title: "当前重点", value: selectedTrendMetric.label, tint: .liquidGlassAccent)
                     twinHeroChip(title: "当前值", value: String(format: "%.1f", selectedValue), tint: .liquidGlassFreshGreen)
                     twinHeroChip(title: "质量", value: dataStatus.isGood ? "可用" : "需补齐", tint: dataStatus.isGood ? .statusSuccess : .statusWarning)
@@ -771,11 +772,11 @@ struct DigitalTwinView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundColor(.textTertiary)
             Text(value)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundColor(.textPrimary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.surfaceGlass(for: colorScheme))
         .overlay(

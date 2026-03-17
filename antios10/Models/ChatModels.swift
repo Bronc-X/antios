@@ -165,3 +165,122 @@ struct AppendMessageRequest: Encodable {
     let role: String
     let content: String
 }
+
+enum MaxInlineActionKind: String, Codable, Equatable {
+    case checkIn = "check_in"
+    case planReview = "plan_review"
+    case breathing
+    case inquiry
+    case evidence
+    case sendPrompt = "send_prompt"
+    case reviewCompleted = "review_completed"
+    case reviewTooHard = "review_too_hard"
+    case reviewSkipped = "review_skipped"
+}
+
+struct MaxInlineAction: Codable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String?
+    let kind: MaxInlineActionKind
+    let prompt: String?
+    let minutes: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case detail
+        case kind
+        case prompt
+        case minutes
+    }
+
+    init(
+        id: String? = nil,
+        title: String,
+        detail: String? = nil,
+        kind: MaxInlineActionKind,
+        prompt: String? = nil,
+        minutes: Int? = nil
+    ) {
+        self.id = id ?? "\(kind.rawValue):\(title)"
+        self.title = title
+        self.detail = detail
+        self.kind = kind
+        self.prompt = prompt
+        self.minutes = minutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let title = try container.decode(String.self, forKey: .title)
+        let kind = try container.decode(MaxInlineActionKind.self, forKey: .kind)
+        let id = try container.decodeIfPresent(String.self, forKey: .id)
+
+        self.init(
+            id: id,
+            title: title,
+            detail: try container.decodeIfPresent(String.self, forKey: .detail),
+            kind: kind,
+            prompt: try container.decodeIfPresent(String.self, forKey: .prompt),
+            minutes: try container.decodeIfPresent(Int.self, forKey: .minutes)
+        )
+    }
+}
+
+struct MaxInlineActionCard: Codable, Equatable {
+    let title: String
+    let detail: String?
+    let actions: [MaxInlineAction]
+}
+
+private let maxInlineActionCardPattern = #"(?s)```max-actions\s*(\{.*?\})\s*```"#
+
+func parseMaxInlineActionCard(from content: String) -> MaxInlineActionCard? {
+    guard let regex = try? NSRegularExpression(pattern: maxInlineActionCardPattern, options: []) else {
+        return nil
+    }
+    let range = NSRange(content.startIndex..<content.endIndex, in: content)
+    guard let match = regex.firstMatch(in: content, options: [], range: range),
+          match.numberOfRanges >= 2,
+          let payloadRange = Range(match.range(at: 1), in: content) else {
+        return nil
+    }
+
+    let payload = String(content[payloadRange])
+    guard let data = payload.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode(MaxInlineActionCard.self, from: data)
+}
+
+func stripMaxInlineActionCard(from content: String) -> String {
+    guard let regex = try? NSRegularExpression(pattern: maxInlineActionCardPattern, options: []) else {
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    let range = NSRange(content.startIndex..<content.endIndex, in: content)
+    let stripped = regex.stringByReplacingMatches(in: content, options: [], range: range, withTemplate: "")
+    return stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+func appendMaxInlineActionCard(_ card: MaxInlineActionCard, to content: String) -> String {
+    guard let data = try? JSONEncoder.maxInlineActions.encode(card),
+          let payload = String(data: data, encoding: .utf8) else {
+        return content
+    }
+
+    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cardBlock = "```max-actions\n\(payload)\n```"
+    guard !trimmed.isEmpty else { return cardBlock }
+    return "\(trimmed)\n\n\(cardBlock)"
+}
+
+func contentForMaxInference(from content: String) -> String {
+    stripMaxInlineActionCard(from: content).trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private extension JSONEncoder {
+    static let maxInlineActions: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return encoder
+    }()
+}

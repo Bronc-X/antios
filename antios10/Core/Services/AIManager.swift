@@ -16,8 +16,13 @@ enum AIModel: String {
     case qwen3Coder480B = "qwen3-coder-480b-a35b-instruct"
     case qwenMaxLatest = "qwen-max-latest"
     case deepseekV32 = "deepseek-v3.2"
+    case deepseekV32Fast = "deepseek-v3.2-fast"
     case gpt41 = "gpt-4.1"
+    case gpt41Mini = "gpt-4.1-mini"
+    case gpt54 = "gpt-5.4"
     case gpt5ChatLatest = "gpt-5-chat-latest"
+    case gpt51ChatLatest = "gpt-5.1-chat-latest"
+    case gpt52ChatLatest = "gpt-5.2-chat-latest"
 
     // Legacy compatibility models
     case deepseekV3Exp = "deepseek-v3.2-exp"
@@ -44,9 +49,9 @@ private enum AIConfigurationError: LocalizedError {
 final class AIManager: ObservableObject, AIManaging {
     static let shared = AIManager()
     private static let defaultModelFallbackChain: [String] = [
-        AIModel.gpt5ChatLatest.rawValue,
-        AIModel.deepseekV32.rawValue,
-        AIModel.claudeSonnet45.rawValue
+        AIModel.gpt52ChatLatest.rawValue,
+        AIModel.gpt51ChatLatest.rawValue,
+        AIModel.gpt5ChatLatest.rawValue
     ]
 
     private var prioritizedTop3Models: [String] {
@@ -106,21 +111,20 @@ final class AIManager: ObservableObject, AIManaging {
         guard let url = runtimeString(for: "OPENAI_API_BASE") else {
             return nil
         }
-        return normalizeAPIBaseURL(url)
+        return validatedRuntimeURL(from: url, stripsKnownPaths: true)
     }
 
     private var embeddingBaseURL: String? {
         guard let url = runtimeString(for: "OPENAI_EMBEDDING_API_BASE") else {
             return nil
         }
-        return normalizeAPIBaseURL(url)
+        return validatedRuntimeURL(from: url, stripsKnownPaths: true)
     }
 
     private var embeddingURL: String? {
         if let url = runtimeString(for: "OPENAI_EMBEDDING_API_URL") {
-            let cleaned = url.replacingOccurrences(of: "\\", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !cleaned.isEmpty {
-                return cleaned
+            if let validated = validatedRuntimeURL(from: url, stripsKnownPaths: false) {
+                return validated
             }
         }
         if let embeddingBaseURL {
@@ -145,7 +149,7 @@ final class AIManager: ObservableObject, AIManaging {
            !model.isEmpty {
             return model
         }
-        return AIModel.gpt5ChatLatest.rawValue
+        return AIModel.gpt52ChatLatest.rawValue
     }
     
     private init() {}
@@ -207,9 +211,50 @@ final class AIManager: ObservableObject, AIManaging {
         return normalized.hasSuffix("/") ? String(normalized.dropLast()) : normalized
     }
 
-    private struct AIHTTPError: Error {
+    private func validatedRuntimeURL(from raw: String, stripsKnownPaths: Bool) -> String? {
+        let normalized = stripsKnownPaths ? normalizeAPIBaseURL(raw) : raw
+            .replacingOccurrences(of: "\\", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: normalized),
+              let scheme = url.scheme,
+              !scheme.isEmpty,
+              url.host != nil else {
+            return nil
+        }
+        return normalized
+    }
+
+    private struct AIHTTPError: LocalizedError {
         let statusCode: Int
         let payload: String
+
+        var errorDescription: String? {
+            let trimmed = payload
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\t", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = trimmed.lowercased()
+
+            if normalized.contains("insufficient_user_quota")
+                || normalized.contains("quota")
+                || trimmed.contains("额度不足")
+                || trimmed.contains("余额不足") {
+                return "AI 服务额度不足（\(statusCode)）：\(trimmed)"
+            }
+
+            if normalized.contains("invalid_api_key")
+                || normalized.contains("unauthorized")
+                || trimmed.contains("无效的令牌")
+                || trimmed.contains("未提供令牌") {
+                return "AI 服务鉴权失败（\(statusCode)）：\(trimmed)"
+            }
+
+            if normalized.contains("model_not_found") || trimmed.contains("无可用渠道") {
+                return "AI 模型不可用（\(statusCode)）：\(trimmed)"
+            }
+
+            return "AI 服务请求失败（\(statusCode)）：\(trimmed)"
+        }
     }
 
     private func dataWithAbsoluteTimeout(
@@ -255,6 +300,44 @@ final class AIManager: ObservableObject, AIManaging {
         let resolvedModel = model?.rawValue ?? defaultModel
         let candidateModels = buildModelFallbackChain(primary: resolvedModel)
 
+        return try await executeChatCompletion(
+            messages: messages,
+            systemPrompt: systemPrompt,
+            candidateModels: candidateModels,
+            temperature: temperature,
+            timeout: resolvedTimeout
+        )
+    }
+
+    func chatCompletion(
+        messages: [ChatMessage],
+        systemPrompt: String? = nil,
+        modelChain: [AIModel],
+        temperature: Double = 0.7,
+        timeout: TimeInterval? = nil
+    ) async throws -> String {
+        let resolvedTimeout = max(5, timeout ?? requestTimeout)
+        let primary = modelChain.first?.rawValue ?? defaultModel
+        let fallbacks = Array(modelChain.dropFirst()).map(\.rawValue)
+        let candidateModels = buildModelFallbackChain(primary: primary, preferredFallbacks: fallbacks)
+
+        return try await executeChatCompletion(
+            messages: messages,
+            systemPrompt: systemPrompt,
+            candidateModels: candidateModels,
+            temperature: temperature,
+            timeout: resolvedTimeout
+        )
+    }
+
+    private func executeChatCompletion(
+        messages: [ChatMessage],
+        systemPrompt: String?,
+        candidateModels: [String],
+        temperature: Double,
+        timeout resolvedTimeout: TimeInterval
+    ) async throws -> String {
+
         if !didLogConfig {
             if let baseURL {
                 print("✅ [AI] chat.completions base=\(baseURL) modelChain=\(candidateModels.joined(separator: " -> ")) timeout=\(Int(resolvedTimeout))s")
@@ -290,12 +373,24 @@ final class AIManager: ObservableObject, AIManaging {
         throw lastError ?? URLError(.cannotLoadFromNetwork)
     }
 
-    private func buildModelFallbackChain(primary: String) -> [String] {
+    private func buildModelFallbackChain(primary: String, preferredFallbacks: [String] = []) -> [String] {
         let normalizedPrimary = primary.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !normalizedPrimary.isEmpty && !prioritizedTop3Models.contains(normalizedPrimary) {
-            print("ℹ️ [AI] requested model=\(normalizedPrimary) is outside fixed Top3; using fixed chain.")
+        var chain: [String] = []
+        var seen: Set<String> = []
+
+        let merged = [normalizedPrimary] + preferredFallbacks + prioritizedTop3Models
+        for item in merged {
+            let normalized = item.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { continue }
+            if seen.insert(normalized).inserted {
+                chain.append(normalized)
+            }
         }
-        return prioritizedTop3Models
+
+        if !normalizedPrimary.isEmpty && !prioritizedTop3Models.contains(normalizedPrimary) {
+            print("ℹ️ [AI] requested model=\(normalizedPrimary) appended ahead of fallback chain.")
+        }
+        return chain.isEmpty ? prioritizedTop3Models : chain
     }
 
     private func shouldFallback(after error: Error) -> Bool {

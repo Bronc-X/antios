@@ -88,13 +88,13 @@ struct CalibrationView: View {
         .buttonStyle(.plain)
 
         VStack(alignment: .leading, spacing: 6) {
-          Text("Calibration Surface")
+          Text("每日状态")
             .font(.caption.weight(.semibold))
             .foregroundColor(.liquidGlassAccent)
-          Text("校准")
+          Text("状态记录")
             .font(.system(size: metrics.isCompactWidth ? 48 : 56, weight: .bold, design: .rounded))
             .foregroundColor(.textPrimary)
-          Text("每天用低负担问答确认当前紧张度与恢复节奏。")
+          Text("每天花一分钟，记下现在的状态。")
             .font(.caption)
             .foregroundColor(.textSecondary)
         }
@@ -134,14 +134,14 @@ struct WelcomeStep: View {
             if hasCompletedToday {
               Text("今日已完成")
                 .font(.title.bold())
-              Text("你今天已经完成了每日校准")
+              Text("你今天已经记录过状态")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             } else {
               Text("准备好了吗？")
                 .font(.title.bold())
-              Text("每日校准帮助 Max 更了解你的状态")
+              Text("记录一下状态，Max 才能更贴近你")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -155,7 +155,7 @@ struct WelcomeStep: View {
 
       let buttonWidth = min(metrics.maxContentWidth, metrics.isCompactWidth ? 240 : 280)
       if hasCompletedToday {
-        Button("再次校准") {
+        Button("再次记录") {
           guard !isStarting else { return }
           isStarting = true
           Task { @MainActor in
@@ -168,7 +168,7 @@ struct WelcomeStep: View {
           .frame(maxWidth: buttonWidth)
           .frame(maxWidth: .infinity, alignment: .center)
       } else {
-        Button("开始校准") {
+        Button("开始记录") {
           guard !isStarting else { return }
           isStarting = true
           Task { @MainActor in
@@ -202,7 +202,7 @@ struct RestDayStep: View {
             .foregroundColor(.liquidGlassAccent)
 
           VStack(spacing: 8) {
-            Text("今日无需校准")
+            Text("今天先不用记录")
               .font(.title.bold())
             Text("根据当前频率安排，明天再来吧。")
               .font(.subheadline)

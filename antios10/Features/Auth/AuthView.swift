@@ -124,7 +124,7 @@ struct AuthView: View {
                                 tint: .liquidGlassAccent
                             )
                             AuthSignalCard(
-                                title: "数据桥接",
+                                title: "同步保护",
                                 value: "已保护",
                                 tint: .statusSuccess
                             )
@@ -205,7 +205,7 @@ struct AuthView: View {
                         .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
                         .disabled(viewModel.isLoading || viewModel.email.isEmpty || viewModel.password.isEmpty)
 
-                        Text(isLogin ? "登录后会同步你的恢复进展与个性化建议。" : "创建后即可开启完整数据分析与科学解释。")
+                        Text(isLogin ? "登录后会同步你的恢复进展与个性化建议。" : "创建后即可开启完整记录、分析和个性化建议。")
                             .font(GlassTypography.cnLovi(12, weight: .regular))
                             .foregroundColor(.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -339,7 +339,7 @@ private struct AuthInfoSheet: View {
 
                 authBullet("你可以先登录，再逐步补充资料，不会一次要求填完。")
                 authBullet("核心建议在本地可用，登录主要用于同步进度与跨设备恢复。")
-                authBullet("后续你也可在设置里管理 HealthKit 与通知授权。")
+                authBullet("后续你也可在设置里管理 Apple Health 与提醒授权。")
 
                 Spacer(minLength: 0)
             }

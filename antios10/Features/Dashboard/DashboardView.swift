@@ -119,19 +119,24 @@ struct DashboardView: View {
     }
 
     private var heroSection: some View {
-        LiquidGlassCard(style: .elevated, padding: 20) {
-            VStack(alignment: .leading, spacing: 18) {
+        let heroDiameter = metrics.isCompactHeight ? 128.0 : 140.0
+        let heroLineWidth = metrics.isCompactHeight ? 10.0 : 11.0
+        let heroCoreSize = metrics.isCompactHeight ? 92.0 : 100.0
+
+        return LiquidGlassCard(style: .elevated, padding: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(t("今日主控", "Today's control panel"))
                             .font(.caption.weight(.semibold))
                             .foregroundColor(.liquidGlassAccent)
                         Text(viewModel.greeting)
-                            .font(GlassTypography.cnLovi(24, weight: .semibold))
+                            .font(GlassTypography.cnLovi(20, weight: .semibold))
                             .foregroundColor(.textPrimary)
                         Text(positiveFeedbackText)
-                            .font(GlassTypography.cnLovi(14, weight: .regular))
+                            .font(GlassTypography.cnLovi(12, weight: .regular))
                             .foregroundColor(.textSecondary)
+                            .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -144,26 +149,26 @@ struct DashboardView: View {
                     } label: {
                         VStack(alignment: .trailing, spacing: 4) {
                             Image(systemName: "sparkles")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 14, weight: .semibold))
                             Text(t("今日洞察", "Insights"))
                                 .font(.caption2.weight(.semibold))
                         }
                         .foregroundColor(.liquidGlassAccent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
                         .background(Color.surfaceGlass(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
 
-                HStack(alignment: .center, spacing: 18) {
+                HStack(alignment: .center, spacing: 12) {
                     ZStack {
                         Circle()
                             .trim(from: 0.15, to: 0.85)
-                            .stroke(Color.textSecondary.opacity(0.11), style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                            .stroke(Color.textSecondary.opacity(0.11), style: StrokeStyle(lineWidth: heroLineWidth, lineCap: .round))
                             .rotationEffect(.degrees(90))
-                            .frame(width: 188, height: 188)
+                            .frame(width: heroDiameter, height: heroDiameter)
 
                         Circle()
                             .trim(from: 0.15, to: 0.15 + (0.7 * scoreProgress))
@@ -173,10 +178,10 @@ struct DashboardView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 ),
-                                style: StrokeStyle(lineWidth: 14, lineCap: .round)
+                                style: StrokeStyle(lineWidth: heroLineWidth, lineCap: .round)
                             )
                             .rotationEffect(.degrees(90))
-                            .frame(width: 188, height: 188)
+                            .frame(width: heroDiameter, height: heroDiameter)
                             .shadow(color: Color.liquidGlassFreshGreen.opacity(0.2), radius: 8, y: 4)
 
                         Circle()
@@ -191,12 +196,12 @@ struct DashboardView: View {
                                     endRadius: 70
                                 )
                             )
-                            .frame(width: 132, height: 132)
+                            .frame(width: heroCoreSize, height: heroCoreSize)
                             .blur(radius: 6)
 
                         VStack(spacing: 4) {
                             Text(viewModel.overallScore.map { "\($0)" } ?? "—")
-                                .font(GlassTypography.loviTitle(50, weight: .semibold))
+                                .font(GlassTypography.loviTitle(38, weight: .semibold))
                                 .foregroundColor(.textPrimary)
                             Text(t("稳定度 /100", "Stability /100"))
                                 .font(.caption)
@@ -204,7 +209,7 @@ struct DashboardView: View {
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                         dashboardHeroMetric(
                             title: t("连续记录", "Current streak"),
                             value: t("\(calibrationStreakDays) 天", "\(calibrationStreakDays) days"),
@@ -223,7 +228,7 @@ struct DashboardView: View {
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     dashboardInlineBadge(
                         title: t("最小动作优先", "Minimum action first"),
                         systemImage: "bolt.horizontal.circle",
@@ -236,19 +241,19 @@ struct DashboardView: View {
                     )
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(t("下一步动作", "Next step"))
                         .font(.caption.weight(.semibold))
                         .foregroundColor(.textTertiary)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(viewModel.antiAnxietyLoopStatus.currentStep.title)
-                            .font(GlassTypography.cnLovi(17, weight: .semibold))
+                            .font(GlassTypography.cnLovi(16, weight: .semibold))
                             .foregroundColor(.textPrimary)
                         Text(positiveFeedbackText)
                             .font(.caption)
                             .foregroundColor(.textSecondary)
                     }
-                    .padding(14)
+                    .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.surfaceGlass(for: colorScheme))
                     .overlay(
@@ -799,11 +804,11 @@ struct DashboardView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundColor(.textTertiary)
             Text(value)
-                .font(GlassTypography.cnLovi(16, weight: .semibold))
+                .font(GlassTypography.cnLovi(14, weight: .semibold))
                 .foregroundColor(.textPrimary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

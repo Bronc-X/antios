@@ -1,5 +1,7 @@
 import SwiftUI
 
+#if DEBUG
+
 struct A10VisualSystemShowcase: View {
     let language: AppLanguage
 
@@ -96,3 +98,5 @@ struct A10VisualSystemShowcase_Previews: PreviewProvider {
         }
     }
 }
+
+#endif

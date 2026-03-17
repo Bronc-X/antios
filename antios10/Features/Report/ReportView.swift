@@ -71,22 +71,23 @@ struct ReportView: View {
     private var heroInsightCard: some View {
         let evidenceReady = dashboardViewModel.hasVerifiedScienceEvidence
         let readinessText = evidenceReady
-            ? t("真实证据已匹配", "Real evidence matched")
-            : t("等待个性化证据", "Waiting for personalized evidence")
+            ? t("今天的内容已经准备好", "Today's content is ready")
+            : t("还在整理更贴近你的内容", "Preparing more relevant content")
 
-        return LiquidGlassCard(style: .elevated, padding: 18) {
-            VStack(alignment: .leading, spacing: 16) {
+        return LiquidGlassCard(style: .elevated, padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(t("解释总览", "Explanation overview"))
                             .font(.caption.weight(.semibold))
                             .foregroundColor(.liquidGlassAccent)
                         Text(t("先确认可信度，再决定要不要继续深入。", "Confirm confidence first, then decide whether to go deeper."))
-                            .font(GlassTypography.cnLovi(20, weight: .semibold))
+                            .font(GlassTypography.cnLovi(17, weight: .semibold))
                             .foregroundColor(.textPrimary)
                         Text(statusFeedbackText)
                             .font(.caption)
                             .foregroundColor(.textSecondary)
+                            .lineLimit(2)
                     }
 
                     Spacer(minLength: 0)
@@ -98,14 +99,14 @@ struct ReportView: View {
                         Text(readinessText)
                             .font(.caption.weight(.semibold))
                             .foregroundColor(evidenceReady ? .statusSuccess : .statusWarning)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
                             .background((evidenceReady ? Color.statusSuccess : Color.statusWarning).opacity(0.12))
                             .clipShape(Capsule())
                     }
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     reportHeroMetric(
                         title: t("稳定度", "Stability"),
                         value: dashboardViewModel.overallScore.map(String.init) ?? "—",
@@ -123,7 +124,7 @@ struct ReportView: View {
                     )
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Button {
                         let haptic = UIImpactFeedbackGenerator(style: .soft)
                         haptic.impactOccurred()
@@ -134,8 +135,8 @@ struct ReportView: View {
                             Text(t("查看解释方法", "View method"))
                             Spacer()
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
                     }
                     .buttonStyle(LiquidGlassButtonStyle(isProminent: false))
 
@@ -149,8 +150,8 @@ struct ReportView: View {
                             Text(t("进入科学期刊", "Open journals"))
                             Spacer()
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
                     }
                     .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
                 }
@@ -204,10 +205,10 @@ struct ReportView: View {
     private var headerSection: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(t("科学解释", "Scientific explanation"))
+                Text(t("恢复分析", "Recovery analysis"))
                     .font(GlassTypography.cnLovi(30, weight: .semibold))
                     .foregroundColor(.textPrimary)
-                Text(t("机制解释 · 证据来源 · 跟进策略", "Mechanistic explanation · Source of evidence · Follow-up strategy"))
+                Text(t("原因说明 · 参考内容 · 下一步建议", "Reasons · references · next steps"))
                     .font(GlassTypography.cnLovi(14, weight: .regular))
                     .foregroundColor(.textSecondary)
             }
@@ -267,7 +268,7 @@ struct ReportView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "books.vertical.fill")
                         .foregroundColor(.liquidGlassAccent)
-                    Text(t("个性化科学解释", "Personalized scientific explanation"))
+                    Text(t("和你有关的内容", "Relevant for you"))
                         .font(GlassTypography.cnLovi(19, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     Spacer()
@@ -294,7 +295,7 @@ struct ReportView: View {
                             .foregroundColor(.textSecondary)
                     }
 
-                    Text("\(t("数据依据：", "Data basis:"))\(r(dashboardViewModel.scienceEvidenceSnapshot))")
+                    Text("\(t("参考内容：", "Reference:"))\(r(dashboardViewModel.scienceEvidenceSnapshot))")
                         .font(.caption2)
                         .foregroundColor(.textTertiary)
 
@@ -305,12 +306,12 @@ struct ReportView: View {
                                 .foregroundColor(.liquidGlassAccent)
                         }
 
-                        Text(r(article.sourceType ?? t("个性化证据库", "Personalized evidence library")))
+                        Text(r(article.sourceType ?? t("为你筛选的内容", "Picked for you")))
                             .font(.caption2)
                             .foregroundColor(.textTertiary)
                     }
                 } else {
-                    Text(t("科学解释仅在真实证据匹配完成后展示。", "Scientific explanations are shown only after real evidence matching is completed."))
+                    Text(t("有足够记录后，这里会显示更贴近你的内容。", "Once enough data is available, more relevant content will appear here."))
                         .font(.caption)
                         .foregroundColor(.textSecondary)
                     Text(r(dashboardViewModel.scienceEvidenceSnapshot))
@@ -325,7 +326,7 @@ struct ReportView: View {
                         Link(destination: url) {
                             HStack(spacing: 6) {
                                 Image(systemName: "link")
-                                Text(t("打开证据原文", "Open source evidence"))
+                                Text(t("打开原文", "Open source"))
                             }
                             .font(.caption)
                             .foregroundColor(.liquidGlassAccent)
@@ -343,7 +344,7 @@ struct ReportView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "newspaper.fill")
-                            Text(t("进入科学期刊", "Open scientific journals"))
+                            Text(t("看更多内容", "See more"))
                         }
                         .font(.caption)
                         .foregroundColor(.liquidGlassAccent)
@@ -402,7 +403,7 @@ struct ReportView: View {
     private var digitalTwinCard: some View {
         NavigationLink(destination: DigitalTwinView().edgeSwipeBack()) {
             reportNavigationCard(
-                title: t("数字孪生", "Digital twin"),
+                title: t("身体状态", "Body status"),
                 detail: dashboardViewModel.digitalTwinStatusMessage,
                 systemImage: "waveform.path.ecg.rectangle",
                 accent: .liquidGlassAccent,
@@ -415,10 +416,10 @@ struct ReportView: View {
     private var aiAnalysisCard: some View {
         NavigationLink(destination: BodyAnalysisView(analysis: dashboardViewModel.digitalTwinDashboard).edgeSwipeBack()) {
             reportNavigationCard(
-                title: t("AI 身体分析", "AI body analysis"),
+                title: t("身体分析", "Body analysis"),
                 detail: t(
-                    "结合基线、生理和趋势，生成身体层的解释与动作。",
-                    "Combine baseline, physiological, and trend signals into a body-level explanation."
+                    "结合最近状态和趋势，整理出更适合你的原因说明和动作建议。",
+                    "Use recent state and trends to create reasons and next-step suggestions that fit you."
                 ),
                 systemImage: "brain.head.profile",
                 accent: .liquidGlassWarm,
@@ -433,11 +434,11 @@ struct ReportView: View {
     private var hrvSummaryCard: some View {
         NavigationLink(destination: HRVDashboardView().edgeSwipeBack()) {
             reportNavigationCard(
-                title: t("Apple Watch / HealthKit 证据", "Apple Watch / HealthKit evidence"),
+                title: t("Apple Health 数据", "Apple Health data"),
                 detail: r(dashboardViewModel.scienceEvidenceSnapshot),
                 systemImage: "applewatch",
                 accent: .liquidGlassSecondary,
-                meta: t("硬件输入层", "Hardware input layer")
+                meta: t("设备记录", "Device records")
             )
         }
         .buttonStyle(.plain)
@@ -457,10 +458,14 @@ struct ReportView: View {
                         .font(GlassTypography.cnLovi(18, weight: .semibold))
                         .foregroundColor(.textPrimary)
                 }
-                Text(t("完成动作后，把体感变化告诉 Max（0-10），系统会在下一轮自动校准解释和建议。", "After completing an action, tell Max your body sensation change (0-10); the next round will auto-calibrate explanations and suggestions."))
+                Text(t("完成动作后，把体感变化告诉 Max（0-10），下一轮建议会更贴近你。", "After completing an action, tell Max how your body feels on a 0-10 scale. The next round will fit you better."))
                     .font(.caption)
                     .foregroundColor(.textSecondary)
-                NavigationLink(destination: MaxChatView().edgeSwipeBack()) {
+                Button {
+                    let haptic = UIImpactFeedbackGenerator(style: .soft)
+                    haptic.impactOccurred()
+                    NotificationCenter.default.post(name: .openMaxChat, object: nil)
+                } label: {
                     HStack(spacing: 6) {
                         Text(t("去和 Max 复盘", "Review with Max"))
                         Spacer()
@@ -528,14 +533,14 @@ struct ReportView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundColor(.textTertiary)
             Text(value)
-                .font(GlassTypography.cnLovi(17, weight: .semibold))
+                .font(GlassTypography.cnLovi(15, weight: .semibold))
                 .foregroundColor(.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(Color.surfaceGlass(for: colorScheme))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -625,9 +630,9 @@ private struct ReportMethodSheet: View {
                     .buttonStyle(.plain)
                 }
 
-                methodRow(title: t("① 机制解释", "① Mechanistic explanation"), text: t("根据你最近的睡眠、压力和节律信号，先给出最可能机制。", "Based on your recent sleep, stress, and rhythm signals, we present the most likely mechanism first."))
-                methodRow(title: t("② 证据来源", "② Evidence source"), text: hasEvidence ? t("已匹配到真实个性化证据，展示来源与关联原因。", "Real personalized evidence is matched, so source and relevance are shown.") : t("当前证据仍在匹配中，先给保守建议。", "Evidence is still being matched, so conservative guidance is shown first."))
-                methodRow(title: t("③ 跟进策略", "③ Follow-up strategy"), text: t("每条建议都配一个可执行动作 + 一个复盘问题，用于下一轮校准。", "Each recommendation includes one executable action and one review question for the next calibration cycle."))
+                methodRow(title: t("① 为什么会这样", "① Why this"), text: t("根据你最近的睡眠、压力和节律变化，先说现在最可能的原因。", "Based on your recent sleep, stress, and rhythm, we first explain the most likely reason."))
+                methodRow(title: t("② 我们参考了什么", "② What we looked at"), text: hasEvidence ? t("如果已经有足够记录，这里会告诉你参考了哪些内容，以及为什么和你有关。", "When enough records are available, we show what we looked at and why it relates to you.") : t("如果今天的信息还不够，就先给你更稳妥的建议。", "If today's information is still limited, we start with safer guidance first."))
+                methodRow(title: t("③ 下一步怎么做", "③ What to do next"), text: t("每条建议都会配一个可执行动作和一个复盘问题，方便你继续往下走。", "Each suggestion includes one action and one review question so you can keep going easily."))
 
                 Spacer(minLength: 0)
             }
@@ -709,7 +714,7 @@ struct BodyAnalysisView: View {
                     .font(.caption)
                     .foregroundColor(.textTertiary)
             } else {
-                Text("暂无趋势摘要，请先完成评估与校准。")
+                Text("暂无趋势摘要，先补几天记录后再来看会更清楚。")
                     .font(.subheadline)
                     .foregroundColor(.textSecondary)
             }
@@ -722,12 +727,12 @@ struct BodyAnalysisView: View {
 
         return LiquidGlassCard(style: .standard, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("AI 身体分析建议")
+                Text("身体分析建议")
                     .font(.headline)
                     .foregroundColor(.textPrimary)
 
                 if insights.isEmpty {
-                    Text("当前数据不足以生成深入分析，请先完成评估与每日校准。")
+                    Text("当前数据还不够，先多记录几天状态会更准确。")
                         .font(.caption)
                         .foregroundColor(.textTertiary)
                 } else {
@@ -775,7 +780,7 @@ struct BodyAnalysisView: View {
         var actions: [String] = []
         if let summary = analysis?.dashboardData.summaryStats {
             if summary.daysToFirstResult > 0 {
-                actions.append("连续记录与校准 7 天以上，提升模型准确度。")
+                actions.append("连续记录 7 天以上，会更容易看出变化。")
             }
         }
         if actions.isEmpty {
@@ -952,10 +957,10 @@ struct WearableConnectView: View {
             ScrollView {
                 VStack(spacing: metrics.sectionSpacing) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("HealthKit 连接")
+                        Text("Apple Health 连接")
                             .font(.headline)
                             .foregroundColor(.textPrimary)
-                        Text("同步 HRV、睡眠、心率等数据")
+                        Text("同步心率、睡眠和活动等数据")
                             .font(.caption)
                             .foregroundColor(.textSecondary)
                     }
@@ -988,7 +993,7 @@ struct WearableConnectView: View {
                                 Button {
                                     Task { await viewModel.connect() }
                                 } label: {
-                                    Text(L10n.localized(viewModel.isAuthorized ? "重新授权" : "授权 HealthKit"))
+                                    Text(L10n.localized(viewModel.isAuthorized ? "重新授权" : "授权 Apple Health"))
                                         .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(LiquidGlassButtonStyle(isProminent: true))

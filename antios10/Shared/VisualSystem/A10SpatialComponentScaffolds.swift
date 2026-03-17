@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct A10SpatialGlassPanel<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let cornerRadius: CGFloat
     let padding: CGFloat
     let content: Content
@@ -22,16 +24,16 @@ struct A10SpatialGlassPanel<Content: View>: View {
             .padding(padding)
             .background {
                 shape
-                    .fill(A10SpatialPalette.panelFill)
+                    .fill(A10SpatialPalette.heroPanelFill(for: colorScheme))
                     .background(.ultraThinMaterial, in: shape)
                     .overlay(
                         shape
                             .stroke(
                                 LinearGradient(
                                     colors: [
-                                        A10SpatialPalette.panelSheen,
-                                        A10SpatialPalette.panelEdge,
-                                        Color.white.opacity(0.06)
+                                        A10SpatialPalette.heroPanelSheen(for: colorScheme),
+                                        A10SpatialPalette.heroPanelEdge(for: colorScheme),
+                                        colorScheme == .dark ? Color.white.opacity(0.06) : Color(hex: "#DCE4D6").opacity(0.3)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -44,7 +46,7 @@ struct A10SpatialGlassPanel<Content: View>: View {
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(0.16),
+                                        A10SpatialPalette.heroTopSheen(for: colorScheme),
                                         Color.clear
                                     ],
                                     startPoint: .top,
@@ -54,7 +56,7 @@ struct A10SpatialGlassPanel<Content: View>: View {
                             .frame(height: 100)
                             .mask(shape)
                     }
-                    .shadow(color: Color.black.opacity(0.05), radius: 32, y: 8)
+                    .shadow(color: A10SpatialPalette.heroShadow(for: colorScheme), radius: colorScheme == .dark ? 32 : 24, y: 8)
             }
     }
 }
@@ -92,6 +94,8 @@ struct A10RoundGraphiteActionStyle: ButtonStyle {
 }
 
 struct A10AuraLineChart: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let model: A10AuraLineChartModel
     let language: AppLanguage
 
@@ -115,25 +119,40 @@ struct A10AuraLineChart: View {
                     xAxis(in: plotRect)
 
                     curvePath(points: points)
-                        .stroke(Color.white.opacity(0.16 * pulse), style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
-                        .blur(radius: 12)
+                        .stroke(
+                            A10SpatialPalette.heroChartGlow(for: colorScheme).opacity((colorScheme == .dark ? 0.16 : 0.1) * pulse),
+                            style: StrokeStyle(lineWidth: colorScheme == .dark ? 16 : 14, lineCap: .round, lineJoin: .round)
+                        )
+                        .blur(radius: colorScheme == .dark ? 12 : 10)
 
                     curvePath(points: points)
-                        .stroke(Color.white.opacity(0.22 * pulse), style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round))
-                        .blur(radius: 6)
+                        .stroke(
+                            A10SpatialPalette.heroChartGlow(for: colorScheme).opacity((colorScheme == .dark ? 0.22 : 0.14) * pulse),
+                            style: StrokeStyle(lineWidth: colorScheme == .dark ? 10 : 8, lineCap: .round, lineJoin: .round)
+                        )
+                        .blur(radius: colorScheme == .dark ? 6 : 5)
 
                     curvePath(points: points)
-                        .stroke(Color.white.opacity(0.3 * pulse), style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                        .stroke(
+                            A10SpatialPalette.heroChartGlow(for: colorScheme).opacity((colorScheme == .dark ? 0.3 : 0.18) * pulse),
+                            style: StrokeStyle(lineWidth: colorScheme == .dark ? 5 : 4, lineCap: .round, lineJoin: .round)
+                        )
                         .blur(radius: 2)
 
                     curvePath(points: points)
-                        .stroke(Color.white.opacity(0.82), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+                        .stroke(
+                            A10SpatialPalette.heroChartLine(for: colorScheme),
+                            style: StrokeStyle(lineWidth: colorScheme == .dark ? 1.8 : 2.3, lineCap: .round, lineJoin: .round)
+                        )
 
                     ForEach(Array(points.enumerated()), id: \.offset) { index, point in
                         Circle()
-                            .fill(Color.white.opacity(index >= points.count - 2 ? 0.85 : 0.45))
+                            .fill(A10SpatialPalette.heroPointFill(for: colorScheme, highlighted: index >= points.count - 2))
                             .frame(width: index >= points.count - 2 ? 5 : 3, height: index >= points.count - 2 ? 5 : 3)
-                            .shadow(color: Color.white.opacity(0.34), radius: 8)
+                            .shadow(
+                                color: A10SpatialPalette.heroChartGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.34 : 0.16),
+                                radius: colorScheme == .dark ? 8 : 6
+                            )
                             .position(point)
                     }
 
@@ -206,7 +225,7 @@ struct A10AuraLineChart: View {
                 path.addLine(to: CGPoint(x: x, y: rect.maxY))
             }
         }
-        .stroke(A10SpatialPalette.fogHint, style: StrokeStyle(lineWidth: 1, dash: [3, 8]))
+        .stroke(A10SpatialPalette.heroTertiaryText(for: colorScheme).opacity(colorScheme == .dark ? 1 : 0.58), style: StrokeStyle(lineWidth: 1, dash: [3, 8]))
     }
 
     private func yAxis(in rect: CGRect) -> some View {
@@ -214,7 +233,7 @@ struct A10AuraLineChart: View {
             ForEach(model.yLabels, id: \.self) { value in
                 Text(value)
                     .font(A10SpatialTypography.label(9, weight: .regular))
-                    .foregroundColor(A10SpatialPalette.fogHint)
+                    .foregroundColor(A10SpatialPalette.heroTertiaryText(for: colorScheme))
                 if value != model.yLabels.last {
                     Spacer(minLength: 0)
                 }
@@ -229,7 +248,7 @@ struct A10AuraLineChart: View {
             ForEach(Array(model.xLabels.enumerated()), id: \.offset) { _, label in
                 Text(label.resolve(language))
                     .font(A10SpatialTypography.label(10, weight: .regular))
-                    .foregroundColor(A10SpatialPalette.fogHint)
+                    .foregroundColor(A10SpatialPalette.heroTertiaryText(for: colorScheme))
                     .frame(maxWidth: .infinity)
             }
         }
@@ -239,72 +258,103 @@ struct A10AuraLineChart: View {
 }
 
 struct A10GlassTag: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let text: String
 
     var body: some View {
         Text(text)
             .font(A10SpatialTypography.label(10, weight: .medium))
-            .foregroundColor(A10SpatialPalette.fogText.opacity(0.86))
+            .foregroundColor(A10SpatialPalette.heroTagText(for: colorScheme))
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(
                 Capsule()
-                    .fill(Color.white.opacity(0.12))
+                    .fill(A10SpatialPalette.heroTagFill(for: colorScheme))
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(
                         Capsule()
-                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                            .stroke(A10SpatialPalette.heroTagBorder(for: colorScheme), lineWidth: 1)
                     )
             )
     }
 }
 
 struct A10DashboardSpatialHeroCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.screenMetrics) private var metrics
+
     let model: A10DashboardSpatialHeroModel
     let language: AppLanguage
+    var onPrimaryAction: (() -> Void)? = nil
+    var onSecondaryAction: (() -> Void)? = nil
+
+    private var panelPadding: CGFloat {
+        metrics.isCompactHeight ? 14 : 16
+    }
+
+    private var verticalSpacing: CGFloat {
+        metrics.isCompactHeight ? 11 : 13
+    }
+
+    private var chartHeight: CGFloat {
+        metrics.isCompactHeight ? 118 : 130
+    }
+
+    private var productionHeight: CGFloat {
+        metrics.isCompactHeight ? 28 : 32
+    }
 
     var body: some View {
-        A10SpatialGlassPanel(cornerRadius: 38, padding: 24) {
-            VStack(alignment: .leading, spacing: 22) {
+        A10SpatialGlassPanel(cornerRadius: 32, padding: panelPadding) {
+            VStack(alignment: .leading, spacing: verticalSpacing) {
                 HStack {
                     Text(model.eyebrow.resolve(language))
                         .font(A10SpatialTypography.label(11, weight: .regular))
-                        .foregroundColor(A10SpatialPalette.fogHint)
+                        .foregroundColor(A10SpatialPalette.heroTertiaryText(for: colorScheme))
 
                     Spacer()
 
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(A10SpatialPalette.fogSubtext)
+                        .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
                 }
 
-                HStack(spacing: 28) {
+                HStack(spacing: 20) {
                     ForEach(model.topMetrics) { metric in
                         A10MetricBlock(metric: metric, language: language)
                     }
                 }
 
                 A10AuraLineChart(model: model.chart, language: language)
-                .frame(height: 236)
+                    .frame(height: chartHeight)
 
                 HStack(spacing: 12) {
-                    Button(model.primaryActionTitle.resolve(language)) { }
+                    Button(model.primaryActionTitle.resolve(language)) {
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
+                        impact.impactOccurred()
+                        onPrimaryAction?()
+                    }
                         .font(A10SpatialTypography.body(15, weight: .medium))
                         .buttonStyle(A10GraphitePillButtonStyle())
 
-                    Button { } label: {
+                    Button {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
+                        onSecondaryAction?()
+                    } label: {
                         Image(systemName: model.secondaryActionSymbol)
                             .font(.system(size: 16, weight: .semibold))
                     }
                     .buttonStyle(A10RoundGraphiteActionStyle())
                 }
 
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text(model.footerTitle.resolve(language))
                         .font(A10SpatialTypography.label(11, weight: .regular))
-                        .foregroundColor(A10SpatialPalette.fogHint)
+                        .foregroundColor(A10SpatialPalette.heroTertiaryText(for: colorScheme))
 
-                    HStack(spacing: 28) {
+                    HStack(spacing: 20) {
                         ForEach(model.bottomMetrics) { metric in
                             A10MetricBlock(metric: metric, language: language, large: false)
                         }
@@ -312,7 +362,7 @@ struct A10DashboardSpatialHeroCard: View {
                 }
 
                 A10ProductionBarStrip(samples: model.productionSamples)
-                    .frame(height: 48)
+                    .frame(height: productionHeight)
             }
         }
         .frame(maxWidth: .infinity)
@@ -320,25 +370,29 @@ struct A10DashboardSpatialHeroCard: View {
 }
 
 struct A10MetricBlock: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let metric: A10SpatialMetric
     let language: AppLanguage
     var large: Bool = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(metric.value)
-                .font(large ? A10SpatialTypography.heroNumber(40) : A10SpatialTypography.heroNumber(30))
-                .foregroundColor(A10SpatialPalette.fogText)
+                .font(large ? A10SpatialTypography.heroNumber(30) : A10SpatialTypography.heroNumber(22))
+                .foregroundColor(A10SpatialPalette.heroPrimaryText(for: colorScheme))
 
             Text(metric.title.resolve(language))
                 .font(A10SpatialTypography.label(11, weight: .regular))
-                .foregroundColor(A10SpatialPalette.fogSubtext)
+                .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 struct A10ProductionBarStrip: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let samples: [CGFloat]
 
     var body: some View {
@@ -346,7 +400,7 @@ struct A10ProductionBarStrip: View {
             HStack(alignment: .bottom, spacing: 4) {
                 ForEach(Array(samples.enumerated()), id: \.offset) { _, value in
                     Capsule()
-                        .fill(Color.white.opacity(0.36))
+                        .fill(A10SpatialPalette.heroProductionBar(for: colorScheme))
                         .frame(maxWidth: .infinity)
                         .frame(height: max(8, proxy.size.height * value))
                 }
@@ -358,6 +412,8 @@ struct A10ProductionBarStrip: View {
 struct A10FloatingMenuScaffold: View {
     let model: A10FloatingMenuModel
     let language: AppLanguage
+    var onSelectDay: ((Int) -> Void)? = nil
+    var onSelectAction: ((A10FloatingMenuAction) -> Void)? = nil
 
     @Namespace private var menuNamespace
     @State private var selectedDay: Int
@@ -365,10 +421,14 @@ struct A10FloatingMenuScaffold: View {
 
     init(
         model: A10FloatingMenuModel,
-        language: AppLanguage
+        language: AppLanguage,
+        onSelectDay: ((Int) -> Void)? = nil,
+        onSelectAction: ((A10FloatingMenuAction) -> Void)? = nil
     ) {
         self.model = model
         self.language = language
+        self.onSelectDay = onSelectDay
+        self.onSelectAction = onSelectAction
         _selectedDay = State(initialValue: model.selectedDay)
         _isExpanded = State(initialValue: model.presentation == .expanded)
     }
@@ -414,11 +474,23 @@ struct A10FloatingMenuScaffold: View {
         }
         .frame(height: 360)
         .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .onChange(of: model.selectedDay) { _, newValue in
+            withAnimation(A10SpatialMotion.snap) {
+                selectedDay = newValue
+            }
+        }
+        .onChange(of: model.presentation == .expanded) { _, newValue in
+            withAnimation(A10SpatialMotion.snap) {
+                isExpanded = newValue
+            }
+        }
     }
 
     private var collapsedRail: some View {
         HStack(alignment: .bottom, spacing: 18) {
             ForEach(model.days) { day in
+                let isSelected = day.id == selectedDay
+
                 Button {
                     withAnimation(A10SpatialMotion.snap) {
                         selectedDay = day.id
@@ -426,61 +498,77 @@ struct A10FloatingMenuScaffold: View {
                             isExpanded.toggle()
                         }
                     }
+                    onSelectDay?(day.id)
                 } label: {
-                    VStack(spacing: 10) {
-                        Text(day.shortLabel)
-                            .font(A10SpatialTypography.label(13, weight: .medium))
-                            .foregroundColor(.black.opacity(0.34))
-
-                        ZStack {
-                            Capsule()
-                                .fill(Color.white.opacity(day.id == selectedDay ? 0.86 : 0.58))
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.74), lineWidth: 1)
-                                )
-                                .shadow(color: A10SpatialPalette.floatingShadow, radius: 18, y: 10)
-                                .frame(width: 58, height: day.id == selectedDay ? 96 : 72)
-                                .matchedGeometryEffect(id: day.id == selectedDay ? "menu-shell" : "shell-\(day.id)", in: menuNamespace)
-
-                            if day.id == selectedDay {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "triangle.fill")
-                                        .font(.system(size: 8))
-                                        .foregroundColor(.black.opacity(0.54))
-                                        .rotationEffect(.degrees(180))
-                                        .offset(y: -8)
-
-                                    ZStack {
-                                        Circle()
-                                            .fill(
-                                                RadialGradient(
-                                                    colors: [
-                                                        A10SpatialPalette.signalRedGlow,
-                                                        A10SpatialPalette.signalRed
-                                                    ],
-                                                    center: .topLeading,
-                                                    startRadius: 6,
-                                                    endRadius: 40
-                                                )
-                                            )
-                                            .shadow(color: A10SpatialPalette.signalRed.opacity(0.34), radius: 12, y: 6)
-                                        Text("\(day.id)")
-                                            .font(.system(size: 22, weight: .semibold, design: .rounded))
-                                            .foregroundColor(.white)
-                                    }
-                                    .frame(width: 62, height: 62)
-                                }
-                            } else {
-                                Text("\(day.id)")
-                                    .font(.system(size: 18, weight: .regular, design: .rounded))
-                                    .foregroundColor(.black.opacity(0.2))
-                            }
+                    VStack(spacing: 8) {
+                        if isSelected {
+                            Image(systemName: "triangle.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(.black.opacity(0.46))
+                                .rotationEffect(.degrees(180))
                         }
+
+                        Capsule()
+                            .fill(
+                                isSelected
+                                ? AnyShapeStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.liquidGlassAccent.opacity(0.94),
+                                            Color.liquidGlassWarm.opacity(0.78)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                : AnyShapeStyle(Color.white.opacity(0.6))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(isSelected ? 0.4 : 0.74), lineWidth: 1)
+                            )
+                            .shadow(
+                                color: isSelected
+                                ? Color.liquidGlassAccent.opacity(0.22)
+                                : A10SpatialPalette.floatingShadow,
+                                radius: isSelected ? 20 : 18,
+                                y: isSelected ? 12 : 10
+                            )
+                            .frame(width: railWidth(for: day), height: isSelected ? 84 : 62)
+                            .matchedGeometryEffect(id: isSelected ? "menu-shell" : "shell-\(day.id)", in: menuNamespace)
+                            .overlay {
+                                Text(day.shortLabel)
+                                    .font(.system(size: railLabelSize(for: day), weight: isSelected ? .semibold : .medium, design: .rounded))
+                                    .foregroundColor(isSelected ? .white.opacity(0.96) : .black.opacity(0.52))
+                                    .minimumScaleFactor(0.82)
+                                    .lineLimit(1)
+                            }
                     }
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+
+    private func railWidth(for day: A10FloatingMenuDay) -> CGFloat {
+        switch day.shortLabel.count {
+        case 0...2:
+            return day.id == selectedDay ? 72 : 58
+        case 3...4:
+            return day.id == selectedDay ? 78 : 64
+        default:
+            return day.id == selectedDay ? 84 : 70
+        }
+    }
+
+    private func railLabelSize(for day: A10FloatingMenuDay) -> CGFloat {
+        switch day.shortLabel.count {
+        case 0...2:
+            return day.id == selectedDay ? 19 : 15
+        case 3...4:
+            return day.id == selectedDay ? 16 : 13
+        default:
+            return day.id == selectedDay ? 14 : 12
         }
     }
 
@@ -491,6 +579,7 @@ struct A10FloatingMenuScaffold: View {
                     withAnimation(A10SpatialMotion.snap) {
                         isExpanded = false
                     }
+                    onSelectAction?(action)
                 } label: {
                     ZStack {
                         Circle()
@@ -534,12 +623,29 @@ struct A10FloatingMenuScaffold: View {
 }
 
 struct A10EmotionWheelScaffold: View {
+    @Environment(\.screenMetrics) private var metrics
+
     let model: A10EmotionWheelModel
     let language: AppLanguage
+    var selectedShortcutID: String? = nil
+    var onSelectShortcut: ((A10EmotionShortcut) -> Void)? = nil
+    var onSelectDockAction: ((A10DockAction) -> Void)? = nil
+
+    private var shellPadding: CGFloat {
+        metrics.isCompactHeight ? 18 : 20
+    }
+
+    private var containerMinHeight: CGFloat {
+        metrics.isCompactHeight ? 438 : 472
+    }
+
+    private var wheelHeight: CGFloat {
+        metrics.isCompactHeight ? 188 : 204
+    }
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 38, style: .continuous)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
@@ -551,16 +657,16 @@ struct A10EmotionWheelScaffold: View {
                     )
                 )
 
-            VStack(spacing: 18) {
+            VStack(spacing: 14) {
                 header
                 shortcutRow
                 emotionWheel
                 insightCard
                 bottomDock
             }
-            .padding(24)
+            .padding(shellPadding)
         }
-        .frame(maxWidth: .infinity, minHeight: 680)
+        .frame(maxWidth: .infinity, minHeight: containerMinHeight)
     }
 
     private var header: some View {
@@ -572,7 +678,7 @@ struct A10EmotionWheelScaffold: View {
             Spacer()
 
             Text(model.brandTitle)
-                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundColor(.white)
 
             Spacer()
@@ -589,16 +695,34 @@ struct A10EmotionWheelScaffold: View {
     }
 
     private var shortcutRow: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             ForEach(model.shortcuts) { item in
-                VStack(spacing: 6) {
-                    Image(systemName: item.symbol)
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(item.title.resolve(language))
-                        .font(A10SpatialTypography.label(9, weight: .regular))
+                let isSelected = selectedShortcutID == item.id
+
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    onSelectShortcut?(item)
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: item.symbol)
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(item.title.resolve(language))
+                            .font(A10SpatialTypography.label(9, weight: .regular))
+                    }
+                    .foregroundColor(isSelected ? Color.white.opacity(0.92) : A10SpatialPalette.wheelMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(isSelected ? Color.white.opacity(0.24) : Color.clear, lineWidth: 1)
+                    )
                 }
-                .foregroundColor(A10SpatialPalette.wheelMuted)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
             }
         }
     }
@@ -707,7 +831,7 @@ struct A10EmotionWheelScaffold: View {
             }
             .drawingGroup(opaque: false, colorMode: .linear)
         }
-        .frame(height: 290)
+        .frame(height: wheelHeight)
     }
 
     private var insightCard: some View {
@@ -717,11 +841,11 @@ struct A10EmotionWheelScaffold: View {
                 .foregroundColor(A10SpatialPalette.wheelMuted)
 
             Text(model.insight.body.resolve(language))
-                .font(.system(size: 15, weight: .medium, design: .serif))
+                .font(.system(size: 14, weight: .medium, design: .serif))
                 .foregroundColor(Color.black.opacity(0.68))
-                .lineLimit(3)
+                .lineLimit(2)
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: A10SpatialRadius.wheelCard, style: .continuous)
@@ -736,7 +860,7 @@ struct A10EmotionWheelScaffold: View {
             Spacer()
 
             dockButton(action: model.centerDockAction)
-                .frame(width: 58, height: 58)
+                .frame(width: 52, height: 52)
 
             Spacer()
 
@@ -749,16 +873,23 @@ struct A10EmotionWheelScaffold: View {
     }
 
     private func dockButton(action: A10DockAction) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(action.isPrimary ? Color(hex: "#242025") : A10SpatialPalette.wheelDock)
-                .shadow(color: Color.black.opacity(action.isPrimary ? 0.34 : 0.28), radius: 14, y: 8)
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: action.isPrimary ? .medium : .light)
+            impact.impactOccurred()
+            onSelectDockAction?(action)
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(action.isPrimary ? Color(hex: "#242025") : A10SpatialPalette.wheelDock)
+                    .shadow(color: Color.black.opacity(action.isPrimary ? 0.34 : 0.28), radius: 14, y: 8)
 
-            Image(systemName: action.symbol)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.white.opacity(0.84))
+                Image(systemName: action.symbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.84))
+            }
+            .frame(width: 48, height: 48)
         }
-        .frame(width: 54, height: 54)
+        .buttonStyle(.plain)
     }
 }
 

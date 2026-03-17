@@ -67,7 +67,7 @@ final class WearableConnectViewModel: ObservableObject {
 
     func syncNow() async {
         guard isAvailable else {
-            errorMessage = "当前设备不支持 HealthKit"
+            errorMessage = "当前设备不支持 Apple Health"
             return
         }
         errorMessage = nil

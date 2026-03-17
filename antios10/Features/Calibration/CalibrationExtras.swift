@@ -49,7 +49,7 @@ private struct DailyLogDetailView: View {
                     LiquidGlassCard(style: .elevated, padding: 16) {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
-                                Text("今日校准概览")
+                                Text("今日记录概览")
                                     .font(.headline)
                                     .foregroundColor(.textPrimary)
                                 Spacer()
@@ -71,7 +71,7 @@ private struct DailyLogDetailView: View {
                                 HStack(spacing: 8) {
                                     ProgressView()
                                         .tint(.liquidGlassAccent)
-                                    Text("正在读取今日校准明细...")
+                                    Text("正在读取今日记录...")
                                         .font(.caption)
                                         .foregroundColor(.textSecondary)
                                 }
@@ -114,7 +114,7 @@ private struct DailyLogDetailView: View {
                 .padding(.vertical, metrics.verticalPadding)
             }
         }
-        .navigationTitle("每日校准")
+        .navigationTitle("今日记录")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: log.log_date) {
             await loadSummaryItems()
@@ -126,7 +126,7 @@ private struct DailyLogDetailView: View {
             Text("今日已完成")
                 .font(.headline)
                 .foregroundColor(.textPrimary)
-            Text("汇总页仅显示你今天实际填写的校准项")
+            Text("这里只显示你今天刚刚填写的内容")
                 .font(.caption)
                 .foregroundColor(.textSecondary)
         }
@@ -348,7 +348,7 @@ struct WeeklyCalibrationView: View {
                     }
 
                     NavigationLink(destination: CalibrationView()) {
-                        Text("补充本周校准")
+                        Text("补充本周记录")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
@@ -362,7 +362,7 @@ struct WeeklyCalibrationView: View {
                     .progressViewStyle(CircularProgressViewStyle(tint: .liquidGlassAccent))
             }
         }
-        .navigationTitle("周校准")
+        .navigationTitle("本周记录")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.load()
@@ -371,7 +371,7 @@ struct WeeklyCalibrationView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("每周校准复盘")
+            Text("本周回顾")
                 .font(.headline)
                 .foregroundColor(.textPrimary)
             Text("总结一周趋势并更新计划")
@@ -439,7 +439,7 @@ struct MonthlyCalibrationView: View {
                     }
 
                     NavigationLink(destination: CalibrationView()) {
-                        Text("补充月度校准")
+                        Text("补充本月记录")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiquidGlassButtonStyle(isProminent: true))
@@ -453,7 +453,7 @@ struct MonthlyCalibrationView: View {
                     .progressViewStyle(CircularProgressViewStyle(tint: .liquidGlassAccent))
             }
         }
-        .navigationTitle("月校准")
+        .navigationTitle("本月记录")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.load()

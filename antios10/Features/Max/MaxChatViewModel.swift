@@ -5,6 +5,16 @@ import SwiftUI
 import Foundation
 import Network
 
+#if DEBUG
+private struct DebugMaxBatchState {
+    let prompts: [String]
+    let source: String
+    var currentIndex: Int = 0
+    var currentPrompt: String?
+    var currentStartedAt: Date?
+}
+#endif
+
 // MARK: - 模型模式枚举
 enum ModelMode: String, CaseIterable {
     case fast = "fast"
@@ -97,13 +107,13 @@ struct MaxAgentSurfaceModel: Equatable {
         MaxAgentSurfaceModel(
             body: MaxAgentBodySummary(
                 headline: L10n.text("等待身体信号同步", "Waiting for body signals", language: language),
-                detail: L10n.text("同步 Apple Watch 或先完成一次 check-in，Max 会优先按身体状态来跟进。", "Sync Apple Watch or complete one check-in first. Max will prioritize body-state follow-up.", language: language),
-                prompt: L10n.text("我还没有同步 Apple Watch。先根据我今天的体感，带我做一次最简 check-in，然后给我一个恢复动作。", "I have not synced Apple Watch yet. Start with the lightest possible check-in based on my body sensation today, then give me one recovery action.", language: language),
+                detail: L10n.text("先连接 Apple Health，或者先记录一次现在的状态，Max 会按你的身体感觉继续。", "Connect Apple Health or note your current state once first. Max will continue from how your body feels.", language: language),
+                prompt: L10n.text("我还没有同步 Apple Health。先根据我今天的体感，带我快速记录一下状态，然后给我一个恢复动作。", "I have not synced Apple Health yet. Start by quickly capturing how I feel today, then give me one recovery action.", language: language),
                 hasSignals: false
             ),
             inquiry: MaxAgentInquirySummary(
-                headline: L10n.text("问询会跟着身体状态来", "Inquiry will follow body state", language: language),
-                detail: L10n.text("当身体信号不够完整时，Max 会先补一条最关键的问题。", "When body signals are incomplete, Max will ask one high-value question first.", language: language),
+                headline: L10n.text("问题会跟着你的状态来", "Questions follow your state", language: language),
+                detail: L10n.text("当信息还不够时，Max 会先问你一个最关键的问题。", "When there is not enough information, Max asks one key question first.", language: language),
                 prompt: L10n.text("请基于我当前的身体状态，先问我一个最高价值的问题，再据此决定下一步动作。", "Based on my current body state, ask me the highest-value question first, then decide the next action.", language: language),
                 question: nil,
                 primaryTitle: L10n.text("生成一个聚焦问题", "Generate one focused question", language: language),
@@ -111,32 +121,32 @@ struct MaxAgentSurfaceModel: Equatable {
                 evidenceURL: nil
             ),
             plan: MaxAgentPlanSummary(
-                headline: L10n.text("把计划推进收回对话里", "Move plan follow-up into chat", language: language),
+                headline: L10n.text("把计划放回对话里", "Keep the plan in chat", language: language),
                 detail: L10n.text("计划执行和复盘可以直接在 Max 里完成，不需要切到独立页面。", "Plan execution and review can happen directly in Max without switching to a separate screen.", language: language),
                 prompt: L10n.text("基于我当前的身体状态，给我一个今天 10 分钟内能完成的微计划，并拆成 3 步。", "Based on my current body state, give me a micro-plan I can finish within 10 minutes today and break it into 3 steps.", language: language),
                 hasActivePlan: false,
                 ctaTitle: L10n.text("让 Max 给今天动作", "Ask Max for today's action", language: language)
             ),
             proactive: MaxAgentProactiveSummary(
-                headline: L10n.text("主动关怀待生成", "Proactive care is waiting", language: language),
-                detail: L10n.text("Max 会把身体信号、记忆和科学证据压成一条今日关怀。", "Max will compress body signals, memory, and evidence into one daily care brief.", language: language),
+                headline: L10n.text("今日建议待整理", "Today's guidance is waiting", language: language),
+                detail: L10n.text("Max 会把你的状态、最近变化和相关内容整理成一条今天最有用的建议。", "Max will turn your state, recent changes, and relevant content into one useful suggestion for today.", language: language),
                 microAction: L10n.text("先刷新，或让 Max 判断今天最该先做什么。", "Refresh first, or let Max decide what to do first today.", language: language),
                 followUpQuestion: L10n.text("完成后，再让 Max 继续追问。", "After completing it, let Max continue the follow-up.", language: language),
-                prompt: L10n.text("请基于我今天的身体信号、最近记忆和科学证据，生成一条主动关怀：结论、机制、一个微动作、一个量化跟进问题。", "Use my body signals, recent memory, and scientific evidence to generate one proactive care brief for today: conclusion, mechanism, one micro-action, and one measurable follow-up question.", language: language),
-                continuePrompt: L10n.text("请基于我今天的身体信号、最近记忆和科学证据，生成一条主动关怀：结论、机制、一个微动作、一个量化跟进问题。", "Use my body signals, recent memory, and scientific evidence to generate one proactive care brief for today: conclusion, mechanism, one micro-action, and one measurable follow-up question.", language: language),
+                prompt: L10n.text("请基于我今天的身体状态、最近变化和相关内容，给我一条今天最适合的建议：先说结论，再说原因，给一个微动作，最后留一个跟进问题。", "Use my body state, recent changes, and relevant context to give me the most useful guidance for today: conclusion first, then reason, one micro-action, and one follow-up question.", language: language),
+                continuePrompt: L10n.text("请基于我今天的身体状态、最近变化和相关内容，给我一条今天最适合的建议：先说结论，再说原因，给一个微动作，最后留一个跟进问题。", "Use my body state, recent changes, and relevant context to give me the most useful guidance for today: conclusion first, then reason, one micro-action, and one follow-up question.", language: language),
                 hasBrief: false,
-                primaryTitle: L10n.text("生成今日关怀", "Generate today's care brief", language: language),
+                primaryTitle: L10n.text("整理今天建议", "Generate today's guidance", language: language),
                 secondaryTitle: nil
             ),
             evidence: MaxAgentEvidenceSummary(
-                headline: L10n.text("证据解释待展开", "Evidence explanation is waiting", language: language),
-                detail: L10n.text("当日主动关怀会附带机制和证据来源，展开后再交给 Max 解释。", "The daily proactive brief will attach mechanism and evidence source, then Max can expand it.", language: language),
+                headline: L10n.text("原因说明待展开", "Reasoning is waiting", language: language),
+                detail: L10n.text("今天的建议会附带原因和参考内容，展开后再让 Max 说得更清楚。", "Today's guidance comes with a reason and reference context, then Max can explain it more clearly.", language: language),
                 sourceTitle: nil,
                 sourceURL: nil,
                 confidenceText: nil,
-                prompt: L10n.text("请结合我当前身体状态，把今天的机制解释和证据来源展开，并给我一个最小动作。", "Using my current body state, expand today's mechanism explanation and evidence source, then give me one smallest next action.", language: language),
+                prompt: L10n.text("请结合我当前身体状态，把今天建议背后的原因和参考内容讲清楚，并给我一个最小动作。", "Using my current body state, explain the reason and references behind today's guidance, then give me one smallest next action.", language: language),
                 hasEvidence: false,
-                primaryTitle: L10n.text("展开证据解释", "Expand evidence", language: language)
+                primaryTitle: L10n.text("看看为什么", "Why this", language: language)
             ),
             actionReview: MaxAgentActionReviewSummary(
                 actionLabel: L10n.text("完成一个动作后，再回来标记结果。", "Complete one action first, then return to mark the result.", language: language),
@@ -162,7 +172,7 @@ class MaxChatViewModel: ObservableObject {
     @Published var error: String? = nil
     
     // 🆕 P1 功能
-    @Published var modelMode: ModelMode = .fast
+    @Published private(set) var modelMode: ModelMode = .think
     @Published var starterQuestions: [String] = []
     @Published var agentSurface = MaxAgentSurfaceModel.placeholder(language: L10n.currentLanguage())
     @Published var pendingExecutionRequest: MaxAgentExecutionRequest?
@@ -180,6 +190,9 @@ class MaxChatViewModel: ObservableObject {
     private var cachedUserContextAt: Date? = nil
     private var localConversationBackfillInFlight: Set<String> = []
     private var localConversationMessages: [String: [ChatMessage]] = [:]
+    #if DEBUG
+    private var debugBatchState: DebugMaxBatchState?
+    #endif
 
     private enum MaxChatTimeoutError: LocalizedError {
         case cloudTimeout
@@ -344,6 +357,62 @@ class MaxChatViewModel: ObservableObject {
         sendMessage()
     }
 
+    #if DEBUG
+    func startDebugBatch(prompts: [String], source: String) {
+        let normalizedPrompts = prompts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalizedPrompts.isEmpty else { return }
+
+        debugBatchState = DebugMaxBatchState(prompts: normalizedPrompts, source: source)
+        print("[MaxDebugBatch] start count=\(normalizedPrompts.count) source=\(source)")
+        startNextDebugBatchPromptIfNeeded()
+    }
+
+    private func startNextDebugBatchPromptIfNeeded() {
+        guard var state = debugBatchState else { return }
+        guard !isTyping else { return }
+
+        if state.currentIndex >= state.prompts.count {
+            print("[MaxDebugBatch] complete count=\(state.prompts.count) source=\(state.source)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                exit(0)
+            }
+            debugBatchState = nil
+            return
+        }
+
+        let prompt = state.prompts[state.currentIndex]
+        state.currentPrompt = prompt
+        state.currentStartedAt = Date()
+        debugBatchState = state
+        print("[MaxDebugBatch] round=\(state.currentIndex + 1)/\(state.prompts.count) prompt=\(prompt)")
+        sendPreparedPrompt(prompt)
+    }
+
+    private func completeDebugBatchRound(reply: String, fallbackReason: String?) {
+        guard var state = debugBatchState,
+              let prompt = state.currentPrompt,
+              let startedAt = state.currentStartedAt else { return }
+
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+        let sanitizedReply = reply
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+        let reason = fallbackReason?.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ") ?? ""
+        print("[MaxDebugBatch] result round=\(state.currentIndex + 1) elapsed_ms=\(elapsedMs) fallback_reason=\(reason) prompt=\(prompt) reply=\(sanitizedReply)")
+
+        state.currentIndex += 1
+        state.currentPrompt = nil
+        state.currentStartedAt = nil
+        debugBatchState = state
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            self.startNextDebugBatchPromptIfNeeded()
+        }
+    }
+    #endif
+
     func handleInputSubmission() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -456,6 +525,30 @@ class MaxChatViewModel: ObservableObject {
         pendingExecutionRequest = nil
     }
 
+    func handleInlineAction(_ action: MaxInlineAction) {
+        switch action.kind {
+        case .checkIn:
+            pendingExecutionRequest = .checkIn
+        case .planReview:
+            pendingExecutionRequest = .planReview
+        case .breathing:
+            pendingExecutionRequest = .breathing(minutes: max(1, min(30, action.minutes ?? 5)))
+        case .inquiry:
+            pendingExecutionRequest = .inquiry
+        case .evidence:
+            pendingExecutionRequest = .evidence
+        case .sendPrompt:
+            let prompt = action.prompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? action.title
+            sendPreparedPrompt(prompt)
+        case .reviewCompleted:
+            submitActionReview(.completed, sourceText: action.prompt)
+        case .reviewTooHard:
+            submitActionReview(.tooHard, sourceText: action.prompt)
+        case .reviewSkipped:
+            submitActionReview(.skipped, sourceText: action.prompt)
+        }
+    }
+
     private func performResolvedAction(_ action: MaxAgentResolvedAction, sourceText: String?) {
         switch action {
         case .execute(let request):
@@ -499,8 +592,8 @@ class MaxChatViewModel: ObservableObject {
         switch request {
         case .checkIn:
             assistantText = t(
-                "已切到每日 check-in。我会先收 5 个最少必要信号，再根据身体状态继续跟进。",
-                "Switched to daily check-in. I will collect the 5 minimum signals first, then continue from your body state."
+                "已切到每日状态记录。我会先收 5 个最必要的信息，再根据你的状态继续。",
+                "Switched to the daily state note. I will collect the 5 most useful signals first, then continue from your current state."
             )
         case .planReview:
             assistantText = t(
@@ -513,13 +606,13 @@ class MaxChatViewModel: ObservableObject {
                 : "已开始 \(minutes) 分钟呼吸重置。结束后回来告诉我，你的体感变化了多少。"
         case .inquiry:
             assistantText = t(
-                "已切到主动问询。先补一条最高价值的问题，再继续决定下一步动作。",
-                "Switched to guided inquiry. We will fill one highest-value question first, then decide the next action."
+                "先回答这个最关键的问题，再继续决定下一步动作。",
+                "Answer this key question first, then we can decide the next action."
             )
         case .evidence:
             assistantText = t(
-                "已切到证据解释。先看机制和来源，再让 Max 把建议讲透。",
-                "Switched to evidence explanation. Review mechanism and sources first, then let Max expand the recommendation."
+                "先看看原因和参考内容，再让 Max 把建议讲清楚。",
+                "Review the reason and references first, then let Max explain the guidance clearly."
             )
         }
 
@@ -528,6 +621,118 @@ class MaxChatViewModel: ObservableObject {
         if let currentConversationId, currentConversationId.hasPrefix("local-") {
             localConversationMessages[currentConversationId] = messages
         }
+    }
+
+    private var currentLoopStage: A10LoopStage {
+        if !agentSurface.body.hasSignals {
+            return .calibration
+        }
+        if agentSurface.inquiry.hasPendingInquiry {
+            return .inquiry
+        }
+        if agentSurface.proactive.hasBrief || agentSurface.plan.hasActivePlan {
+            return .action
+        }
+        if agentSurface.evidence.hasEvidence {
+            return .evidence
+        }
+        return .action
+    }
+
+    private func decorateAssistantResponseIfNeeded(_ response: String) -> String {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return response }
+        guard parseMaxInlineActionCard(from: trimmed) == nil else { return trimmed }
+        guard parsePlanOptions(from: trimmed) == nil else { return trimmed }
+        guard let card = buildContextualInlineActionCard(for: trimmed) else { return trimmed }
+        return appendMaxInlineActionCard(card, to: trimmed)
+    }
+
+    private func buildContextualInlineActionCard(for response: String) -> MaxInlineActionCard? {
+        let normalized = response.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+
+        if agentSurface.actionReview.hasAction,
+           containsAny(normalized, patterns: [
+               "执行后", "做完", "完成后", "复盘", "review", "after the action", "after you do it"
+           ]) {
+            return MaxInlineActionCard(
+                title: t("直接标记这一步结果", "Mark this step right here"),
+                detail: agentSurface.actionReview.actionLabel,
+                actions: [
+                    MaxInlineAction(title: agentSurface.actionReview.completedTitle, kind: .reviewCompleted),
+                    MaxInlineAction(title: agentSurface.actionReview.tooHardTitle, kind: .reviewTooHard),
+                    MaxInlineAction(title: agentSurface.actionReview.skippedTitle, kind: .reviewSkipped)
+                ]
+            )
+        }
+
+        switch currentLoopStage {
+        case .calibration:
+            return MaxInlineActionCard(
+                title: t("先把身体信号补齐", "Start with body-state capture"),
+                detail: t("不用离开对话，先记录一下状态，或者做一个短呼吸。", "Stay in chat and either log your state or do a short breathing reset."),
+                actions: [
+                    MaxInlineAction(title: t("记录状态", "Log my state"), kind: .checkIn),
+                    MaxInlineAction(title: t("做 3 分钟呼吸", "Do 3-minute breathing"), kind: .breathing, minutes: 3)
+                ]
+            )
+        case .inquiry:
+            return MaxInlineActionCard(
+                title: t("继续这个问题", "Continue this question"),
+                detail: t("先补充一个最关键的信息，再决定下一步。", "Add one key detail before deciding the next step."),
+                actions: [
+                    MaxInlineAction(
+                        title: agentSurface.inquiry.primaryTitle,
+                        detail: agentSurface.inquiry.detail,
+                        kind: .inquiry
+                    ),
+                    MaxInlineAction(
+                        title: t("看看原因和参考内容", "See reasons and references"),
+                        detail: agentSurface.inquiry.evidenceTitle ?? agentSurface.evidence.sourceTitle,
+                        kind: .evidence
+                    )
+                ]
+            )
+        case .action:
+            if agentSurface.actionReview.hasAction {
+                return MaxInlineActionCard(
+                    title: t("直接标记这一步结果", "Mark this step right here"),
+                    detail: agentSurface.actionReview.actionLabel,
+                    actions: [
+                        MaxInlineAction(title: agentSurface.actionReview.completedTitle, kind: .reviewCompleted),
+                        MaxInlineAction(title: agentSurface.actionReview.tooHardTitle, kind: .reviewTooHard),
+                        MaxInlineAction(title: agentSurface.actionReview.skippedTitle, kind: .reviewSkipped)
+                    ]
+                )
+            }
+
+            return MaxInlineActionCard(
+                title: t("把下一步收进对话里", "Keep the next step inside chat"),
+                detail: agentSurface.plan.detail,
+                actions: [
+                    MaxInlineAction(title: agentSurface.plan.ctaTitle, kind: .planReview),
+                    MaxInlineAction(
+                        title: t("让 Max 继续跟进", "Ask Max to continue"),
+                        detail: agentSurface.proactive.hasBrief ? agentSurface.proactive.followUpQuestion : nil,
+                        kind: .sendPrompt,
+                        prompt: agentSurface.proactive.hasBrief ? agentSurface.proactive.continuePrompt : agentSurface.plan.prompt
+                    )
+                ]
+            )
+        case .evidence:
+            return MaxInlineActionCard(
+                title: t("继续展开解释", "Keep expanding the explanation"),
+                detail: agentSurface.evidence.sourceTitle ?? agentSurface.evidence.detail,
+                actions: [
+                    MaxInlineAction(title: agentSurface.evidence.primaryTitle, kind: .evidence),
+                    MaxInlineAction(title: t("做 3 分钟呼吸", "Do 3-minute breathing"), kind: .breathing, minutes: 3)
+                ]
+            )
+        }
+    }
+
+    private func containsAny(_ text: String, patterns: [String]) -> Bool {
+        patterns.contains { text.localizedCaseInsensitiveContains($0) }
     }
 
     private struct MaxAgentPlanSurfaceRow: Codable {
@@ -592,14 +797,14 @@ class MaxChatViewModel: ObservableObject {
                 fallbackParts.append(localize("平均压力 \(String(format: "%.1f", dashboard.averageStress))", "Average stress \(String(format: "%.1f", dashboard.averageStress))"))
             }
             bodyHeadline = fallbackParts.isEmpty
-                ? localize("先完成一次身体 check-in", "Start with a body check-in")
+                ? localize("先记录一下现在的状态", "Start with a quick state note")
                 : localize("先用最近状态做一次判断", "Use recent state for a first-pass judgment")
             bodyDetail = fallbackParts.isEmpty
-                ? localize("还没有拿到 Apple Watch 指标，先做一次 check-in，Agent 会继续追问。", "Apple Watch metrics are not available yet. Complete one check-in and the agent will continue the follow-up.")
+                ? localize("还没有拿到 Apple Health 数据，先记录一下现在的状态，Max 会继续问你最关键的问题。", "Apple Health data is not available yet. Note your current state first, and Max will continue with the most useful question.")
                 : fallbackParts.joined(separator: " · ")
         } else {
             bodyHeadline = localize("等待身体信号同步", "Waiting for body signals")
-            bodyDetail = localize("同步 Apple Watch 或先完成一次 check-in，Max 会优先按身体状态来跟进。", "Sync Apple Watch or complete one check-in first. Max will prioritize body-state follow-up.")
+            bodyDetail = localize("连接 Apple Health，或者先记录一次现在的状态，Max 会按你的身体感觉继续。", "Connect Apple Health or note your current state once first. Max will continue from how your body feels.")
         }
 
         let bodyPrompt: String
@@ -612,7 +817,7 @@ class MaxChatViewModel: ObservableObject {
                 ? "I do not have wearable signals yet. Based on my recent averages, sleep \(String(format: "%.1f", dashboard.averageSleepHours))h and stress \(String(format: "%.1f", dashboard.averageStress)), tell me what body-state issue to handle first and give me one action."
                 : "我还没有同步穿戴设备。先基于最近状态判断：平均睡眠 \(String(format: "%.1f", dashboard.averageSleepHours))h，平均压力 \(String(format: "%.1f", dashboard.averageStress))。请告诉我当前最该先处理的身体状态问题，并给我一个动作。"
         } else {
-            bodyPrompt = localize("我还没有同步身体信号。请先带我做一次最简身体 check-in，再给我今天的恢复动作。", "I have not synced body signals yet. Start with the lightest body check-in, then give me today's recovery action.")
+            bodyPrompt = localize("我还没有同步身体数据。请先带我快速记录一下现在的状态，再给我今天的恢复动作。", "I have not synced body data yet. Start by quickly capturing my current state, then give me today's recovery action.")
         }
 
         let inquiryHeadline: String
@@ -623,7 +828,7 @@ class MaxChatViewModel: ObservableObject {
         let inquiryEvidenceURL: String?
 
         if let pendingInquiry {
-            inquiryHeadline = localize("先回答这条高价值问询", "Answer this high-value inquiry first")
+            inquiryHeadline = localize("先回答这个问题", "Answer this question first")
             inquiryDetail = pendingInquiry.questionText
             inquiryPrompt = language == .en
                 ? "Ask me one focused follow-up question based on my current body state so you can refine the next action."
@@ -632,8 +837,8 @@ class MaxChatViewModel: ObservableObject {
             inquiryEvidenceTitle = pendingInquiry.feedContent?.title
             inquiryEvidenceURL = pendingInquiry.feedContent?.url
         } else {
-            inquiryHeadline = localize("暂无待答问询", "No pending inquiry")
-            inquiryDetail = localize("身体信号已经够用时，Max 会少问；需要补信号时，再生成下一条高价值问题。", "When body signals are sufficient, Max asks less. It will generate the next high-value question only when more signal is needed.")
+            inquiryHeadline = localize("暂时没有待回答问题", "No question waiting")
+            inquiryDetail = localize("当信息已经够用时，Max 会少问；需要更多了解时，再补一个关键问题。", "When there is enough information, Max asks less. It adds another key question only when needed.")
             inquiryPrompt = language == .en
                 ? "Ask me one focused follow-up question based on my current body state so you can refine the next action."
                 : "请基于我当前的身体状态，先问我一个聚焦的跟进问题，用来细化下一步动作。"
@@ -683,23 +888,23 @@ class MaxChatViewModel: ObservableObject {
             proactiveAction = brief.microAction
             proactiveFollowUp = brief.followUpQuestion
             proactivePrompt = language == .en
-                ? "Expand today's proactive care brief for me. Title: \(brief.title). Mechanism: \(brief.mechanism). Micro-action: \(brief.microAction). Follow-up question: \(brief.followUpQuestion). Explain why this matters for my current body state and keep the next step concrete."
-                : "请展开我今天的主动关怀。标题：\(brief.title)。机制：\(brief.mechanism)。微动作：\(brief.microAction)。跟进问题：\(brief.followUpQuestion)。请解释这和我当前身体状态的关系，并把下一步说具体。"
+                ? "Expand today's guidance for me. Title: \(brief.title). Reason: \(brief.mechanism). Micro-action: \(brief.microAction). Follow-up question: \(brief.followUpQuestion). Explain why this fits my current body state and keep the next step concrete."
+                : "请展开我今天的建议。标题：\(brief.title)。原因：\(brief.mechanism)。微动作：\(brief.microAction)。跟进问题：\(brief.followUpQuestion)。请解释这和我当前身体状态的关系，并把下一步说具体。"
             proactiveContinuePrompt = language == .en
-                ? "I saw today's proactive care brief. I completed: \(brief.microAction). Please continue with: \(brief.followUpQuestion)"
-                : "我看到今天的主动关怀卡了。我已执行：\(brief.microAction)。请继续跟进：\(brief.followUpQuestion)"
+                ? "I saw today's guidance. I completed: \(brief.microAction). Please continue with: \(brief.followUpQuestion)"
+                : "我看到今天的建议了。我已执行：\(brief.microAction)。请继续跟进：\(brief.followUpQuestion)"
             proactiveHasBrief = true
             proactivePrimaryTitle = localize("我已执行，继续跟进", "I did it, continue")
-            proactiveSecondaryTitle = localize("展开关怀", "Expand brief")
+            proactiveSecondaryTitle = localize("展开建议", "Expand guidance")
         } else {
-            proactiveHeadline = localize("主动关怀待生成", "Proactive care is waiting")
-            proactiveDetail = localize("Max 会把身体信号、记忆和科学证据压成一条今日关怀。", "Max will compress body signals, memory, and evidence into one daily care brief.")
+            proactiveHeadline = localize("今日建议待整理", "Today's guidance is waiting")
+            proactiveDetail = localize("Max 会把你的状态、最近变化和相关内容整理成一条今天最有用的建议。", "Max will turn your state, recent changes, and relevant context into one useful suggestion for today.")
             proactiveAction = localize("先刷新，或让 Max 判断今天最该先做什么。", "Refresh first, or let Max decide what to do first today.")
             proactiveFollowUp = localize("完成后，再让 Max 继续追问。", "After completing it, let Max continue the follow-up.")
-            proactivePrompt = localize("请基于我今天的身体信号、最近记忆和科学证据，生成一条主动关怀：结论、机制、一个微动作、一个量化跟进问题。", "Use my body signals, recent memory, and scientific evidence to generate one proactive care brief for today: conclusion, mechanism, one micro-action, and one measurable follow-up question.")
+            proactivePrompt = localize("请基于我今天的身体状态、最近变化和相关内容，给我一条今天最适合的建议：先说结论，再说原因，给一个微动作，最后留一个跟进问题。", "Use my body state, recent changes, and relevant context to give me the most useful guidance for today: conclusion first, then reason, one micro-action, and one follow-up question.")
             proactiveContinuePrompt = proactivePrompt
             proactiveHasBrief = false
-            proactivePrimaryTitle = localize("生成今日关怀", "Generate today's care brief")
+            proactivePrimaryTitle = localize("整理今天建议", "Generate today's guidance")
             proactiveSecondaryTitle = nil
         }
 
@@ -715,7 +920,7 @@ class MaxChatViewModel: ObservableObject {
         if let brief = proactiveBrief,
            let sourceTitle = brief.evidenceTitle,
            !sourceTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            evidenceHeadline = localize("把证据展开到可执行", "Expand evidence into action")
+            evidenceHeadline = localize("把原因讲到能马上去做", "Turn reasons into action")
             evidenceDetail = brief.mechanism
             evidenceSourceTitle = sourceTitle
             evidenceSourceURL = brief.evidenceURL
@@ -726,20 +931,20 @@ class MaxChatViewModel: ObservableObject {
             }
             evidencePrompt = language == .en
                 ? "Explain my current state using mechanism, body signals, evidence, one action, and one follow-up question. Use this evidence source: \(sourceTitle)."
-                : "请用机制、身体信号、证据、一个动作和一个跟进问题来解释我当前的状态。证据来源：\(sourceTitle)。"
+                : "请用原因、身体状态、参考内容、一个动作和一个跟进问题来解释我当前的状态。参考内容：\(sourceTitle)。"
             evidenceHasEvidence = true
-            evidencePrimaryTitle = localize("展开证据解释", "Expand evidence")
+            evidencePrimaryTitle = localize("展开原因说明", "Expand reasoning")
         } else {
-            evidenceHeadline = localize("证据解释待展开", "Evidence explanation is waiting")
-            evidenceDetail = localize("当今日证据还没准备好时，先让 Max 基于身体信号做保守解释。", "When today's evidence is not ready, let Max give a conservative explanation from body signals first.")
+            evidenceHeadline = localize("原因说明待展开", "Reasoning is waiting")
+            evidenceDetail = localize("当今天的参考内容还不够时，先让 Max 根据你的身体状态给出稳妥解释。", "When today's reference context is not ready, let Max start with a grounded explanation from your body state.")
             evidenceSourceTitle = nil
             evidenceSourceURL = nil
             evidenceConfidenceText = nil
             evidencePrompt = language == .en
                 ? "Explain my current state using mechanism, body signals, evidence, one action, and one follow-up question."
-                : "请用机制、身体信号、证据、一个动作和一个跟进问题来解释我当前的状态。"
+                : "请用原因、身体状态、参考内容、一个动作和一个跟进问题来解释我当前的状态。"
             evidenceHasEvidence = false
-            evidencePrimaryTitle = localize("让 Max 解释原因", "Ask Max to explain why")
+            evidencePrimaryTitle = localize("让 Max 说清原因", "Ask Max why")
         }
 
         let reviewAction = proactiveHasBrief ? proactiveAction : ""
@@ -801,9 +1006,9 @@ class MaxChatViewModel: ObservableObject {
 
     private func buildCheckInFollowUpPrompt(_ result: DailyCalibrationResult) -> String {
         if currentLanguage == .en {
-            return "I just completed a chat check-in. Daily index \(result.dailyIndex), GAD2 \(result.gad2Score), stress \(result.stressScore), sleep duration score \(result.sleepDurationScore), sleep quality \(result.sleepQualityScore). Based on this and my latest body signals, explain what to handle first and give me one next action."
+            return "I just recorded my current state in chat. Daily index \(result.dailyIndex), GAD2 \(result.gad2Score), stress \(result.stressScore), sleep duration score \(result.sleepDurationScore), sleep quality \(result.sleepQualityScore). Based on this and my latest body signals, tell me what to handle first and give me one next action."
         }
-        return "我刚在对话里完成了一次 check-in。dailyIndex \(result.dailyIndex)，GAD2 \(result.gad2Score)，压力 \(result.stressScore)，睡眠时长得分 \(result.sleepDurationScore)，睡眠质量得分 \(result.sleepQualityScore)。请结合我最新的身体信号，告诉我现在最该先处理什么，并给我一个下一步动作。"
+        return "我刚在对话里记录了一次当前状态。dailyIndex \(result.dailyIndex)，GAD2 \(result.gad2Score)，压力 \(result.stressScore)，睡眠时长得分 \(result.sleepDurationScore)，睡眠质量得分 \(result.sleepQualityScore)。请结合我最新的身体信号，告诉我现在最该先处理什么，并给我一个下一步动作。"
     }
 
     private func buildPlanReviewFollowUpPrompt(
@@ -824,7 +1029,7 @@ class MaxChatViewModel: ObservableObject {
         if currentLanguage == .en {
             return "I just answered your inquiry. Question: \(question.questionText). My answer: \(selectedOption.value). Based on my latest body state, update your judgment, give me one next action, and ask one follow-up question."
         }
-        return "我刚回答了你的问询。问题：\(question.questionText)。我的回答：\(selectedOption.value)。请结合我最新的身体状态，更新判断，给我一个下一步动作，并继续问我一个跟进问题。"
+        return "我刚回答了你的问题。问题：\(question.questionText)。我的回答：\(selectedOption.value)。请结合我最新的身体状态，更新判断，给我一个下一步动作，并继续问我一个跟进问题。"
     }
 
     private func buildActionReviewFollowUpPrompt(
@@ -883,14 +1088,14 @@ class MaxChatViewModel: ObservableObject {
                 starterQuestions = [
                     "Help me identify today's top anxiety trigger to handle first",
                     "Based on my recent sleep and stress, give me one low-friction action",
-                    "Explain with evidence why my tension keeps recurring",
+                    "Help me understand why my tension keeps coming back",
                     "I completed one action already, what is the next step?"
                 ]
             } else {
                 starterQuestions = [
                     "帮我判断今天最需要先处理的焦虑触发点",
                     "基于我最近睡眠和压力，先给我一个低阻力动作",
-                    "请用证据解释我最近紧张反复的原因",
+                    "请告诉我最近总是紧张反复，最可能的原因是什么",
                     "我已经完成一个动作了，下一步该怎么跟进？"
                 ]
             }
@@ -898,13 +1103,6 @@ class MaxChatViewModel: ObservableObject {
             starterQuestions = questions
         }
         print("✅ 加载了 \(starterQuestions.count) 个起始问题")
-    }
-    
-    // MARK: - 🆕 模型模式切换
-    
-    func toggleModelMode() {
-        modelMode = modelMode == .fast ? .think : .fast
-        print("🔄 切换模型模式: \(modelMode.displayName)")
     }
     
     // MARK: - 🆕 停止生成
@@ -1063,9 +1261,11 @@ class MaxChatViewModel: ObservableObject {
                     isTyping = false
                     messages.append(ChatMessage(
                         role: .assistant,
-                        content: buildLocalScientificSoothingResponse(
-                            for: text,
-                            fallbackReason: t("网络离线", "offline network")
+                        content: decorateAssistantResponseIfNeeded(
+                            buildLocalScientificSoothingResponse(
+                                for: text,
+                                fallbackReason: t("网络离线", "offline network")
+                            )
                         )
                     ))
                     self.error = t(
@@ -1141,13 +1341,16 @@ class MaxChatViewModel: ObservableObject {
                 guard generationId == currentGenId else { return }
 
                 // 3. 通过 SupabaseManager 统一调用 Max（含记忆/问询/科学上下文）
-                let requestMessages = messages.map { message in
-                    ChatRequestMessage(
+                let requestMessages = messages.compactMap { message -> ChatRequestMessage? in
+                    let content = contentForMaxInference(from: message.content)
+                    guard !content.isEmpty else { return nil }
+                    return ChatRequestMessage(
                         role: message.role == .user ? "user" : "assistant",
-                        content: message.content
+                        content: content
                     )
                 }
                 let responseText = try await requestMaxResponseWithTimeout(messages: requestMessages)
+                let decoratedResponseText = decorateAssistantResponseIfNeeded(responseText)
 
                 guard generationId == currentGenId else { return }
 
@@ -1155,7 +1358,7 @@ class MaxChatViewModel: ObservableObject {
                 isTyping = false
                 let localAssistantMessage = ChatMessage(
                     role: .assistant,
-                    content: responseText
+                    content: decoratedResponseText
                 )
                 messages.append(localAssistantMessage)
                 if convId.hasPrefix("local-") {
@@ -1164,7 +1367,7 @@ class MaxChatViewModel: ObservableObject {
 
                 if shouldPersistRemotely {
                     let assistantMessageId = localAssistantMessage.id
-                    let assistantContent = responseText
+                    let assistantContent = decoratedResponseText
                     Task { [weak self] in
                         guard let self else { return }
                         if let remoteId = await self.persistMessageWithRetry(
@@ -1191,12 +1394,20 @@ class MaxChatViewModel: ObservableObject {
                         )
                     }
                 }
+                #if DEBUG
+                completeDebugBatchRound(reply: decoratedResponseText, fallbackReason: nil)
+                #endif
             } catch {
                 guard generationId == currentGenId else { return }
 
                 isTyping = false
                 let description = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                let fallback = buildLocalScientificSoothingResponse(for: text, fallbackReason: description)
+                let fallback = decorateAssistantResponseIfNeeded(
+                    buildLocalScientificSoothingResponse(
+                        for: text,
+                        fallbackReason: localModeReasonSummary(from: description)
+                    )
+                )
                 messages.append(ChatMessage(role: .assistant, content: fallback))
                 if let currentConversationId, currentConversationId.hasPrefix("local-") {
                     localConversationMessages[currentConversationId] = messages
@@ -1207,6 +1418,11 @@ class MaxChatViewModel: ObservableObject {
                         "云端响应超时，已切换本地抚慰模式（可稍后重试）",
                         "Cloud response timed out. Switched to local soothing mode (retry later)."
                     )
+                } else if isQuotaLikeFailure(description) {
+                    self.error = t(
+                        "在线服务暂时繁忙，已切换到本地安抚模式",
+                        "Online service is busy. Switched to local soothing mode."
+                    )
                 } else if isLikelyNetworkError(error) {
                     self.error = t(
                         "网络连接异常，已切换本地抚慰模式",
@@ -1214,10 +1430,13 @@ class MaxChatViewModel: ObservableObject {
                     )
                 } else {
                     self.error = t(
-                        "已使用本地模式回复，云端原因：\(description)",
-                        "Responded in local mode. Cloud reason: \(description)"
+                        "云端暂不可用，已切换本地抚慰模式",
+                        "Cloud is temporarily unavailable. Switched to local soothing mode."
                     )
                 }
+                #if DEBUG
+                completeDebugBatchRound(reply: fallback, fallbackReason: description)
+                #endif
                 print("❌ MaxChat Error: \(error)")
             }
         }
@@ -1401,6 +1620,61 @@ class MaxChatViewModel: ObservableObject {
         }
     }
 
+    private func isQuotaLikeFailure(_ message: String) -> Bool {
+        let normalized = message.lowercased()
+        return normalized.contains("insufficient_user_quota")
+            || normalized.contains("quota")
+            || normalized.contains("credit")
+            || normalized.contains("balance")
+            || message.contains("额度不足")
+            || message.contains("余额不足")
+    }
+
+    private func isAuthLikeFailure(_ message: String) -> Bool {
+        let normalized = message.lowercased()
+        return message.contains("无效的令牌")
+            || message.contains("未提供令牌")
+            || normalized.contains("auth error")
+            || normalized.contains("unauthorized")
+            || normalized.contains("invalid_api_key")
+            || normalized.contains("authentication failed")
+            || message.contains("401")
+    }
+
+    private func localModeReasonSummary(from fallbackReason: String) -> String {
+        let normalized = fallbackReason
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+
+        guard !normalized.isEmpty else {
+            return t("在线服务暂不可用", "Online service is temporarily unavailable")
+        }
+
+        let lowercased = normalized.lowercased()
+        if isQuotaLikeFailure(normalized) {
+            return t("在线服务暂时繁忙，已改用本地模式", "Online service is busy, using local mode")
+        }
+
+        if isAuthLikeFailure(normalized) {
+            return t("云端鉴权失败，已改用本地模式", "Cloud authentication failed, using local mode")
+        }
+
+        if normalized.contains("超时") || lowercased.contains("timeout") {
+            return t("云端响应超时，已改用本地模式", "Cloud timed out, using local mode")
+        }
+
+        if normalized.contains("离线")
+            || normalized.contains("网络")
+            || lowercased.contains("offline")
+            || lowercased.contains("network") {
+            return t("网络连接异常，已改用本地模式", "Network issue detected, using local mode")
+        }
+
+        return t("云端暂不可用，已改用本地模式", "Cloud is unavailable, using local mode")
+    }
+
     private func buildLocalScientificSoothingResponse(for userInput: String, fallbackReason: String) -> String {
         let input = userInput.lowercased()
         let isEn = currentLanguage == .en
@@ -1454,36 +1728,44 @@ class MaxChatViewModel: ObservableObject {
         if isEn {
             if styleSelector == 0 {
                 return """
-Conclusion: \(conclusion)
-Why this helps: \(mechanism)
-Evidence note: general psychophysiology evidence on behavioral activation and breath regulation; local mode due to \(fallbackReason).
-Next step: \(action)
-Follow-up: \(followUp)
+\(conclusion)
+
+\(mechanism)
+
+Start here: \(action)
+When you finish, tell me: \(followUp)
+
+(Local mode: \(fallbackReason))
 """
             }
             return """
-\(conclusion)
-\(mechanism)
-Action for today: \(action)
-Check-in question: \(followUp)
+\(conclusion) \(mechanism)
+
+For today, do this: \(action)
+Then reply with: \(followUp)
+
 (Local mode reason: \(fallbackReason))
 """
         }
 
         if styleSelector == 0 {
             return """
-理解结论：\(conclusion)
-机制解释：\(mechanism)
-证据说明：基于行为激活与呼吸调节的通用心理生理证据；当前处于本地模式（\(fallbackReason)）。
-今日动作：\(action)
-跟进问题：\(followUp)
+\(conclusion)
+
+\(mechanism)
+
+先做这一步：\(action)
+做完后告诉我：\(followUp)
+
+（当前为本地模式：\(fallbackReason)）
 """
         }
         return """
-\(conclusion)
-\(mechanism)
-先执行这一步：\(action)
-执行后复盘：\(followUp)
+\(conclusion) \(mechanism)
+
+今天先做：\(action)
+然后回复我：\(followUp)
+
 （当前为本地模式：\(fallbackReason)）
 """
     }

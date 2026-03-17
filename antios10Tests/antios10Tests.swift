@@ -77,8 +77,9 @@ final class antios10Tests: XCTestCase {
 
         let prompt = MaxPromptBuilder.build(input: input)
         XCTAssertTrue(prompt.contains("[ADAPTIVE RESPONSE POLICY]"))
-        XCTAssertTrue(prompt.contains("根据用户输入动态选择输出结构"))
-        XCTAssertTrue(prompt.contains("不强制固定 5 段模板"))
+        XCTAssertTrue(prompt.contains("自由组织回答"))
+        XCTAssertTrue(prompt.contains("不强制固定 5 段或 3 步模板"))
+        XCTAssertTrue(prompt.contains("```max-actions"))
         XCTAssertTrue(prompt.contains("[USER FOCUS]"))
         XCTAssertTrue(prompt.contains("工作场景触发焦虑"))
     }
@@ -98,7 +99,42 @@ final class antios10Tests: XCTestCase {
         )
         let prompt = MaxPromptBuilder.build(input: input)
         XCTAssertTrue(prompt.contains("- Output final answer in English"))
-        XCTAssertTrue(prompt.contains("- Keep a natural, non-template structure unless headings are clearly useful"))
+        XCTAssertTrue(prompt.contains("- Keep a natural, non-template structure; use headings only when they genuinely help"))
+        XCTAssertTrue(prompt.contains("Supported kinds: check_in, plan_review, breathing, inquiry, evidence, send_prompt, review_completed, review_too_hard, review_skipped"))
+    }
+
+    func testMaxInlineActionCardParsingAndStripping() {
+        let content = """
+        先做 3 分钟呼吸，再回来告诉我体感变化。
+
+        ```max-actions
+        {
+          "title" : "直接完成下一步",
+          "detail" : "尽量让用户留在对话里完成",
+          "actions" : [
+            {
+              "title" : "开始 check-in",
+              "kind" : "check_in"
+            },
+            {
+              "title" : "做 3 分钟呼吸",
+              "kind" : "breathing",
+              "minutes" : 3
+            }
+          ]
+        }
+        ```
+        """
+
+        let card = parseMaxInlineActionCard(from: content)
+        XCTAssertEqual(card?.title, "直接完成下一步")
+        XCTAssertEqual(card?.actions.count, 2)
+        XCTAssertEqual(card?.actions.last?.kind, .breathing)
+        XCTAssertEqual(card?.actions.last?.minutes, 3)
+        XCTAssertEqual(
+            stripMaxInlineActionCard(from: content),
+            "先做 3 分钟呼吸，再回来告诉我体感变化。"
+        )
     }
 
     func testConversationStateTrackerDetectsStructuredResponseAndCitation() {

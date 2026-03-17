@@ -91,6 +91,26 @@ extension EnvironmentValues {
     }
 }
 
+struct ScreenMetricsReader<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            let resolvedSize = proxy.size == .zero
+                ? ScreenMetricsKey.defaultValue.size
+                : proxy.size
+            let metrics = ScreenMetrics(
+                size: resolvedSize,
+                safeAreaInsets: proxy.safeAreaInsets
+            )
+
+            content()
+                .environment(\.screenMetrics, metrics)
+                .frame(width: resolvedSize.width, height: resolvedSize.height)
+        }
+    }
+}
+
 // MARK: - Tokens
 enum GlassSpacing {
     static let xxs: CGFloat = 4

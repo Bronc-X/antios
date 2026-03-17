@@ -321,7 +321,7 @@ struct ProfileView: View {
                     color: .liquidGlassWarm
                 )
                 StatCard(
-                    title: "校准次数(30天)",
+                    title: "记录次数(30天)",
                     value: "\(viewModel.usageStats.calibrationCount30d)",
                     unit: "次",
                     icon: "brain.head.profile",
@@ -430,7 +430,7 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             LiquidGlassSectionHeader(title: "偏好设置", icon: "gearshape.fill")
 
-            Text("这些信息会直接影响 Max 的问询重点、动作建议和跟进提醒。")
+            Text("这些信息会直接影响 Max 更关注什么，以及给你的建议。")
                 .font(.caption2)
                 .foregroundColor(.textTertiary)
             
@@ -896,7 +896,7 @@ struct ProfileSetupView: View {
                             }
                             .pickerStyle(.segmented)
 
-                            TextField("每日校准提醒时间", text: $dailyTime)
+                            TextField("每日状态提醒时间", text: $dailyTime)
                                 .textFieldStyle(.plain)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 10)
@@ -1034,7 +1034,7 @@ private struct ProfileGuideSheet: View {
 
                 profileBullet("先完善重点目标与当前关注，Max 的建议会更贴合。")
                 profileBullet("头像、AI 风格、个人背景建议分步编辑，不必一次填完。")
-                profileBullet("资料变更会影响后续问询措辞和行动节奏强度。")
+                profileBullet("资料变更会影响之后的问题和建议节奏。")
 
                 Spacer(minLength: 0)
             }

@@ -80,9 +80,15 @@ struct antios10App: App {
             print("⚠️ [Config] OPENAI_MODEL 未配置，使用默认模型")
         }
 
-        if let supabaseUrl = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
-           let host = URL(string: supabaseUrl)?.host {
+        if let rawSupabaseUrl = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String {
+            let sanitizedSupabaseUrl = rawSupabaseUrl
+                .replacingOccurrences(of: "\\", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let host = URL(string: sanitizedSupabaseUrl)?.host {
             print("✅ [Config] SUPABASE_HOST = \(host)")
+        } else {
+            print("❌ [Config] SUPABASE_URL 未配置!")
+        }
         } else {
             print("❌ [Config] SUPABASE_URL 未配置!")
         }
@@ -97,26 +103,28 @@ struct antios10App: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .tint(Color(red: 0.184, green: 0.431, blue: 0.384))
-                .environmentObject(supabase)
-                .environmentObject(appSettings)
-                .environmentObject(themeManager)
-                .environment(\.locale, Locale(identifier: appSettings.language.localeIdentifier))
-                .preferredColorScheme(themeManager.colorScheme)
-                .task {
-                    await supabase.refreshAppAPIBaseURL()
-                    await supabase.checkSession()
-                }
-                .modelContainer(
-                    for: [
-                        A10LoopSnapshot.self,
-                        A10ActionPlan.self,
-                        A10CoachSession.self,
-                        A10CoachMessage.self,
-                        A10PreferenceRecord.self
-                    ]
-                )
+            ScreenMetricsReader {
+                ContentView()
+                    .tint(Color(red: 0.184, green: 0.431, blue: 0.384))
+                    .environmentObject(supabase)
+                    .environmentObject(appSettings)
+                    .environmentObject(themeManager)
+                    .environment(\.locale, Locale(identifier: appSettings.language.localeIdentifier))
+                    .preferredColorScheme(themeManager.colorScheme)
+                    .task {
+                        await supabase.refreshAppAPIBaseURL()
+                        await supabase.checkSession()
+                    }
+                    .modelContainer(
+                        for: [
+                            A10LoopSnapshot.self,
+                            A10ActionPlan.self,
+                            A10CoachSession.self,
+                            A10CoachMessage.self,
+                            A10PreferenceRecord.self
+                        ]
+                    )
+            }
         }
     }
 
@@ -160,15 +168,16 @@ struct antios10App: App {
 
     private func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 0.98, green: 0.97, blue: 0.94, alpha: 1)
-        appearance.shadowColor = UIColor.black.withAlphaComponent(0.06)
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+        appearance.backgroundColor = .clear
+        appearance.shadowColor = UIColor.black.withAlphaComponent(0.08)
         appearance.titleTextAttributes = [
-            .foregroundColor: UIColor(red: 0.12, green: 0.14, blue: 0.16, alpha: 1),
+            .foregroundColor: UIColor.label,
             .font: UIFont.systemFont(ofSize: 17, weight: .semibold)
         ]
         appearance.largeTitleTextAttributes = [
-            .foregroundColor: UIColor(red: 0.12, green: 0.14, blue: 0.16, alpha: 1),
+            .foregroundColor: UIColor.label,
             .font: UIFont.systemFont(ofSize: 28, weight: .bold)
         ]
 
@@ -176,6 +185,8 @@ struct antios10App: App {
         navBar.standardAppearance = appearance
         navBar.scrollEdgeAppearance = appearance
         navBar.compactAppearance = appearance
+        navBar.compactScrollEdgeAppearance = appearance
         navBar.tintColor = UIColor(red: 0.18, green: 0.43, blue: 0.38, alpha: 1)
+        navBar.isTranslucent = true
     }
 }

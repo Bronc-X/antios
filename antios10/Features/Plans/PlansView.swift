@@ -222,8 +222,8 @@ struct PlansView: View {
       quickEntryCard(
         icon: "books.vertical.fill",
         iconColor: .liquidGlassAccent,
-        title: "定制科学期刊",
-        subtitle: "精选研究与证据解读，支持你的计划执行",
+        title: "推荐内容",
+        subtitle: "为你挑选和当前状态相关的内容",
         route: .journal
       )
     }
@@ -273,7 +273,7 @@ struct PlansView: View {
           Image(systemName: "sparkles")
             .font(.title3)
             .foregroundColor(.liquidGlassAccent)
-          Text("行动编排器")
+          Text("今日安排")
             .font(.headline)
             .foregroundColor(.textPrimary)
           Spacer()
@@ -282,7 +282,7 @@ struct PlansView: View {
           }
         }
 
-        Text("让 Max 基于问询、校准和科学证据生成下一步行动，并在这里执行与跟进")
+        Text("让 Max 根据你的近况整理下一步安排，你可以在这里查看和完成")
           .font(.caption)
           .foregroundColor(.textSecondary)
 

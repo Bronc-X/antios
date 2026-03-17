@@ -42,6 +42,113 @@ enum A10SpatialPalette {
         Color(hex: "#DFD6E9"),
         Color(hex: "#B8B0C4")
     ]
+
+    static func heroPanelFill(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return panelFill
+        }
+        return Color.white.opacity(0.54)
+    }
+
+    static func heroPanelSheen(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return panelSheen
+        }
+        return Color.white.opacity(0.76)
+    }
+
+    static func heroPanelEdge(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return panelEdge
+        }
+        return Color(hex: "#CCD5C9").opacity(0.88)
+    }
+
+    static func heroPrimaryText(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return fogText
+        }
+        return Color.textPrimary(for: scheme).opacity(0.96)
+    }
+
+    static func heroSecondaryText(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return fogSubtext
+        }
+        return Color.textSecondary(for: scheme).opacity(0.94)
+    }
+
+    static func heroTertiaryText(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return fogHint
+        }
+        return Color(hex: "#7A8577").opacity(0.96)
+    }
+
+    static func heroChartLine(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(0.84)
+        }
+        return Color(hex: "#536254").opacity(0.94)
+    }
+
+    static func heroChartGlow(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white
+        }
+        return Color(hex: "#A7B9A3")
+    }
+
+    static func heroPointFill(for scheme: ColorScheme, highlighted: Bool) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(highlighted ? 0.85 : 0.45)
+        }
+        return highlighted
+            ? Color(hex: "#4E5F51").opacity(0.96)
+            : Color(hex: "#738171").opacity(0.8)
+    }
+
+    static func heroTagFill(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(0.12)
+        }
+        return Color.white.opacity(0.5)
+    }
+
+    static func heroTagBorder(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(0.16)
+        }
+        return Color(hex: "#C9D3C6").opacity(0.94)
+    }
+
+    static func heroTagText(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(0.86)
+        }
+        return Color(hex: "#4A554B").opacity(0.96)
+    }
+
+    static func heroProductionBar(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(0.36)
+        }
+        return Color(hex: "#81907E").opacity(0.42)
+    }
+
+    static func heroShadow(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.black.opacity(0.05)
+        }
+        return Color(hex: "#AAB5A4").opacity(0.18)
+    }
+
+    static func heroTopSheen(for scheme: ColorScheme) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(0.16)
+        }
+        return Color.white.opacity(0.58)
+    }
 }
 
 enum A10SpatialSpacing {

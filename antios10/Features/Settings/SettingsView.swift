@@ -171,13 +171,13 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("系统总览")
+                        Text("设置总览")
                             .font(GlassTypography.caption(12, weight: .semibold))
                             .foregroundColor(.textSecondary)
-                        Text("antios10 Settings")
+                        Text("设置")
                             .font(GlassTypography.loviTitle(28, weight: .medium))
                             .foregroundColor(.textPrimary)
-                        Text("把权限、账户、通知与外观统一收进一个运维面板。")
+                        Text("把账户、提醒和外观放在一起管理。")
                             .font(GlassTypography.body(13))
                             .foregroundColor(.textSecondary)
                     }
@@ -266,7 +266,7 @@ struct SettingsView: View {
                         
                         HStack(spacing: 8) {
                             StatusPill(text: viewModel.isEmailVerified ? "已登录" : "未登录", color: viewModel.isEmailVerified ? .statusSuccess : .statusWarning)
-                            StatusPill(text: "Profile", color: .liquidGlassAccent)
+                            StatusPill(text: "账户", color: .liquidGlassAccent)
                         }
                     }
                     
@@ -290,15 +290,15 @@ struct SettingsView: View {
     
     private var healthDataSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LiquidGlassSectionHeader(title: "穿戴与数据链路", icon: "heart.fill")
+            LiquidGlassSectionHeader(title: "设备与数据", icon: "heart.fill")
             
             LiquidGlassCard(style: .standard, padding: 16) {
                 VStack(spacing: 0) {
                     LiquidGlassSettingsRow(
                         icon: "heart.fill",
                         iconColor: .statusError,
-                        title: "HealthKit",
-                        subtitle: "连接 Apple Watch / HealthKit 并进入模型与 RAG"
+                        title: "Apple Health",
+                        subtitle: "连接 Apple Watch 和 Apple Health，同步身体数据"
                     ) {
                         HealthKitSettingsViewNew()
                     }
@@ -364,7 +364,7 @@ struct SettingsView: View {
                                     .foregroundColor(.liquidGlassWarm)
                             }
                             
-                            Text("每日校准与跟进提醒")
+                            Text("每日状态记录提醒")
                                 .font(.subheadline)
                                 .foregroundColor(.textPrimary)
                             
@@ -872,7 +872,7 @@ struct HealthKitSettingsViewNew: View {
                 .padding()
             }
         }
-        .navigationTitle("HealthKit")
+        .navigationTitle("Apple Health")
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -1055,8 +1055,8 @@ class SettingsViewModel: ObservableObject {
 
     private func scheduleDailyReminder() async {
         let content = UNMutableNotificationContent()
-        content.title = "每日校准提醒"
-        content.body = "花 2 分钟完成今日校准，Max 会更了解你。"
+        content.title = "每日状态提醒"
+        content.body = "花 2 分钟记录一下今天的状态，Max 会更了解你。"
         content.sound = .default
 
         var dateComponents = DateComponents()
@@ -1193,7 +1193,7 @@ struct MembershipView: View {
 final class MembershipViewModel: ObservableObject {
     @Published var currentTier = "基础版"
     @Published var benefits: [String] = [
-        "每日校准与数字孪生分析",
+        "每日状态记录与身体分析",
         "科学期刊精选与反馈",
         "计划引擎与习惯追踪"
     ]
@@ -1221,7 +1221,7 @@ final class MembershipViewModel: ObservableObject {
         let completedGoals = goals.filter { $0.is_completed == true }.count
 
         benefits = [
-            "每日校准与数字孪生分析",
+            "每日状态记录与身体分析",
             "活跃计划：\(activePlans) 个",
             "已完成目标：\(completedGoals) 个"
         ]
@@ -1241,7 +1241,7 @@ struct WearablesView: View {
                         Text("穿戴设备")
                             .font(.headline)
                             .foregroundColor(.textPrimary)
-                        Text("管理 HealthKit 与设备同步")
+                        Text("管理 Apple Health 与设备同步")
                             .font(.caption)
                             .foregroundColor(.textSecondary)
                     }
@@ -1269,7 +1269,7 @@ struct WearablesView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "heart.text.square")
                                     .foregroundColor(.statusSuccess)
-                                Text("HealthKit 授权")
+                                Text("Apple Health 授权")
                                     .font(.headline)
                                     .foregroundColor(.textPrimary)
                                 Spacer()
@@ -2212,7 +2212,7 @@ private struct SettingsGuideSheet: View {
                     .buttonStyle(.plain)
                 }
 
-                guideRow("先连 HealthKit，再开提醒。建议质量提升最快。")
+                guideRow("先连 Apple Health，再开提醒，会更快拿到更贴近你的建议。")
                 guideRow("外观和语言会即时生效，便于你快速预览新 UI。")
                 guideRow("隐私与登录操作都放在同页底部，减少跳转成本。")
 
