@@ -261,8 +261,6 @@ private struct A10HomeView: View {
                             )
                         }
 
-                        A10RemoteStatusCard(language: language)
-
                         A10SectionHeader(
                             title: L10n.text("当前进度", "Current progress", language: language),
                             subtitle: L10n.text("先让你知道现在最适合做什么。", "Show what fits you best right now.", language: language)
@@ -446,130 +444,395 @@ private struct A10HomeView: View {
         return A10Palette.warning
     }
 
-    private func spatialDashboardModel(snapshot: A10LoopSnapshot) -> A10DashboardSpatialHeroModel {
-        let heroStage = inferredHeroStage(fallback: snapshot.stage)
-        let stageIndex = A10LoopStage.allCases.firstIndex(of: heroStage) ?? 0
-        let remoteStress = remoteContext?.effectiveStressScore ?? snapshot.stressScore
-        let nextMinutes = heroNextActionMinutes()
-        let openActionCount = max(
-            activePlansCount,
-            max(remoteContext?.openHabitsCount ?? 0, remoteContext?.recommendationCount ?? 0)
-        )
-        let chartValues = [
-            inquiryProgressScore(fallback: snapshot),
-            calibrationProgressScore(fallback: snapshot),
-            evidenceProgressScore(fallback: snapshot),
-            actionProgressScore(fallback: snapshot)
-        ]
+    private struct A10CompositeTrendPoint {
+        let date: Date
+        let compositeScore: Double
+        let sleepScore: Double
+        let calmScore: Double
+        let tensionScore: Double
+        let clarityScore: Double
+        let regulationScore: Double
+    }
 
-        let nextAnnotation: A10AuraChartAnnotation
-        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
-            nextAnnotation = A10AuraChartAnnotation(
-                id: "next",
-                pointIndex: 3,
-                text: A10LocalizedText(
-                    zh: "\(activePlan.progress)% 进行中",
-                    en: "\(activePlan.progress)% in progress"
-                ),
-                xOffset: 36,
-                yOffset: -56
-            )
-        } else if remoteContext?.pendingInquiry != nil {
-            nextAnnotation = A10AuraChartAnnotation(
-                id: "next",
-                pointIndex: 0,
-                text: A10LocalizedText(zh: "1 个问题待回答", en: "1 question waiting"),
-                xOffset: 44,
-                yOffset: -22
-            )
-        } else if remoteContext?.proactiveBrief != nil {
-            nextAnnotation = A10AuraChartAnnotation(
-                id: "next",
-                pointIndex: 2,
-                text: A10LocalizedText(zh: "今日关怀已生成", en: "Care brief ready"),
-                xOffset: 44,
-                yOffset: -46
-            )
-        } else {
-            nextAnnotation = A10AuraChartAnnotation(
-                id: "next",
-                pointIndex: 3,
-                text: A10LocalizedText(
-                    zh: "\(max(openActionCount, 1)) 个动作待完成",
-                    en: "\(max(openActionCount, 1)) actions waiting"
-                ),
-                xOffset: 34,
-                yOffset: -56
-            )
-        }
+    private func spatialDashboardModel(snapshot: A10LoopSnapshot) -> A10DashboardSpatialHeroModel {
+        let trendPoints = compositeTrendPoints(snapshot: snapshot)
+        let currentPoint = trendPoints.last ?? fallbackTrendPoint(snapshot: snapshot)
+        let currentScore = Int(currentPoint.compositeScore.rounded())
+        let trendDelta = trendPoints.count > 1
+            ? Int((currentPoint.compositeScore - trendPoints.first!.compositeScore).rounded())
+            : 0
+        let remoteStress = remoteContext?.effectiveStressScore ?? snapshot.stressScore
+        let dataCoverage = "\(trendPoints.count)/7"
+        let focusTitle = remoteContext?.focusText ?? snapshot.stage.title(language: language)
+        let deltaPrefix = trendDelta > 0 ? "+" : ""
 
         return A10DashboardSpatialHeroModel(
             eyebrow: remoteContext?.focusText != nil
-                ? A10LocalizedText(zh: "当前重点", en: "Current focus")
-                : A10LocalizedText(zh: "今日主控", en: "Today overview"),
+                ? A10LocalizedText(zh: "状态趋势", en: "State trend")
+                : A10LocalizedText(zh: "近 7 天趋势", en: "7-day trend"),
             topMetrics: [
                 A10SpatialMetric(
-                    id: "stress",
-                    title: A10LocalizedText(zh: "当前压力", en: "Stress"),
-                    value: "\(remoteStress)/10"
+                    id: "score",
+                    title: A10LocalizedText(zh: "当前状态", en: "Current score"),
+                    value: "\(currentScore)"
                 ),
                 A10SpatialMetric(
-                    id: "remote_actions",
-                    title: A10LocalizedText(zh: "待办动作", en: "Open actions"),
-                    value: "\(max(openActionCount, 1))"
+                    id: "trend_delta",
+                    title: A10LocalizedText(zh: "7 日变化", en: "7d delta"),
+                    value: "\(deltaPrefix)\(trendDelta)"
                 )
             ],
             chart: A10AuraLineChartModel(
-                values: chartValues,
-                xLabels: [
-                    A10LocalizedText(zh: "了解", en: "Check in"),
-                    A10LocalizedText(zh: "记录", en: "Track"),
-                    A10LocalizedText(zh: "分析", en: "Explain"),
-                    A10LocalizedText(zh: "行动", en: "Action")
-                ],
-                yLabels: ["10", "7", "4", "0"],
-                annotations: [
-                    A10AuraChartAnnotation(
-                        id: "stage",
-                        pointIndex: stageIndex,
-                        text: A10LocalizedText(
-                            zh: "当前 · \(heroStage.title(language: .zhHans))",
-                            en: "Now · \(heroStage.title(language: .en))"
-                        ),
-                        xOffset: 44,
-                        yOffset: -18
-                    ),
-                    nextAnnotation
-                ]
+                values: trendPoints.map(\.compositeScore),
+                minValue: 0,
+                maxValue: 100,
+                xLabels: trendPoints.map(axisLabel(for:)),
+                yLabels: ["100", "75", "50", "25", "0"],
+                annotations: trendAnnotations(points: trendPoints, currentScore: currentScore, trendDelta: trendDelta)
             ),
             primaryActionTitle: heroPrimaryActionTitle(),
             secondaryActionSymbol: heroSecondaryActionSymbol(stressScore: remoteStress),
-            footerTitle: A10LocalizedText(zh: "今日安排", en: "Today's plan"),
+            footerTitle: A10LocalizedText(zh: "趋势波纹", en: "Trend ripple"),
             bottomMetrics: [
                 A10SpatialMetric(
                     id: "focus",
                     title: A10LocalizedText(zh: "当前焦点", en: "Current focus"),
-                    value: remoteContext?.focusText ?? heroStage.title(language: language)
+                    value: focusTitle
                 ),
                 A10SpatialMetric(
-                    id: "next",
-                    title: A10LocalizedText(zh: "下一步", en: "Next step"),
-                    value: heroNextActionValue(fallbackMinutes: nextMinutes)
+                    id: "coverage",
+                    title: A10LocalizedText(zh: "数据覆盖", en: "Coverage"),
+                    value: dataCoverage
                 )
             ],
-            productionSamples: spatialProductionSamples(stressScore: remoteStress)
+            waveSamples: denseWaveSamples(from: trendPoints)
         )
     }
 
-    private func spatialProductionSamples(stressScore: Int) -> [CGFloat] {
-        let remoteCompletions = CGFloat(remoteContext?.completedHabitsCount ?? 0) * 0.02
-        let completionBoost = CGFloat(completedPlansCount) * 0.02 + remoteCompletions
-        let stressBase = CGFloat(max(1, 10 - stressScore)) * 0.03
-        let recommendationBoost = CGFloat(min(remoteContext?.recommendationCount ?? 0, 3)) * 0.015
-        return (0..<18).map { index in
-            let wave = (sin(CGFloat(index) * 0.55) + 1) / 2
-            return min(0.9, max(0.16, 0.18 + wave * 0.44 + completionBoost + stressBase + recommendationBoost))
+    private func trendAnnotations(
+        points: [A10CompositeTrendPoint],
+        currentScore: Int,
+        trendDelta: Int
+    ) -> [A10AuraChartAnnotation] {
+        guard !points.isEmpty else { return [] }
+
+        var annotations = [
+            A10AuraChartAnnotation(
+                id: "current_score",
+                pointIndex: points.count - 1,
+                text: A10LocalizedText(
+                    zh: "今天 \(currentScore)",
+                    en: "Today \(currentScore)"
+                ),
+                xOffset: -26,
+                yOffset: -18
+            )
+        ]
+
+        if points.count > 1 {
+            let deltaPrefix = trendDelta > 0 ? "+" : ""
+            annotations.append(
+                A10AuraChartAnnotation(
+                    id: "trend_delta",
+                    pointIndex: max(points.count - 3, 0),
+                    text: A10LocalizedText(
+                        zh: "7 天 \(deltaPrefix)\(trendDelta)",
+                        en: "7d \(deltaPrefix)\(trendDelta)"
+                    ),
+                    xOffset: 26,
+                    yOffset: -48
+                )
+            )
         }
+
+        return annotations
+    }
+
+    private func denseWaveSamples(from points: [A10CompositeTrendPoint]) -> [CGFloat] {
+        let source = points.map(\.compositeScore)
+        guard !source.isEmpty else { return Array(repeating: 0.28, count: 24) }
+        if source.count == 1 {
+            let base = CGFloat(min(max(source[0] / 100, 0.18), 0.84))
+            return (0..<24).map { index in
+                let shimmer = sin(CGFloat(index) * 0.62) * 0.05 + cos(CGFloat(index) * 0.18) * 0.03
+                return min(max(base + shimmer, 0.14), 0.88)
+            }
+        }
+
+        let barCount = 26
+        return (0..<barCount).map { index in
+            let progress = Double(index) / Double(max(barCount - 1, 1))
+            let scaled = progress * Double(source.count - 1)
+            let lower = Int(floor(scaled))
+            let upper = min(lower + 1, source.count - 1)
+            let localT = scaled - Double(lower)
+            let interpolated = source[lower] + (source[upper] - source[lower]) * localT
+            let slope = abs(source[upper] - source[lower]) / 100
+            let base = 0.16 + (interpolated / 100) * 0.48
+            let ripple = sin(Double(index) * 0.58) * 0.055 + cos(Double(index) * 0.21) * 0.03
+            let envelope = sin(progress * Double.pi * 1.45 - 0.55) * 0.045
+            let accent = slope * 0.18
+            return CGFloat(min(max(base + ripple + envelope + accent, 0.12), 0.9))
+        }
+    }
+
+    private func compositeTrendPoints(snapshot: A10LoopSnapshot) -> [A10CompositeTrendPoint] {
+        guard let dashboard = remoteContext?.dashboard else {
+            return [fallbackTrendPoint(snapshot: snapshot)]
+        }
+
+        let groupedLogs = Dictionary(grouping: dashboard.weeklyLogs) { normalizedDayKey(from: $0.log_date) ?? $0.log_date }
+        let sortedLogs = groupedLogs.values.compactMap { logs -> (Date, WellnessLog)? in
+            guard let first = logs.first,
+                  let date = normalizedDayDate(from: first.log_date) else { return nil }
+            let chosen = logs.max { lhs, rhs in
+                metricPresenceCount(log: lhs) < metricPresenceCount(log: rhs)
+            } ?? first
+            return (date, chosen)
+        }
+        .sorted { $0.0 < $1.0 }
+
+        let habitCompletion = currentHabitCompletionScore()
+        let recent = sortedLogs.suffix(7).map { date, log in
+            compositeTrendPoint(
+                date: date,
+                log: log,
+                hardware: shouldBlendHardware(into: date) ? dashboard.hardwareData : nil,
+                habitCompletion: shouldBlendHardware(into: date) ? habitCompletion : nil
+            )
+        }
+
+        if recent.isEmpty {
+            return [fallbackTrendPoint(snapshot: snapshot)]
+        }
+
+        return recent
+    }
+
+    private func compositeTrendPoint(
+        date: Date,
+        log: WellnessLog,
+        hardware: HardwareData?,
+        habitCompletion: Double?
+    ) -> A10CompositeTrendPoint {
+        let sleepScore = weightedAverage([
+            (sleepDurationScore(log.sleep_duration_minutes), 0.7),
+            (sleepQualityScore(log.sleep_quality), 0.3)
+        ]) ?? 52
+
+        let calmScore = weightedAverage([
+            (inverseTenScale(log.anxiety_level), 0.45),
+            (hrvScore(hardware?.hrv?.value), 0.3),
+            (restingHeartRateScore(hardware?.resting_heart_rate?.value), 0.25)
+        ]) ?? 50
+
+        let tensionScore = weightedAverage([
+            (inverseTenScale(log.stress_level), 0.55),
+            (inverseTenScale(log.body_tension), 0.45)
+        ]) ?? 50
+
+        let clarityScore = weightedAverage([
+            (positiveTenScale(log.mental_clarity), 0.4),
+            (readinessScore(log.overall_readiness), 0.4),
+            (positiveTenScale(log.morning_energy), 0.2)
+        ]) ?? 52
+
+        let regulationScore = weightedAverage([
+            (minutesScore(log.exercise_duration_minutes, target: 30), 0.35),
+            (minutesScore(log.mindfulness_minutes, target: 12), 0.35),
+            (stepsScore(hardware?.steps?.value), 0.2),
+            (habitCompletion, 0.1)
+        ]) ?? 45
+
+        let compositeScore = weightedAverage([
+            (sleepScore, 0.24),
+            (calmScore, 0.24),
+            (tensionScore, 0.18),
+            (clarityScore, 0.22),
+            (regulationScore, 0.12)
+        ]) ?? 50
+
+        return A10CompositeTrendPoint(
+            date: date,
+            compositeScore: compositeScore,
+            sleepScore: sleepScore,
+            calmScore: calmScore,
+            tensionScore: tensionScore,
+            clarityScore: clarityScore,
+            regulationScore: regulationScore
+        )
+    }
+
+    private func fallbackTrendPoint(snapshot: A10LoopSnapshot) -> A10CompositeTrendPoint {
+        let inverseStress = min(max((10 - Double(snapshot.stressScore)) / 10 * 100, 0), 100)
+        let regulation = currentHabitCompletionScore() ?? 42
+        let clarity = min(100, max(35, inverseStress * 0.72 + 18))
+        let sleep = min(100, max(40, inverseStress * 0.64 + 22))
+        let composite = weightedAverage([
+            (sleep, 0.24),
+            (inverseStress, 0.24),
+            (inverseStress, 0.18),
+            (clarity, 0.22),
+            (regulation, 0.12)
+        ]) ?? 50
+
+        return A10CompositeTrendPoint(
+            date: snapshot.updatedAt,
+            compositeScore: composite,
+            sleepScore: sleep,
+            calmScore: inverseStress,
+            tensionScore: inverseStress,
+            clarityScore: clarity,
+            regulationScore: regulation
+        )
+    }
+
+    private func axisLabel(for point: A10CompositeTrendPoint) -> A10LocalizedText {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: language.localeIdentifier)
+        formatter.setLocalizedDateFormatFromTemplate("Md")
+        let label = formatter.string(from: point.date)
+        return A10LocalizedText(zh: label, en: label)
+    }
+
+    private func shouldBlendHardware(into date: Date) -> Bool {
+        Calendar.current.isDateInToday(date)
+    }
+
+    private func currentHabitCompletionScore() -> Double? {
+        let remoteTotal = remoteContext?.habits.count ?? 0
+        let remoteCompleted = remoteContext?.completedHabitsCount ?? 0
+        if remoteTotal > 0 {
+            return (Double(remoteCompleted) / Double(remoteTotal)) * 100
+        }
+
+        let localTotal = plans.count
+        guard localTotal > 0 else { return nil }
+        return (Double(completedPlansCount) / Double(localTotal)) * 100
+    }
+
+    private func normalizedDayKey(from raw: String) -> String? {
+        let prefix = String(raw.prefix(10))
+        return prefix.isEmpty ? nil : prefix
+    }
+
+    private func normalizedDayDate(from raw: String) -> Date? {
+        let isoFormatter = ISO8601DateFormatter()
+        if let date = isoFormatter.date(from: raw) {
+            return Calendar.current.startOfDay(for: date)
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: String(raw.prefix(10))) else { return nil }
+        return Calendar.current.startOfDay(for: date)
+    }
+
+    private func metricPresenceCount(log: WellnessLog) -> Int {
+        [
+            log.sleep_duration_minutes != nil,
+            log.sleep_quality != nil,
+            log.stress_level != nil,
+            log.body_tension != nil,
+            log.anxiety_level != nil,
+            log.mental_clarity != nil,
+            log.morning_energy != nil,
+            log.overall_readiness != nil,
+            log.exercise_duration_minutes != nil,
+            log.mindfulness_minutes != nil
+        ]
+        .filter { $0 }
+        .count
+    }
+
+    private func weightedAverage(_ entries: [(Double?, Double)]) -> Double? {
+        let resolved = entries.compactMap { value, weight -> (Double, Double)? in
+            guard let value else { return nil }
+            return (value, weight)
+        }
+        guard !resolved.isEmpty else { return nil }
+
+        let totalWeight = resolved.reduce(0) { $0 + $1.1 }
+        guard totalWeight > 0 else { return nil }
+
+        let total = resolved.reduce(0) { partial, entry in
+            partial + entry.0 * entry.1
+        }
+        return total / totalWeight
+    }
+
+    private func positiveTenScale(_ value: Int?) -> Double? {
+        guard let value else { return nil }
+        return min(max(Double(value), 0), 10) * 10
+    }
+
+    private func inverseTenScale(_ value: Int?) -> Double? {
+        guard let value else { return nil }
+        return (10 - min(max(Double(value), 0), 10)) * 10
+    }
+
+    private func readinessScore(_ value: Int?) -> Double? {
+        guard let value else { return nil }
+        let normalized = value <= 10 ? Double(value) * 10 : Double(value)
+        return min(max(normalized, 0), 100)
+    }
+
+    private func sleepDurationScore(_ minutes: Int?) -> Double? {
+        guard let minutes else { return nil }
+        return min(max(Double(minutes) / 480 * 100, 0), 100)
+    }
+
+    private func sleepQualityScore(_ value: String?) -> Double? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+
+        if let numeric = Double(raw) {
+            if numeric <= 5 {
+                return min(max(numeric / 5 * 100, 0), 100)
+            }
+            if numeric <= 10 {
+                return min(max(numeric * 10, 0), 100)
+            }
+            return min(max(numeric, 0), 100)
+        }
+
+        switch raw.lowercased() {
+        case "excellent", "great":
+            return 95
+        case "good":
+            return 80
+        case "okay", "ok", "neutral", "average":
+            return 65
+        case "fair":
+            return 55
+        case "poor", "bad":
+            return 35
+        case "terrible":
+            return 20
+        default:
+            return nil
+        }
+    }
+
+    private func minutesScore(_ value: Int?, target: Double) -> Double? {
+        guard let value else { return nil }
+        return min(max(Double(value) / target * 100, 0), 100)
+    }
+
+    private func stepsScore(_ value: Double?) -> Double? {
+        guard let value else { return nil }
+        return min(max(value / 8000 * 100, 0), 100)
+    }
+
+    private func hrvScore(_ value: Double?) -> Double? {
+        guard let value else { return nil }
+        return min(max((value - 15) / 45 * 100, 0), 100)
+    }
+
+    private func restingHeartRateScore(_ value: Double?) -> Double? {
+        guard let value else { return nil }
+        return min(max((90 - value) / 35 * 100, 0), 100)
     }
 
     private func heroPrimaryActionTitle() -> A10LocalizedText {
@@ -599,97 +862,6 @@ private struct A10HomeView: View {
             return "questionmark.bubble"
         }
         return "arrow.clockwise"
-    }
-
-    private func inferredHeroStage(fallback: A10LoopStage) -> A10LoopStage {
-        guard let remoteContext else { return fallback }
-
-        if remoteContext.pendingInquiry != nil {
-            return .inquiry
-        }
-        if remoteContext.hasActivePlan || remoteContext.completedHabitsCount > 0 {
-            return .action
-        }
-        if remoteContext.proactiveBrief != nil || remoteContext.recommendationCount > 0 {
-            return .evidence
-        }
-        if remoteContext.hasSignals {
-            return .calibration
-        }
-        return fallback
-    }
-
-    private func inquiryProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
-        guard let remoteContext else {
-            return min(Double(snapshot.stressScore + 2), 10)
-        }
-        if remoteContext.pendingInquiry != nil {
-            return 3.6
-        }
-        if remoteContext.hasSignals {
-            return 8.4
-        }
-        return 6.1
-    }
-
-    private func calibrationProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
-        guard let remoteContext else {
-            return min(Double(snapshot.stressScore + (A10LoopStage.allCases.firstIndex(of: snapshot.stage) ?? 0)), 10)
-        }
-        let base = Double(min(remoteContext.signalCount, 5)) * 1.45
-        let todayLogBoost = remoteContext.dashboard?.todayLog != nil ? 2.2 : 0
-        return min(10, max(2.6, base + todayLogBoost))
-    }
-
-    private func evidenceProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
-        guard let remoteContext else {
-            return max(2, Double(6 + completedPlansCount - activePlansCount))
-        }
-        let recommendationFactor = Double(min(remoteContext.recommendationCount, 3)) * 1.9
-        let briefFactor = remoteContext.proactiveBrief != nil ? 2.5 : 0
-        let confidenceFactor = (remoteContext.proactiveBrief?.confidence ?? 0) * 2.4
-        return min(10, max(2.4, recommendationFactor + briefFactor + confidenceFactor))
-    }
-
-    private func actionProgressScore(fallback snapshot: A10LoopSnapshot) -> Double {
-        guard let remoteContext else {
-            return max(1, Double(10 - snapshot.stressScore))
-        }
-        let activePlanFactor = remoteContext.hasActivePlan ? Double(max(20, remoteContext.activePlan?.progress ?? 0)) / 10 : 0
-        let habitsFactor = Double(remoteContext.completedHabitsCount) * 2.1
-        let localFactor = Double(completedPlansCount) * 1.1
-        return min(10, max(2.2, activePlanFactor + habitsFactor + localFactor))
-    }
-
-    private func heroNextActionMinutes() -> Int {
-        if let remoteHabit = remoteContext?.habits.first(where: { !$0.isCompleted }) {
-            return estimatedRemoteMinutes(forHabitResistance: remoteHabit.minResistanceLevel)
-        }
-        return plans.first(where: { !$0.isCompleted })?.estimatedMinutes ?? 3
-    }
-
-    private func heroNextActionValue(fallbackMinutes: Int) -> String {
-        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
-            return activePlan.title
-        }
-        if let remoteHabit = remoteContext?.habits.first(where: { !$0.isCompleted }) {
-            return remoteHabit.title
-        }
-        if let remoteRecommendation = remoteContext?.recommendations.first {
-            return A10NonEmpty(remoteRecommendation.action) ?? remoteRecommendation.title
-        }
-        return "\(fallbackMinutes) min"
-    }
-
-    private func estimatedRemoteMinutes(forHabitResistance level: Int?) -> Int {
-        switch level ?? 2 {
-        case ...2:
-            return 3
-        case 3:
-            return 5
-        default:
-            return 8
-        }
     }
 
     private func handleHeroPrimaryAction() {
@@ -903,9 +1075,6 @@ private struct A10MeView: View {
                             title: L10n.text("同步状态", "Sync status", language: language),
                             subtitle: L10n.text("看看本地记录、账号和建议是不是都正常。", "Check whether local data, account, and guidance are all in sync.", language: language)
                         )
-
-                        A10RemoteStatusCard(language: language)
-
                         A10Card {
                             VStack(spacing: 14) {
                                 A10MetricRow(
@@ -1782,73 +1951,6 @@ private struct A10EmptyStateCard: View {
                     .font(.system(size: 14, weight: .regular, design: .rounded))
                     .foregroundStyle(A10Palette.inkSecondary)
             }
-        }
-    }
-}
-
-private struct A10RemoteStatusCard: View {
-    @EnvironmentObject private var syncCoordinator: A10ShellSyncCoordinator
-
-    let language: AppLanguage
-
-    var body: some View {
-        A10Card {
-            VStack(alignment: .leading, spacing: 12) {
-                A10MetricRow(
-                    title: L10n.text("同步状态", "Sync", language: language),
-                    value: remoteStatusText
-                )
-
-                if let lastSyncAt = syncCoordinator.lastSyncAt {
-                    A10MetricRow(
-                        title: L10n.text("最近同步", "Last sync", language: language),
-                        value: lastSyncAt.formatted(date: .abbreviated, time: .shortened)
-                    )
-                }
-
-                if let source = syncCoordinator.lastRemoteSource {
-                    A10MetricRow(
-                        title: L10n.text("最近来源", "Latest source", language: language),
-                        value: sourceLabel(for: source)
-                    )
-                }
-
-                if let error = syncCoordinator.lastErrorMessage, !error.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.text("最近一次同步失败", "The last sync failed", language: language))
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(A10Palette.warning)
-                        Text(error)
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
-                            .foregroundStyle(A10Palette.inkSecondary)
-                    }
-                }
-            }
-        }
-    }
-
-    private var remoteStatusText: String {
-        if syncCoordinator.isSyncing {
-            return L10n.text("正在同步今天的状态和建议", "Syncing today's state and guidance", language: language)
-        }
-        if syncCoordinator.lastSyncAt != nil {
-            return L10n.text("今天的数据已经同步到位", "Today's data is synced", language: language)
-        }
-        return L10n.text("等待首次同步", "Waiting for the first sync", language: language)
-    }
-
-    private func sourceLabel(for source: String) -> String {
-        switch source {
-        case "dashboard":
-            return L10n.text("首页与计划数据", "Home and plan data", language: language)
-        case "plans":
-            return L10n.text("今日行动回写", "Today plan writeback", language: language)
-        case "coach", "max":
-            return "Max"
-        case "profile":
-            return L10n.text("Profile 偏好", "Profile preferences", language: language)
-        default:
-            return source
         }
     }
 }

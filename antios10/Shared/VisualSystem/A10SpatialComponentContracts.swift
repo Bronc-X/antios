@@ -39,6 +39,8 @@ struct A10AuraChartAnnotation: Identifiable {
 
 struct A10AuraLineChartModel {
     let values: [Double]
+    let minValue: Double
+    let maxValue: Double
     let xLabels: [A10LocalizedText]
     let yLabels: [String]
     let annotations: [A10AuraChartAnnotation]
@@ -52,7 +54,7 @@ struct A10DashboardSpatialHeroModel {
     let secondaryActionSymbol: String
     let footerTitle: A10LocalizedText
     let bottomMetrics: [A10SpatialMetric]
-    let productionSamples: [CGFloat]
+    let waveSamples: [CGFloat]
 }
 
 enum A10FloatingMenuPresentation {
@@ -165,6 +167,8 @@ enum A10VisualRecipeFactory {
             ],
             chart: A10AuraLineChartModel(
                 values: [3, 5, 7, 24],
+                minValue: 0,
+                maxValue: 75,
                 xLabels: [
                     A10LocalizedText(zh: "第 1 周", en: "Week 1"),
                     A10LocalizedText(zh: "第 2 周", en: "Week 2"),
@@ -204,7 +208,11 @@ enum A10VisualRecipeFactory {
                     value: "13 L/h"
                 )
             ],
-            productionSamples: [0.22, 0.34, 0.28, 0.42, 0.38, 0.5, 0.32, 0.46, 0.58, 0.44, 0.68, 0.54, 0.62, 0.4, 0.33, 0.52, 0.26, 0.48]
+            waveSamples: [
+                0.22, 0.24, 0.29, 0.34, 0.39, 0.43, 0.48, 0.53, 0.56,
+                0.51, 0.47, 0.44, 0.49, 0.58, 0.63, 0.67, 0.72, 0.69,
+                0.61, 0.55, 0.5, 0.47, 0.45, 0.49
+            ]
         )
     }
 

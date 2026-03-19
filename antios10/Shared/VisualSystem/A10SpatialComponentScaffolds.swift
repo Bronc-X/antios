@@ -172,13 +172,16 @@ struct A10AuraLineChart: View {
 
     private func chartPoints(in rect: CGRect) -> [CGPoint] {
         guard !model.values.isEmpty else { return [] }
-        let maxValue = max(model.values.max() ?? 1, 1)
+        let minValue = model.minValue
+        let maxValue = max(model.maxValue, minValue + 1)
+        let range = max(maxValue - minValue, 1)
         let step = rect.width / CGFloat(max(model.values.count - 1, 1))
 
         return model.values.enumerated().map { index, value in
-            CGPoint(
+            let clamped = min(max(value, minValue), maxValue)
+            return CGPoint(
                 x: rect.minX + CGFloat(index) * step,
-                y: rect.maxY - CGFloat(value / maxValue) * rect.height
+                y: rect.maxY - CGFloat((clamped - minValue) / range) * rect.height
             )
         }
     }
@@ -212,15 +215,17 @@ struct A10AuraLineChart: View {
     }
 
     private func chartGrid(in rect: CGRect) -> some View {
-        Path { path in
-            for row in 0..<4 {
-                let y = rect.minY + (rect.height / 3) * CGFloat(row)
+        let rowCount = max(model.yLabels.count - 1, 1)
+        let columnCount = min(max(model.xLabels.count - 1, 1), 6)
+        return Path { path in
+            for row in 0...rowCount {
+                let y = rect.minY + (rect.height / CGFloat(rowCount)) * CGFloat(row)
                 path.move(to: CGPoint(x: rect.minX, y: y))
                 path.addLine(to: CGPoint(x: rect.maxX, y: y))
             }
 
-            for column in 0..<4 {
-                let x = rect.minX + (rect.width / 3) * CGFloat(column)
+            for column in 0...columnCount {
+                let x = rect.minX + (rect.width / CGFloat(columnCount)) * CGFloat(column)
                 path.move(to: CGPoint(x: x, y: rect.minY))
                 path.addLine(to: CGPoint(x: x, y: rect.maxY))
             }
@@ -302,7 +307,7 @@ struct A10DashboardSpatialHeroCard: View {
     }
 
     private var productionHeight: CGFloat {
-        metrics.isCompactHeight ? 28 : 32
+        metrics.isCompactHeight ? 32 : 36
     }
 
     var body: some View {
@@ -361,7 +366,7 @@ struct A10DashboardSpatialHeroCard: View {
                     }
                 }
 
-                A10ProductionBarStrip(samples: model.productionSamples)
+                A10ProductionBarStrip(samples: model.waveSamples)
                     .frame(height: productionHeight)
             }
         }
@@ -397,12 +402,26 @@ struct A10ProductionBarStrip: View {
 
     var body: some View {
         GeometryReader { proxy in
-            HStack(alignment: .bottom, spacing: 4) {
-                ForEach(Array(samples.enumerated()), id: \.offset) { _, value in
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
                     Capsule()
-                        .fill(A10SpatialPalette.heroProductionBar(for: colorScheme))
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    A10SpatialPalette.heroProductionBar(for: colorScheme).opacity(index.isMultiple(of: 3) ? 0.55 : 0.86),
+                                    A10SpatialPalette.heroProductionBar(for: colorScheme)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.7)
+                        )
                         .frame(maxWidth: .infinity)
-                        .frame(height: max(8, proxy.size.height * value))
+                        .frame(height: max(8, proxy.size.height * sample))
+                        .offset(y: sin(CGFloat(index) * 0.52) * -1.8)
                 }
             }
         }
