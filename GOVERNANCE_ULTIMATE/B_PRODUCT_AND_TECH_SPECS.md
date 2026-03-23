@@ -2,14 +2,14 @@
 
 > AntiAnxiety iOS 产品与技术规格（合并版）
 > 版本: v3.1.0
-> 更新: 2026-03-07
+> 更新: 2026-03-23
 
 ---
 
 ## 1. PRD（产品需求）
 
 ### 1.1 产品概述
-- 产品名称: AntiAnxiety iOS（旧版稳定线: `main`，最新 app 开发线: `codex/antios10`）
+- 产品名称: AntiAnxiety iOS（旧版保留线: `old10`，最新 app 开发线: `main`）
 - 版本目标: TestFlight v1.0（iOS 26.0+）
 - 一句话价值: 用“问询 -> 校准 -> 解释 -> 行动”闭环降低焦虑波动。
 

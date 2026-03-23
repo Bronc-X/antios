@@ -2,7 +2,7 @@
 
 > AntiAnxiety iOS 执行计划与会话记忆（合并版）
 > 版本: v3.1.0
-> 更新: 2026-03-07
+> 更新: 2026-03-23
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### 阶段 R1: antios10 重构启动（完成）
 - 蓝图与治理同步
-- `codex/antios10` 分支建立
+- `codex/antios10` 分支建立，后续改名为 `main`
 - SwiftData local-first 主壳层搭建
 - 3 Tab Shell（Home / Coach / Me）启动
 
@@ -60,7 +60,7 @@
 - 先读 A 的红线与风险
 - 再读 B 当前要改的板块
 - 最后读 C 的“当前步骤”
-- 若在 `codex/antios10` 分支上工作，补读 `ANTIOS10_BLUEPRINT.md`
+- 若在 `main` 分支上工作，补读 `ANTIOS10_BLUEPRINT.md`
 
 ### 2.3 交付必做
 - 给出改动文件与原因
@@ -96,7 +96,7 @@
 
 ## 4. PROGRESS（当前状态）
 
-Last Updated: 2026-03-07 11:35
+Last Updated: 2026-03-23 11:35
 
 Done:
 - 治理模板 4 包已引入
@@ -108,6 +108,7 @@ Done:
 - `EXECUTION_GOVERNANCE.md` 已补齐
 - `ANTIOS10_BLUEPRINT.md` 已重写为 sensor-first + agent-first 蓝图
 - `ANTIOS10_AGENT_EXECUTION_PLAN.md` 已新增并定义 agent 工作顺序
+- `main` / `old10` 分支职责已重新对齐
 
 In Progress:
 - 将 wearable sync 接入 sensor-derived memory

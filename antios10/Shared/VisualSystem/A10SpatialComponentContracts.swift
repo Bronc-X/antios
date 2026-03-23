@@ -37,6 +37,13 @@ struct A10AuraChartAnnotation: Identifiable {
     let yOffset: CGFloat
 }
 
+struct A10AuraChartSnapshot: Identifiable {
+    let id: String
+    let xLabel: A10LocalizedText
+    let primaryValue: String
+    let secondaryValue: String
+}
+
 struct A10AuraLineChartModel {
     let values: [Double]
     let minValue: Double
@@ -44,16 +51,18 @@ struct A10AuraLineChartModel {
     let xLabels: [A10LocalizedText]
     let yLabels: [String]
     let annotations: [A10AuraChartAnnotation]
+    let snapshots: [A10AuraChartSnapshot]
+    let interactionHint: A10LocalizedText
 }
 
 struct A10DashboardSpatialHeroModel {
     let eyebrow: A10LocalizedText
+    let actionTitle: A10LocalizedText
+    let actionDetail: A10LocalizedText
+    let statusBadge: A10LocalizedText?
+    let statusTint: Color
     let topMetrics: [A10SpatialMetric]
     let chart: A10AuraLineChartModel
-    let primaryActionTitle: A10LocalizedText
-    let secondaryActionSymbol: String
-    let footerTitle: A10LocalizedText
-    let bottomMetrics: [A10SpatialMetric]
     let waveSamples: [CGFloat]
 }
 
@@ -152,66 +161,54 @@ enum A10VisualRecipeFactory {
 
     static func dashboard(language: AppLanguage) -> A10DashboardSpatialHeroModel {
         A10DashboardSpatialHeroModel(
-            eyebrow: A10LocalizedText(zh: "储备", en: "Storage"),
+            eyebrow: A10LocalizedText(zh: "今日行动", en: "Today's action"),
+            actionTitle: A10LocalizedText(zh: "先补一杯水，然后再继续今天安排", en: "Start with a glass of water, then continue your day"),
+            actionDetail: A10LocalizedText(zh: "先做一个最轻的动作，再让 Max 帮你判断后面还要不要继续。", en: "Do one light step first, then let Max decide whether anything else is needed."),
+            statusBadge: A10LocalizedText(zh: "Max 可接手", en: "Max ready"),
+            statusTint: Color.liquidGlassAccent,
             topMetrics: [
                 A10SpatialMetric(
                     id: "current",
-                    title: A10LocalizedText(zh: "当前水位", en: "Current Level"),
-                    value: "24 L"
+                    title: A10LocalizedText(zh: "当前状态", en: "Current state"),
+                    value: "68"
                 ),
                 A10SpatialMetric(
                     id: "remaining",
-                    title: A10LocalizedText(zh: "剩余水量", en: "Remaining Water"),
-                    value: "19 L"
+                    title: A10LocalizedText(zh: "预计用时", en: "Est. time"),
+                    value: "3 min"
                 )
             ],
             chart: A10AuraLineChartModel(
-                values: [3, 5, 7, 24],
+                values: [64, 58, 61, 54, 67, 63, 68],
                 minValue: 0,
-                maxValue: 75,
+                maxValue: 100,
                 xLabels: [
-                    A10LocalizedText(zh: "第 1 周", en: "Week 1"),
-                    A10LocalizedText(zh: "第 2 周", en: "Week 2"),
-                    A10LocalizedText(zh: "第 3 周", en: "Week 3"),
-                    A10LocalizedText(zh: "第 4 周", en: "Week 4")
+                    A10LocalizedText(zh: "3/14", en: "3/14"),
+                    A10LocalizedText(zh: "3/15", en: "3/15"),
+                    A10LocalizedText(zh: "3/16", en: "3/16"),
+                    A10LocalizedText(zh: "3/17", en: "3/17"),
+                    A10LocalizedText(zh: "3/18", en: "3/18"),
+                    A10LocalizedText(zh: "3/19", en: "3/19"),
+                    A10LocalizedText(zh: "今天", en: "Today")
                 ],
-                yLabels: ["75 L", "50 L", "25 L", "0 L"],
-                annotations: [
-                    A10AuraChartAnnotation(
-                        id: "reserve",
-                        pointIndex: 1,
-                        text: A10LocalizedText(zh: "28 • 生态储备", en: "28 • Eco reserve"),
-                        xOffset: 42,
-                        yOffset: -16
-                    ),
-                    A10AuraChartAnnotation(
-                        id: "flow",
-                        pointIndex: 2,
-                        text: A10LocalizedText(zh: "36 • 智能流量", en: "36 • Smart flow"),
-                        xOffset: 36,
-                        yOffset: -56
-                    )
+                yLabels: ["100", "75", "50", "25", "0"],
+                annotations: [],
+                snapshots: [
+                    A10AuraChartSnapshot(id: "d1", xLabel: A10LocalizedText(zh: "3/14", en: "3/14"), primaryValue: "64", secondaryValue: "睡眠偏少，状态一般"),
+                    A10AuraChartSnapshot(id: "d2", xLabel: A10LocalizedText(zh: "3/15", en: "3/15"), primaryValue: "58", secondaryValue: "紧张感升高，先减负"),
+                    A10AuraChartSnapshot(id: "d3", xLabel: A10LocalizedText(zh: "3/16", en: "3/16"), primaryValue: "61", secondaryValue: "恢复一点，但还不稳定"),
+                    A10AuraChartSnapshot(id: "d4", xLabel: A10LocalizedText(zh: "3/17", en: "3/17"), primaryValue: "54", secondaryValue: "状态下滑，建议先休息"),
+                    A10AuraChartSnapshot(id: "d5", xLabel: A10LocalizedText(zh: "3/18", en: "3/18"), primaryValue: "67", secondaryValue: "开始回稳，可以做轻动作"),
+                    A10AuraChartSnapshot(id: "d6", xLabel: A10LocalizedText(zh: "3/19", en: "3/19"), primaryValue: "63", secondaryValue: "还有波动，先别加码"),
+                    A10AuraChartSnapshot(id: "today", xLabel: A10LocalizedText(zh: "今天", en: "Today"), primaryValue: "68", secondaryValue: "适合先做一个 3 分钟的小动作")
                 ]
+                ,
+                interactionHint: A10LocalizedText(zh: "点按或滑动折线，查看每天的变化。", en: "Tap or drag the line to inspect each day.")
             ),
-            primaryActionTitle: A10LocalizedText(zh: "晴空", en: "Clear Sky"),
-            secondaryActionSymbol: "hourglass",
-            footerTitle: A10LocalizedText(zh: "产水效率", en: "Water Production"),
-            bottomMetrics: [
-                A10SpatialMetric(
-                    id: "average",
-                    title: A10LocalizedText(zh: "平均产水", en: "Average Production"),
-                    value: "11 L/h"
-                ),
-                A10SpatialMetric(
-                    id: "peak",
-                    title: A10LocalizedText(zh: "峰值产水", en: "Peak Production"),
-                    value: "13 L/h"
-                )
-            ],
             waveSamples: [
-                0.22, 0.24, 0.29, 0.34, 0.39, 0.43, 0.48, 0.53, 0.56,
-                0.51, 0.47, 0.44, 0.49, 0.58, 0.63, 0.67, 0.72, 0.69,
-                0.61, 0.55, 0.5, 0.47, 0.45, 0.49
+                0.22, 0.31, 0.26, 0.43, 0.35, 0.48, 0.39, 0.57, 0.46,
+                0.33, 0.41, 0.29, 0.52, 0.61, 0.44, 0.68, 0.55, 0.63,
+                0.36, 0.49, 0.27, 0.42, 0.31, 0.58
             ]
         )
     }

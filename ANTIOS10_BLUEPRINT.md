@@ -1,7 +1,7 @@
 # ANTIOS10 Blueprint
 
-> Status: active latest-app blueprint for `codex/antios10`
-> Updated: 2026-03-07
+> Status: active latest-app blueprint for `main`
+> Updated: 2026-03-23
 > Scope: sensor-first + agent-first iOS rebuild for AntiAnxiety
 
 ---

@@ -2,8 +2,8 @@
 
 ## Scope Guardrail
 - Workspace: `/Users/mac/Desktop/antios10`
-- Branch: `codex/antios10`
-- Legacy stability line remains outside this workspace
+- Branch: `main`
+- Legacy line lives in `/Users/mac/Desktop/antios5` on `old10`
 
 ## Product Loop
 1. Sensor observe

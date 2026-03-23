@@ -1161,7 +1161,7 @@ struct InputBarV2: View {
         .padding(.horizontal, fieldHorizontalPadding)
         .padding(.vertical, fieldVerticalPadding)
         .frame(maxWidth: .infinity)
-        .frame(minHeight: isMinimal ? 84 : (metrics.isCompactHeight ? 56 : 62), alignment: .center)
+        .frame(minHeight: isMinimal ? 94 : (metrics.isCompactHeight ? 66 : 72), alignment: .center)
     }
 
     private func lightImpact() {

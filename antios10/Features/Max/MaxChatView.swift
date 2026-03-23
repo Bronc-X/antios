@@ -307,7 +307,7 @@ struct MaxChatView: View {
                 .foregroundColor(.textPrimary)
         }
         .padding(.horizontal, sidePadding)
-        .padding(.top, max(metrics.safeAreaInsets.top - 34, 4))
+        .padding(.top, max(metrics.safeAreaInsets.top - 39, 2))
         .padding(.bottom, 2)
     }
 

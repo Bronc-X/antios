@@ -2,9 +2,9 @@
 
 ## Project Guardrail
 - All implementation changes for this delivery happen under `/Users/mac/Desktop/antios10`.
-- The active branch for this workspace is `codex/antios10`.
-- Do not switch this workspace back to `main`.
-- If work is requested against `main`, redirect execution to `/Users/mac/Desktop/antios10`.
+- The active branch for this workspace is `main`.
+- Do not switch this workspace to `old10`.
+- If work is requested against `old10`, redirect execution to `/Users/mac/Desktop/antios5`.
 
 ## Core Delivery Principles
 

@@ -28,7 +28,7 @@ struct ScreenMetrics {
     }
 
     var verticalPadding: CGFloat {
-        isCompactHeight ? 12 : 16
+        isCompactHeight ? 7 : 11
     }
 
     var sectionSpacing: CGFloat {

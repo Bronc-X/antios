@@ -205,6 +205,7 @@ private struct A10HomeView: View {
     @EnvironmentObject private var syncCoordinator: A10ShellSyncCoordinator
     @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
     @Query(sort: \A10ActionPlan.sortOrder) private var plans: [A10ActionPlan]
+    @State private var selectedProgressItem: A10HomeProgressItem?
 
     let language: AppLanguage
     let onOpenMax: () -> Void
@@ -227,80 +228,54 @@ private struct A10HomeView: View {
                     badgeTitle: homeHeaderBadgeTitle,
                     badgeTint: homeHeaderBadgeTint
                 ) {
-                    A10HeaderRefreshControl(isSyncing: syncCoordinator.isSyncing) {
-                        Task {
-                            await syncCoordinator.sync(
-                                context: modelContext,
-                                language: language,
-                                force: true,
-                                trigger: "home_header_refresh"
-                            )
-                        }
-                    }
+                    EmptyView()
                 }
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
                         if let currentSnapshot {
+                            A10DashboardSpatialHeroCard(
+                                model: spatialDashboardModel(snapshot: currentSnapshot),
+                                language: language,
+                                onPrimaryAction: handleHeroPrimaryAction
+                            )
+
+                            A10SectionHeader(
+                                title: L10n.text("当前进度", "Current progress", language: language),
+                                subtitle: L10n.text("能交给 Max 的步骤，会优先放在最前面。", "The steps Max can take over are surfaced first.", language: language)
+                            )
+
+                            A10Card {
+                                VStack(spacing: 12) {
+                                    ForEach(homeProgressItems(snapshot: currentSnapshot)) { item in
+                                        Button {
+                                            let impact = UIImpactFeedbackGenerator(style: .light)
+                                            impact.impactOccurred()
+                                            selectedProgressItem = item
+                                        } label: {
+                                            A10HomeProgressRow(item: item, language: language)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+
+                            A10SectionHeader(
+                                title: L10n.text("今日总览", "Today's overview", language: language),
+                                subtitle: L10n.text("把今天最关键的状态先放在一起看。", "Keep today's key state in one place.", language: language)
+                            )
+
                             A10HomeOverviewCard(
                                 snapshot: currentSnapshot,
                                 activePlansCount: activePlansCount,
                                 completedPlansCount: completedPlansCount,
                                 language: language
                             )
-                            A10DashboardSpatialHeroCard(
-                                model: spatialDashboardModel(snapshot: currentSnapshot),
-                                language: language,
-                                onPrimaryAction: handleHeroPrimaryAction,
-                                onSecondaryAction: handleHeroSecondaryAction
-                            )
                         } else {
                             A10EmptyStateCard(
                                 title: L10n.text("正在整理今天重点", "Preparing today's overview", language: language),
                                 message: L10n.text("正在同步你的最新状态和建议。", "Syncing your latest state and guidance.", language: language)
                             )
-                        }
-
-                        A10SectionHeader(
-                            title: L10n.text("当前进度", "Current progress", language: language),
-                            subtitle: L10n.text("先让你知道现在最适合做什么。", "Show what fits you best right now.", language: language)
-                        )
-
-                        A10Card {
-                            VStack(spacing: 14) {
-                                ForEach(A10LoopStage.allCases) { stage in
-                                    A10LoopStepRow(
-                                        stage: stage,
-                                        currentStage: currentSnapshot?.stage ?? .inquiry,
-                                        language: language
-                                    )
-                                }
-                            }
-                        }
-
-                        A10SectionHeader(
-                            title: L10n.text("今日行动", "Today plan", language: language),
-                            subtitle: L10n.text("把建议收敛成最小动作。", "Turn guidance into the smallest useful action.", language: language)
-                        )
-
-                        VStack(spacing: 12) {
-                            ForEach(plans.prefix(3), id: \.persistentModelID) { plan in
-                                A10ActionCard(
-                                    plan: plan,
-                                    language: language,
-                                    onToggle: { toggle(plan: plan) }
-                                )
-                            }
-                        }
-
-                        A10SectionHeader(
-                            title: L10n.text("快速动作", "Quick actions", language: language),
-                            subtitle: L10n.text("先完成眼前这一步，再决定要不要继续。", "Finish the step in front of you, then decide whether to go deeper.", language: language)
-                        )
-
-                        LazyVGrid(columns: homeQuickActionColumns, alignment: .leading, spacing: 12) {
-                            homeQuickActionAdvanceButton
-                            homeQuickActionMaxButton
                         }
                     }
                     .frame(maxWidth: metrics.maxContentWidth, alignment: .leading)
@@ -315,6 +290,15 @@ private struct A10HomeView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $selectedProgressItem) { item in
+            A10HomeProgressSheet(
+                item: item,
+                language: language,
+                onPrimaryAction: { performProgressAction(item) }
+            )
+            .presentationDetents([.height(340), .medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private func advanceLoop() {
@@ -362,38 +346,6 @@ private struct A10HomeView: View {
         Task {
             await syncCoordinator.syncPlanToggle(plan, context: modelContext, language: language)
         }
-    }
-
-    private var homeQuickActionColumns: [GridItem] {
-        let minimumWidth: CGFloat = metrics.fixedScreenWidth <= 360 ? 156 : 168
-        return [GridItem(.adaptive(minimum: minimumWidth), spacing: 12, alignment: .top)]
-    }
-
-    private var homeQuickActionAdvanceButton: some View {
-        Button {
-            advanceLoop()
-        } label: {
-            A10ActionButtonLabel(
-                title: L10n.text("推进下一步", "Advance next step", language: language),
-                subtitle: L10n.text("更新今天的进度", "Update today's progress", language: language),
-                systemImage: "arrow.right.circle.fill"
-            )
-        }
-        .buttonStyle(A10PrimaryButtonStyle())
-    }
-
-    private var homeQuickActionMaxButton: some View {
-        Button {
-            UISelectionFeedbackGenerator().selectionChanged()
-            onOpenMax()
-        } label: {
-            A10ActionButtonLabel(
-                title: L10n.text("打开 Max", "Open Max", language: language),
-                subtitle: L10n.text("直接和 Max 聊，继续下一步", "Talk to Max and continue the next step", language: language),
-                systemImage: "bubble.left.and.bubble.right.fill"
-            )
-        }
-        .buttonStyle(A10SecondaryButtonStyle())
     }
 
     private var homeHeaderSubtitle: String {
@@ -461,25 +413,25 @@ private struct A10HomeView: View {
         let trendDelta = trendPoints.count > 1
             ? Int((currentPoint.compositeScore - trendPoints.first!.compositeScore).rounded())
             : 0
-        let remoteStress = remoteContext?.effectiveStressScore ?? snapshot.stressScore
-        let dataCoverage = "\(trendPoints.count)/7"
-        let focusTitle = remoteContext?.focusText ?? snapshot.stage.title(language: language)
-        let deltaPrefix = trendDelta > 0 ? "+" : ""
+        let actionTitle = heroActionHeadline(snapshot: snapshot)
+        let actionDetail = heroActionDetail(snapshot: snapshot)
 
         return A10DashboardSpatialHeroModel(
-            eyebrow: remoteContext?.focusText != nil
-                ? A10LocalizedText(zh: "状态趋势", en: "State trend")
-                : A10LocalizedText(zh: "近 7 天趋势", en: "7-day trend"),
+            eyebrow: A10LocalizedText(zh: "今日行动", en: "Today's action"),
+            actionTitle: A10LocalizedText(zh: actionTitle, en: actionTitle),
+            actionDetail: A10LocalizedText(zh: actionDetail, en: actionDetail),
+            statusBadge: heroStatusBadge(),
+            statusTint: heroStatusTint(),
             topMetrics: [
                 A10SpatialMetric(
                     id: "score",
-                    title: A10LocalizedText(zh: "当前状态", en: "Current score"),
+                    title: A10LocalizedText(zh: "状态分", en: "State"),
                     value: "\(currentScore)"
                 ),
                 A10SpatialMetric(
                     id: "trend_delta",
-                    title: A10LocalizedText(zh: "7 日变化", en: "7d delta"),
-                    value: "\(deltaPrefix)\(trendDelta)"
+                    title: A10LocalizedText(zh: "变化", en: "Change"),
+                    value: trendDeltaString(trendDelta)
                 )
             ],
             chart: A10AuraLineChartModel(
@@ -488,64 +440,15 @@ private struct A10HomeView: View {
                 maxValue: 100,
                 xLabels: trendPoints.map(axisLabel(for:)),
                 yLabels: ["100", "75", "50", "25", "0"],
-                annotations: trendAnnotations(points: trendPoints, currentScore: currentScore, trendDelta: trendDelta)
-            ),
-            primaryActionTitle: heroPrimaryActionTitle(),
-            secondaryActionSymbol: heroSecondaryActionSymbol(stressScore: remoteStress),
-            footerTitle: A10LocalizedText(zh: "趋势波纹", en: "Trend ripple"),
-            bottomMetrics: [
-                A10SpatialMetric(
-                    id: "focus",
-                    title: A10LocalizedText(zh: "当前焦点", en: "Current focus"),
-                    value: focusTitle
-                ),
-                A10SpatialMetric(
-                    id: "coverage",
-                    title: A10LocalizedText(zh: "数据覆盖", en: "Coverage"),
-                    value: dataCoverage
+                annotations: [],
+                snapshots: trendSnapshots(points: trendPoints),
+                interactionHint: A10LocalizedText(
+                    zh: "点按或滑动折线，查看每天的变化。",
+                    en: "Tap or drag the line to inspect each day."
                 )
-            ],
+            ),
             waveSamples: denseWaveSamples(from: trendPoints)
         )
-    }
-
-    private func trendAnnotations(
-        points: [A10CompositeTrendPoint],
-        currentScore: Int,
-        trendDelta: Int
-    ) -> [A10AuraChartAnnotation] {
-        guard !points.isEmpty else { return [] }
-
-        var annotations = [
-            A10AuraChartAnnotation(
-                id: "current_score",
-                pointIndex: points.count - 1,
-                text: A10LocalizedText(
-                    zh: "今天 \(currentScore)",
-                    en: "Today \(currentScore)"
-                ),
-                xOffset: -26,
-                yOffset: -18
-            )
-        ]
-
-        if points.count > 1 {
-            let deltaPrefix = trendDelta > 0 ? "+" : ""
-            annotations.append(
-                A10AuraChartAnnotation(
-                    id: "trend_delta",
-                    pointIndex: max(points.count - 3, 0),
-                    text: A10LocalizedText(
-                        zh: "7 天 \(deltaPrefix)\(trendDelta)",
-                        en: "7d \(deltaPrefix)\(trendDelta)"
-                    ),
-                    xOffset: 26,
-                    yOffset: -48
-                )
-            )
-        }
-
-        return annotations
     }
 
     private func denseWaveSamples(from points: [A10CompositeTrendPoint]) -> [CGFloat] {
@@ -693,6 +596,41 @@ private struct A10HomeView: View {
         formatter.setLocalizedDateFormatFromTemplate("Md")
         let label = formatter.string(from: point.date)
         return A10LocalizedText(zh: label, en: label)
+    }
+
+    private func trendSnapshots(points: [A10CompositeTrendPoint]) -> [A10AuraChartSnapshot] {
+        points.enumerated().map { index, point in
+            let dateLabel = axisLabel(for: point)
+            let stateValue = "\(Int(point.compositeScore.rounded()))"
+            let secondary: String
+
+            if index == points.count - 1 {
+                secondary = todayTrendMeaning(for: point)
+            } else if point.compositeScore < 45 {
+                secondary = L10n.text("波动偏大，今天先减负。", "The swing is large. Ease the load today.", language: language)
+            } else if point.compositeScore < 65 {
+                secondary = L10n.text("还在回稳，先做轻一点。", "Still stabilizing. Keep it light first.", language: language)
+            } else {
+                secondary = L10n.text("状态在回升，可以继续一小步。", "State is recovering. One small next step is enough.", language: language)
+            }
+
+            return A10AuraChartSnapshot(
+                id: "trend_\(index)",
+                xLabel: dateLabel,
+                primaryValue: stateValue,
+                secondaryValue: secondary
+            )
+        }
+    }
+
+    private func todayTrendMeaning(for point: A10CompositeTrendPoint) -> String {
+        if point.compositeScore >= 70 {
+            return L10n.text("今天可以推进一点，但先别加码。", "You can move a little today, but don't overdo it.", language: language)
+        }
+        if point.compositeScore >= 55 {
+            return L10n.text("今天先做一个最轻的动作，再交给 Max。", "Do one light step first, then hand it to Max.", language: language)
+        }
+        return L10n.text("今天先缓一缓，让 Max 帮你收窄下一步。", "Take it slow today and let Max narrow the next step.", language: language)
     }
 
     private func shouldBlendHardware(into date: Date) -> Bool {
@@ -851,6 +789,67 @@ private struct A10HomeView: View {
         return A10LocalizedText(zh: "进入 Max", en: "Open Max")
     }
 
+    private func heroActionHeadline(snapshot: A10LoopSnapshot) -> String {
+        if let inquiry = remoteContext?.pendingInquiry {
+            return L10n.text("先回答一个关键问题", "Answer one key question first", language: language) + " · " + inquiry.questionText
+        }
+        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
+            return activePlan.title
+        }
+        if let brief = remoteContext?.proactiveBrief, !brief.microAction.isEmpty {
+            return brief.microAction
+        }
+        if remoteContext?.hasSignals == false {
+            return L10n.text("先记录一下现在的状态", "Start by noting how you feel right now", language: language)
+        }
+        return snapshot.nextActionTitle
+    }
+
+    private func heroActionDetail(snapshot: A10LoopSnapshot) -> String {
+        if let inquiry = remoteContext?.pendingInquiry {
+            return inquiry.feedContent?.title ?? L10n.text("回答这一个问题后，Max 才能更准确地接手。", "Once you answer this, Max can take over more accurately.", language: language)
+        }
+        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
+            return L10n.text("当前进度", "Current progress", language: language) + " \(activePlan.progress)%"
+        }
+        if let brief = remoteContext?.proactiveBrief {
+            return brief.understanding
+        }
+        if remoteContext?.hasSignals == false {
+            return L10n.text("先补今天最少的信息，Max 才知道怎么继续。", "Add the minimum state details first so Max knows what to do next.", language: language)
+        }
+        return snapshot.nextActionDetail
+    }
+
+    private func heroStatusBadge() -> A10LocalizedText? {
+        if remoteContext?.pendingInquiry != nil {
+            return A10LocalizedText(zh: "待回答", en: "Pending")
+        }
+        if remoteContext?.hasActivePlan == true {
+            return A10LocalizedText(zh: "进行中", en: "In progress")
+        }
+        if remoteContext?.proactiveBrief != nil {
+            return A10LocalizedText(zh: "Max 已准备", en: "Max ready")
+        }
+        if remoteContext?.hasSignals == false {
+            return A10LocalizedText(zh: "先记录", en: "Start note")
+        }
+        return A10LocalizedText(zh: "已同步", en: "Synced")
+    }
+
+    private func heroStatusTint() -> Color {
+        if remoteContext?.pendingInquiry != nil { return A10Palette.warning }
+        if remoteContext?.hasActivePlan == true { return A10Palette.info }
+        if remoteContext?.proactiveBrief != nil { return A10Palette.brand }
+        if remoteContext?.hasSignals == false { return A10Palette.warning }
+        return A10Palette.success
+    }
+
+    private func trendDeltaString(_ value: Int) -> String {
+        let prefix = value > 0 ? "+" : ""
+        return "\(prefix)\(value)"
+    }
+
     private func heroSecondaryActionSymbol(stressScore: Int) -> String {
         if stressScore >= 7 {
             return "wind"
@@ -959,6 +958,153 @@ private struct A10HomeView: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 180_000_000)
             NotificationCenter.default.post(name: notification, object: nil, userInfo: userInfo)
+        }
+    }
+
+    private func homeProgressItems(snapshot: A10LoopSnapshot) -> [A10HomeProgressItem] {
+        [
+            inquiryProgressItem(snapshot: snapshot),
+            recordProgressItem(snapshot: snapshot),
+            analysisProgressItem(snapshot: snapshot),
+            actionProgressItem(snapshot: snapshot)
+        ]
+    }
+
+    private func inquiryProgressItem(snapshot: A10LoopSnapshot) -> A10HomeProgressItem {
+        if let inquiry = remoteContext?.pendingInquiry {
+            return A10HomeProgressItem(
+                stage: .inquiry,
+                progress: 42,
+                statusText: L10n.text("待回答", "Pending", language: language),
+                summary: inquiry.questionText,
+                detail: inquiry.feedContent?.title ?? L10n.text("回答这一个问题后，Max 才能继续往下收窄。", "Answer this question and Max can narrow the next step.", language: language),
+                tint: A10Palette.warning,
+                ctaTitle: L10n.text("去和 Max 聊", "Open Max", language: language),
+                action: .openMax(intent: "inquiry", question: nil)
+            )
+        }
+
+        let detail = remoteContext?.focusText ?? L10n.text("Max 已拿到今天的重点。", "Max already has today's main focus.", language: language)
+        return A10HomeProgressItem(
+            stage: .inquiry,
+            progress: stageRank(snapshot.stage) > stageRank(.inquiry) || remoteContext != nil ? 100 : 18,
+            statusText: L10n.text("已准备", "Ready", language: language),
+            summary: L10n.text("今天先聊什么，已经整理好了。", "Today's opening direction is already prepared.", language: language),
+            detail: detail,
+            tint: A10Palette.success,
+            ctaTitle: L10n.text("让 Max 继续问", "Let Max continue", language: language),
+            action: .openMax(intent: "inquiry", question: nil)
+        )
+    }
+
+    private func recordProgressItem(snapshot: A10LoopSnapshot) -> A10HomeProgressItem {
+        let signalCount = remoteContext?.signalCount ?? 0
+        let progress = remoteContext?.hasSignals == true
+            ? min(max(signalCount * 12, 28), 100)
+            : (stageRank(snapshot.stage) > stageRank(.calibration) ? 100 : 12)
+
+        let summary = remoteContext?.hasSignals == true
+            ? L10n.text("今天的身体和状态信息已经有一部分了。", "Some of today's body and state details are already in.", language: language)
+            : L10n.text("今天还缺少状态记录。", "Today's state note is still missing.", language: language)
+
+        let detail = remoteContext?.hasSignals == true
+            ? L10n.text("已拿到 \(signalCount) 项有效信号。", "Already collected \(signalCount) useful signals.", language: language)
+            : L10n.text("先补一条最简单的记录，后面的建议会更贴近你。", "Add one simple note first and the next guidance will fit better.", language: language)
+
+        return A10HomeProgressItem(
+            stage: .calibration,
+            progress: progress,
+            statusText: remoteContext?.hasSignals == true ? L10n.text("已记录", "Recorded", language: language) : L10n.text("待补充", "Needed", language: language),
+            summary: summary,
+            detail: detail,
+            tint: remoteContext?.hasSignals == true ? A10Palette.info : A10Palette.warning,
+            ctaTitle: remoteContext?.hasSignals == true ? L10n.text("继续补充", "Add more", language: language) : L10n.text("开始记录", "Start note", language: language),
+            action: .startCalibration
+        )
+    }
+
+    private func analysisProgressItem(snapshot: A10LoopSnapshot) -> A10HomeProgressItem {
+        if let brief = remoteContext?.proactiveBrief {
+            return A10HomeProgressItem(
+                stage: .evidence,
+                progress: 100,
+                statusText: L10n.text("已整理", "Ready", language: language),
+                summary: brief.title,
+                detail: brief.understanding,
+                tint: A10Palette.brand,
+                ctaTitle: L10n.text("让 Max 讲清楚", "Let Max explain", language: language),
+                action: .openMax(intent: "proactive_brief", question: nil)
+            )
+        }
+
+        let baseProgress = remoteContext?.hasSignals == true ? 58 : (stageRank(snapshot.stage) > stageRank(.evidence) ? 100 : 20)
+        return A10HomeProgressItem(
+            stage: .evidence,
+            progress: baseProgress,
+            statusText: remoteContext?.hasSignals == true ? L10n.text("整理中", "Preparing", language: language) : L10n.text("等待中", "Waiting", language: language),
+            summary: remoteContext?.hasSignals == true
+                ? L10n.text("原因和建议正在靠近你的真实状态。", "Reasons and guidance are being tailored to your real state.", language: language)
+                : L10n.text("还缺少今天的状态，暂时讲不清原因。", "Today's state is still missing, so the reason isn't clear yet.", language: language),
+            detail: remoteContext?.hasSignals == true
+                ? L10n.text("再多一点信息，Max 就能把原因讲得更准确。", "A bit more signal and Max can explain more precisely.", language: language)
+                : L10n.text("先记录，再让 Max 帮你分析。", "Record first, then let Max help analyze.", language: language),
+            tint: A10Palette.brandSecondary,
+            ctaTitle: remoteContext?.hasSignals == true ? L10n.text("去问 Max", "Ask Max", language: language) : L10n.text("先去记录", "Record first", language: language),
+            action: remoteContext?.hasSignals == true ? .openMax(intent: "evidence_explain", question: nil) : .startCalibration
+        )
+    }
+
+    private func actionProgressItem(snapshot: A10LoopSnapshot) -> A10HomeProgressItem {
+        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
+            return A10HomeProgressItem(
+                stage: .action,
+                progress: max(8, min(activePlan.progress, 100)),
+                statusText: L10n.text("进行中", "In progress", language: language),
+                summary: activePlan.title,
+                detail: L10n.text("已经推进到 \(activePlan.progress)% 了，剩下的交给 Max 帮你收窄。", "You're already \(activePlan.progress)% through it. Let Max narrow the rest.", language: language),
+                tint: A10Palette.success,
+                ctaTitle: L10n.text("让 Max 接手", "Let Max take over", language: language),
+                action: .openMax(intent: "plan_review", question: nil)
+            )
+        }
+
+        let total = max((remoteContext?.openHabitsCount ?? 0) + (remoteContext?.completedHabitsCount ?? 0), max(activePlansCount + completedPlansCount, 1))
+        let completed = max(remoteContext?.completedHabitsCount ?? 0, completedPlansCount)
+        let progress = Int((Double(completed) / Double(total)) * 100)
+
+        return A10HomeProgressItem(
+            stage: .action,
+            progress: progress,
+            statusText: progress > 0 ? L10n.text("已开始", "Started", language: language) : L10n.text("待开始", "Not started", language: language),
+            summary: progress > 0
+                ? L10n.text("今天已经开始推进。", "Today's plan has already started moving.", language: language)
+                : L10n.text("今天还没有开始动作。", "No action has started yet today.", language: language),
+            detail: progress > 0
+                ? L10n.text("如果不想自己判断下一步，可以直接交给 Max。", "If you don't want to decide the next step yourself, hand it to Max.", language: language)
+                : L10n.text("Max 可以根据你的近况，先帮你压成一个最轻的动作。", "Max can compress the next step into one light action.", language: language),
+            tint: progress > 0 ? A10Palette.success : A10Palette.info,
+            ctaTitle: L10n.text("让 Max 安排", "Let Max plan it", language: language),
+            action: .openMax(intent: progress > 0 ? "plan_review" : "proactive_brief", question: nil)
+        )
+    }
+
+    private func performProgressAction(_ item: A10HomeProgressItem) {
+        switch item.action {
+        case .openMax(let intent, let question):
+            openMaxFromHero(intent: intent, question: question)
+        case .startCalibration:
+            triggerMaxExecutionFromHero(.startCalibration)
+        case .startBreathing(let minutes):
+            triggerMaxExecutionFromHero(.startBreathing, userInfo: ["duration": minutes])
+        }
+    }
+
+    private func stageRank(_ stage: A10LoopStage) -> Int {
+        switch stage {
+        case .inquiry: return 0
+        case .calibration: return 1
+        case .evidence: return 2
+        case .action: return 3
         }
     }
 }
@@ -1451,11 +1597,11 @@ private struct A10ShellPageHeader<Trailing: View>: View {
     }
 
     private var contentTopInset: CGFloat {
-        max(metrics.safeAreaInsets.top - 30, 6)
+        max(metrics.safeAreaInsets.top - 35, 4)
     }
 
     private var mistHeight: CGFloat {
-        max(metrics.safeAreaInsets.top + 44, 74)
+        max(metrics.safeAreaInsets.top + 39, 69)
     }
 
     var body: some View {
@@ -1681,7 +1827,7 @@ private struct A10HomeOverviewCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.text("恢复总览", "Recovery overview", language: language))
+                        Text(L10n.text("今日总览", "Today's overview", language: language))
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(A10Palette.inkSecondary)
                         Text(snapshot.stage.title(language: language))
@@ -1741,6 +1887,178 @@ private struct A10HomeOverviewCard: View {
                 .stroke(A10Palette.line.opacity(0.68), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
+    }
+}
+
+private enum A10HomeProgressAction {
+    case openMax(intent: String?, question: String?)
+    case startCalibration
+    case startBreathing(minutes: Int)
+}
+
+private struct A10HomeProgressItem: Identifiable {
+    let stage: A10LoopStage
+    let progress: Int
+    let statusText: String
+    let summary: String
+    let detail: String
+    let tint: Color
+    let ctaTitle: String
+    let action: A10HomeProgressAction
+
+    var id: String { stage.rawValue }
+}
+
+private struct A10HomeProgressRow: View {
+    let item: A10HomeProgressItem
+    let language: AppLanguage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(item.tint.opacity(0.14))
+                        .frame(width: 38, height: 38)
+
+                    Image(systemName: item.stage.icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(item.tint)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(item.stage.title(language: language))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.ink)
+
+                        Text(item.statusText)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(item.tint)
+                    }
+
+                    Text(item.summary)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(item.detail)
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(item.progress)%")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                }
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(A10Palette.inset.opacity(0.7))
+                    Capsule()
+                        .fill(item.tint)
+                        .frame(width: max(18, proxy.size.width * CGFloat(item.progress) / 100))
+                }
+            }
+            .frame(height: 8)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(A10Palette.inset.opacity(0.72))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(item.tint.opacity(0.16), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct A10HomeProgressSheet: View {
+    let item: A10HomeProgressItem
+    let language: AppLanguage
+    let onPrimaryAction: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.stage.title(language: language))
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.ink)
+
+                        Text(item.statusText + " · \(item.progress)%")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(item.tint)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(A10Palette.ink)
+                            .frame(width: 34, height: 34)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                A10Card(highlighted: true) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(item.summary)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.ink)
+
+                        Text(item.detail)
+                            .font(.system(size: 14, weight: .regular, design: .rounded))
+                            .foregroundStyle(A10Palette.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Button {
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                        onPrimaryAction()
+                    }
+                } label: {
+                    Text(item.ctaTitle)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(A10PrimaryButtonStyle())
+
+                Text(
+                    L10n.text(
+                        "首页只保留判断和入口，真正的下一步交给 Max 来接手。",
+                        "Home only keeps the judgment and the entry point. Let Max take over the actual next step.",
+                        language: language
+                    )
+                )
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(A10Palette.inkSecondary)
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
     }
 }
 

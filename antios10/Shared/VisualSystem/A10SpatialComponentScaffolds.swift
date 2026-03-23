@@ -99,6 +99,8 @@ struct A10AuraLineChart: View {
     let model: A10AuraLineChartModel
     let language: AppLanguage
 
+    @State private var selectedIndex: Int?
+
     var body: some View {
         GeometryReader { proxy in
             let plotRect = CGRect(
@@ -108,6 +110,7 @@ struct A10AuraLineChart: View {
                 height: max(proxy.size.height - 58, 0)
             )
             let points = chartPoints(in: plotRect)
+            let activeIndex = resolvedSelectedIndex(for: points)
 
             TimelineView(.animation) { timeline in
                 let phase = timeline.date.timeIntervalSinceReferenceDate
@@ -156,18 +159,71 @@ struct A10AuraLineChart: View {
                             .position(point)
                     }
 
-                    ForEach(model.annotations) { annotation in
-                        if points.indices.contains(annotation.pointIndex) {
-                            A10GlassTag(text: annotation.text.resolve(language))
-                                .position(
-                                    x: points[annotation.pointIndex].x + annotation.xOffset,
-                                    y: points[annotation.pointIndex].y + annotation.yOffset
-                                )
+                    if points.indices.contains(activeIndex) {
+                        let activePoint = points[activeIndex]
+                        Path { path in
+                            path.move(to: CGPoint(x: activePoint.x, y: plotRect.minY))
+                            path.addLine(to: CGPoint(x: activePoint.x, y: plotRect.maxY))
+                        }
+                        .stroke(
+                            A10SpatialPalette.heroTertiaryText(for: colorScheme).opacity(colorScheme == .dark ? 0.44 : 0.3),
+                            style: StrokeStyle(lineWidth: 1, dash: [3, 6])
+                        )
+
+                        Circle()
+                            .fill(A10SpatialPalette.heroPointFill(for: colorScheme, highlighted: true))
+                            .frame(width: 10, height: 10)
+                            .shadow(
+                                color: A10SpatialPalette.heroChartGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.4 : 0.24),
+                                radius: 10
+                            )
+                            .position(activePoint)
+
+                        if let snapshot = activeSnapshot(activeIndex) {
+                            A10GlassTag(
+                                title: snapshot.xLabel.resolve(language),
+                                value: snapshot.primaryValue,
+                                detail: snapshot.secondaryValue
+                            )
+                            .position(
+                                x: min(max(activePoint.x, plotRect.minX + 52), plotRect.maxX - 52),
+                                y: max(activePoint.y - 44, plotRect.minY + 24)
+                            )
                         }
                     }
                 }
             }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard !points.isEmpty else { return }
+                        selectedIndex = nearestPointIndex(for: value.location.x, in: plotRect, count: points.count)
+                    }
+                    .onEnded { value in
+                        guard !points.isEmpty else { return }
+                        selectedIndex = nearestPointIndex(for: value.location.x, in: plotRect, count: points.count)
+                    }
+            )
         }
+    }
+
+    private func resolvedSelectedIndex(for points: [CGPoint]) -> Int {
+        guard !points.isEmpty else { return 0 }
+        return min(max(selectedIndex ?? (points.count - 1), 0), points.count - 1)
+    }
+
+    private func nearestPointIndex(for x: CGFloat, in rect: CGRect, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        let clampedX = min(max(x, rect.minX), rect.maxX)
+        let step = rect.width / CGFloat(max(count - 1, 1))
+        let raw = Int(round((clampedX - rect.minX) / max(step, 1)))
+        return min(max(raw, 0), count - 1)
+    }
+
+    private func activeSnapshot(_ index: Int) -> A10AuraChartSnapshot? {
+        guard model.snapshots.indices.contains(index) else { return nil }
+        return model.snapshots[index]
     }
 
     private func chartPoints(in rect: CGRect) -> [CGPoint] {
@@ -265,23 +321,34 @@ struct A10AuraLineChart: View {
 struct A10GlassTag: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let text: String
+    let title: String
+    let value: String
+    let detail: String
 
     var body: some View {
-        Text(text)
-            .font(A10SpatialTypography.label(10, weight: .medium))
-            .foregroundColor(A10SpatialPalette.heroTagText(for: colorScheme))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                Capsule()
-                    .fill(A10SpatialPalette.heroTagFill(for: colorScheme))
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(A10SpatialPalette.heroTagBorder(for: colorScheme), lineWidth: 1)
-                    )
-            )
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(A10SpatialTypography.label(9, weight: .medium))
+                .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
+            Text(value)
+                .font(A10SpatialTypography.body(14, weight: .semibold))
+                .foregroundColor(A10SpatialPalette.heroTagText(for: colorScheme))
+            Text(detail)
+                .font(A10SpatialTypography.label(9, weight: .regular))
+                .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
+                .lineLimit(2)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(A10SpatialPalette.heroTagFill(for: colorScheme))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(A10SpatialPalette.heroTagBorder(for: colorScheme), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -303,11 +370,11 @@ struct A10DashboardSpatialHeroCard: View {
     }
 
     private var chartHeight: CGFloat {
-        metrics.isCompactHeight ? 118 : 130
+        metrics.isCompactHeight ? 170 : 184
     }
 
     private var productionHeight: CGFloat {
-        metrics.isCompactHeight ? 32 : 36
+        metrics.isCompactHeight ? 26 : 30
     }
 
     var body: some View {
@@ -320,12 +387,35 @@ struct A10DashboardSpatialHeroCard: View {
 
                     Spacer()
 
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
+                    if let statusBadge = model.statusBadge {
+                        Text(statusBadge.resolve(language))
+                            .font(A10SpatialTypography.label(10, weight: .semibold))
+                            .foregroundColor(model.statusTint)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(model.statusTint.opacity(0.12))
+                            )
+                    }
                 }
 
-                HStack(spacing: 20) {
+                Group {
+                    if let onPrimaryAction {
+                        Button {
+                            let impact = UIImpactFeedbackGenerator(style: .soft)
+                            impact.impactOccurred()
+                            onPrimaryAction()
+                        } label: {
+                            actionBlock
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        actionBlock
+                    }
+                }
+
+                HStack(spacing: 18) {
                     ForEach(model.topMetrics) { metric in
                         A10MetricBlock(metric: metric, language: language)
                     }
@@ -334,43 +424,30 @@ struct A10DashboardSpatialHeroCard: View {
                 A10AuraLineChart(model: model.chart, language: language)
                     .frame(height: chartHeight)
 
-                HStack(spacing: 12) {
-                    Button(model.primaryActionTitle.resolve(language)) {
-                        let impact = UIImpactFeedbackGenerator(style: .medium)
-                        impact.impactOccurred()
-                        onPrimaryAction?()
-                    }
-                        .font(A10SpatialTypography.body(15, weight: .medium))
-                        .buttonStyle(A10GraphitePillButtonStyle())
-
-                    Button {
-                        let impact = UIImpactFeedbackGenerator(style: .light)
-                        impact.impactOccurred()
-                        onSecondaryAction?()
-                    } label: {
-                        Image(systemName: model.secondaryActionSymbol)
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .buttonStyle(A10RoundGraphiteActionStyle())
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(model.footerTitle.resolve(language))
-                        .font(A10SpatialTypography.label(11, weight: .regular))
-                        .foregroundColor(A10SpatialPalette.heroTertiaryText(for: colorScheme))
-
-                    HStack(spacing: 20) {
-                        ForEach(model.bottomMetrics) { metric in
-                            A10MetricBlock(metric: metric, language: language, large: false)
-                        }
-                    }
-                }
-
                 A10ProductionBarStrip(samples: model.waveSamples)
                     .frame(height: productionHeight)
+                    .opacity(0.72)
+
+                Text(model.chart.interactionHint.resolve(language))
+                    .font(A10SpatialTypography.label(10, weight: .regular))
+                    .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var actionBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(model.actionTitle.resolve(language))
+                .font(A10SpatialTypography.body(20, weight: .semibold))
+                .foregroundColor(A10SpatialPalette.heroPrimaryText(for: colorScheme))
+                .multilineTextAlignment(.leading)
+            Text(model.actionDetail.resolve(language))
+                .font(A10SpatialTypography.label(12, weight: .regular))
+                .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -401,30 +478,42 @@ struct A10ProductionBarStrip: View {
     let samples: [CGFloat]
 
     var body: some View {
-        GeometryReader { proxy in
-            HStack(alignment: .bottom, spacing: 3) {
-                ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    A10SpatialPalette.heroProductionBar(for: colorScheme).opacity(index.isMultiple(of: 3) ? 0.55 : 0.86),
-                                    A10SpatialPalette.heroProductionBar(for: colorScheme)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
+        TimelineView(.animation) { timeline in
+            let phase = timeline.date.timeIntervalSinceReferenceDate
+            GeometryReader { proxy in
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
+                        let animatedSample = animatedHeight(for: sample, index: index, phase: phase)
+
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        A10SpatialPalette.heroProductionBar(for: colorScheme).opacity(index.isMultiple(of: 3) ? 0.5 : 0.84),
+                                        A10SpatialPalette.heroProductionBar(for: colorScheme)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             )
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.7)
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(8, proxy.size.height * sample))
-                        .offset(y: sin(CGFloat(index) * 0.52) * -1.8)
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.7)
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(8, proxy.size.height * animatedSample))
+                            .offset(y: sin(CGFloat(index) * 0.52 + phase * 0.8) * -1.8)
+                    }
                 }
             }
         }
+    }
+
+    private func animatedHeight(for sample: CGFloat, index: Int, phase: TimeInterval) -> CGFloat {
+        let waveA = sin(phase * 1.37 + Double(index) * 0.71) * 0.06
+        let waveB = cos(phase * 0.84 + Double(index) * 1.13) * 0.04
+        let waveC = sin(phase * 1.91 + Double(index) * 0.29) * 0.03
+        return min(max(sample + CGFloat(waveA + waveB + waveC), 0.12), 0.92)
     }
 }
 
