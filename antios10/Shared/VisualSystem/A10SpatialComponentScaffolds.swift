@@ -502,7 +502,7 @@ struct A10ProductionBarStrip: View {
                             )
                             .frame(maxWidth: .infinity)
                             .frame(height: max(8, proxy.size.height * animatedSample))
-                            .offset(y: sin(CGFloat(index) * 0.52 + phase * 0.8) * -1.8)
+                            .offset(y: sin(CGFloat(index) * 0.52 + phase * 0.8) * -3.2)
                     }
                 }
             }
@@ -510,10 +510,10 @@ struct A10ProductionBarStrip: View {
     }
 
     private func animatedHeight(for sample: CGFloat, index: Int, phase: TimeInterval) -> CGFloat {
-        let waveA = sin(phase * 1.37 + Double(index) * 0.71) * 0.06
-        let waveB = cos(phase * 0.84 + Double(index) * 1.13) * 0.04
-        let waveC = sin(phase * 1.91 + Double(index) * 0.29) * 0.03
-        return min(max(sample + CGFloat(waveA + waveB + waveC), 0.12), 0.92)
+        let waveA = sin(phase * 1.37 + Double(index) * 0.71) * 0.1
+        let waveB = cos(phase * 0.84 + Double(index) * 1.13) * 0.065
+        let waveC = sin(phase * 1.91 + Double(index) * 0.29) * 0.045
+        return min(max(sample + CGFloat(waveA + waveB + waveC), 0.08), 0.96)
     }
 }
 
