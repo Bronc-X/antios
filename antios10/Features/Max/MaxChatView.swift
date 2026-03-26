@@ -49,7 +49,28 @@ struct MaxChatView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: metrics.sectionSpacing) {
                             if viewModel.messages.isEmpty {
-                                if !viewModel.starterQuestions.isEmpty {
+                                if let fusionRuntime = viewModel.fusionRuntime {
+                                    MaxFusionReplyCard(
+                                        runtime: fusionRuntime,
+                                        language: appSettings.language,
+                                        onPrimaryAction: { viewModel.continueFromFusionReply() },
+                                        onSecondaryAction: { viewModel.overrideFusionPlan() },
+                                        onDiscomfortAction: { viewModel.reportFusionDiscomfort() },
+                                        onExplainAction: { viewModel.reviewFusionExplanation() }
+                                    )
+                                }
+
+                                if let followUpRuntime = viewModel.followUpRuntime {
+                                    MaxFollowUpCard(
+                                        runtime: followUpRuntime,
+                                        language: appSettings.language
+                                    ) {
+                                        viewModel.openFollowUpFlow()
+                                    }
+                                }
+
+                                if !viewModel.hasStructuredEntrySurface,
+                                   !viewModel.starterQuestions.isEmpty {
                                     ImmersiveStarterView(questions: Array(viewModel.starterQuestions.prefix(3))) { question in
                                         viewModel.inputText = question
                                         viewModel.sendMessage()

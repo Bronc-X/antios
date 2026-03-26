@@ -15,7 +15,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>AntiAnxiety</string>
+	<string>antios</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -173,9 +173,9 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>用于生物识别锁，保护你的数据安全。</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>AntiAnxiety 需要读取 Apple Watch/HealthKit 数据，用于反焦虑进展的校准、解释与行动建议。</string>
+	<string>antios 需要读取 Apple Watch/HealthKit 数据，用于反焦虑进展的校准、解释与行动建议。</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>AntiAnxiety 需要写入 HealthKit 数据以记录恢复动作，并持续优化你的反焦虑模型。</string>
+	<string>antios 需要写入 HealthKit 数据以记录恢复动作，并持续优化你的反焦虑模型。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>用于语音输入，帮助你更快与 Max 对话。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

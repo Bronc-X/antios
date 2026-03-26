@@ -71,15 +71,15 @@ struct MaxQuickWakeView: View {
             // 快捷操作
             HStack(spacing: 12) {
                 QuickActionButton(icon: "waveform.path.ecg", title: t("查看 HRV", "View HRV")) {
-                    handoffToCoach(intent: "sensor_follow_up")
+                    handoffToMax(intent: "sensor_follow_up")
                 }
                 
                 QuickActionButton(icon: "brain.head.profile", title: t("记录状态", "Log my state")) {
-                    handoffToCoach(intent: "check_in")
+                    handoffToMax(intent: "check_in")
                 }
                 
                 QuickActionButton(icon: "wind", title: t("呼吸练习", "Breathing")) {
-                    handoffToCoach(intent: "breathing", userInfo: ["duration": 5])
+                    handoffToMax(intent: "breathing", userInfo: ["duration": 5])
                 }
             }
         }
@@ -96,7 +96,7 @@ struct MaxQuickWakeView: View {
         guard !trimmed.isEmpty else { return }
         
         isProcessing = true
-        handoffToCoach(question: trimmed)
+        handoffToMax(question: trimmed)
         
         // 延迟后重置
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -105,7 +105,7 @@ struct MaxQuickWakeView: View {
         }
     }
 
-    private func handoffToCoach(
+    private func handoffToMax(
         intent: String? = nil,
         question: String? = nil,
         userInfo: [String: Any] = [:]

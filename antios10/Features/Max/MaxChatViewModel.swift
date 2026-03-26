@@ -176,6 +176,8 @@ class MaxChatViewModel: ObservableObject {
     @Published var starterQuestions: [String] = []
     @Published var agentSurface = MaxAgentSurfaceModel.placeholder(language: L10n.currentLanguage())
     @Published var pendingExecutionRequest: MaxAgentExecutionRequest?
+    @Published var fusionRuntime: FusionReplyRuntime?
+    @Published var followUpRuntime: FollowUpRuntime?
     
     // 🆕 P2 功能 - 离线状态
     @Published var isOffline = false
@@ -246,6 +248,16 @@ class MaxChatViewModel: ObservableObject {
     private var messagePersistRetryBaseDelayNanos: UInt64 {
         let millis = max(50, runtimeInt(for: "MAX_CHAT_MESSAGE_RETRY_BASE_DELAY_MS", fallback: 350))
         return UInt64(millis) * 1_000_000
+    }
+
+    var hasStructuredEntrySurface: Bool {
+        fusionRuntime != nil || followUpRuntime != nil
+    }
+
+    var canAcceptAutomaticFollowUp: Bool {
+        !isTyping &&
+        pendingExecutionRequest == nil &&
+        inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var cloudResponseTimeoutFastSeconds: UInt64 {
@@ -319,6 +331,8 @@ class MaxChatViewModel: ObservableObject {
         let language = currentLanguage
         guard SupabaseManager.shared.currentUser != nil else {
             agentSurface = .placeholder(language: language)
+            fusionRuntime = nil
+            followUpRuntime = nil
             return
         }
 
@@ -334,6 +348,14 @@ class MaxChatViewModel: ObservableObject {
         let activePlan = await activePlanTask
         let pendingInquiry = await inquiryTask?.inquiry
         let proactiveBrief = await proactiveBriefTask
+        let runtimeBundle = A10FusionRuntimeBuilder.build(
+            dashboard: dashboard,
+            proactiveBrief: proactiveBrief,
+            activePlanTitle: activePlan?.name ?? activePlan?.title,
+            language: language
+        )
+        fusionRuntime = runtimeBundle.fusion
+        followUpRuntime = runtimeBundle.followUp
         agentSurface = buildAgentSurface(
             dashboard: dashboard,
             pendingInquiry: pendingInquiry,
@@ -431,6 +453,13 @@ class MaxChatViewModel: ObservableObject {
     }
 
     func handleAskMaxNotification(userInfo: [AnyHashable: Any]) {
+        if let intent = (userInfo["intent"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+           handleRuntimeIntent(intent, userInfo: userInfo) {
+            return
+        }
+
         if let action = MaxAgentActionRouter.resolveNotificationAction(
             userInfo: userInfo,
             language: currentLanguage,
@@ -445,6 +474,42 @@ class MaxChatViewModel: ObservableObject {
             inputText = question
             sendMessage()
         }
+    }
+
+    func continueFromFusionReply() {
+        guard let fusionRuntime else {
+            sendPreparedPrompt(agentSurface.proactive.prompt)
+            return
+        }
+        sendPreparedPrompt(fusionRuntime.continuePrompt)
+    }
+
+    func reviewFusionExplanation() {
+        guard let fusionRuntime else {
+            sendPreparedPrompt(agentSurface.evidence.prompt)
+            return
+        }
+        sendPreparedPrompt(fusionRuntime.explanationPrompt)
+    }
+
+    func overrideFusionPlan() {
+        guard let fusionRuntime else {
+            sendPreparedPrompt(agentSurface.plan.prompt)
+            return
+        }
+        sendPreparedPrompt(fusionRuntime.overridePrompt)
+    }
+
+    func reportFusionDiscomfort() {
+        guard let fusionRuntime else {
+            pendingExecutionRequest = .checkIn
+            return
+        }
+        sendPreparedPrompt(fusionRuntime.discomfortPrompt)
+    }
+
+    func openFollowUpFlow() {
+        openFollowUpFlow(intent: followUpRuntime?.intent, userInfo: [:])
     }
 
     func explainLatestBodySignals() {
@@ -558,6 +623,65 @@ class MaxChatViewModel: ObservableObject {
             sendPreparedPrompt(prompt)
         case .review(let outcome):
             submitActionReview(outcome, sourceText: sourceText)
+        }
+    }
+
+    private func handleRuntimeIntent(_ intent: String, userInfo: [AnyHashable: Any]) -> Bool {
+        switch intent {
+        case "exercise_precheck", "risk_prevention", "fusion_reply":
+            if messages.isEmpty {
+                return true
+            }
+            continueFromFusionReply()
+            return true
+        case "workout_follow_up", "next_day_follow_up":
+            openFollowUpFlow(intent: intent, userInfo: userInfo)
+            return true
+        case "exercise_override":
+            overrideFusionPlan()
+            return true
+        case "discomfort_support":
+            reportFusionDiscomfort()
+            return true
+        case "explain_fusion":
+            reviewFusionExplanation()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func openFollowUpFlow(intent: String?, userInfo: [AnyHashable: Any]) {
+        if let prompt = (userInfo["prompt"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !prompt.isEmpty {
+            sendPreparedPrompt(prompt)
+            return
+        }
+
+        if let followUpRuntime,
+           intent == nil || followUpRuntime.intent == intent {
+            sendPreparedPrompt(followUpRuntime.prompt)
+            return
+        }
+
+        switch intent {
+        case "workout_follow_up":
+            sendPreparedPrompt(
+                t(
+                    "系统已经拿到我刚结束的运动基础数据。请直接做一次运动后复盘：先判断恢复是否正常，再告诉我接下来需要关注什么。",
+                    "The system already has the basics from the workout I just finished. Run a post-workout review now: tell me whether recovery looks normal, then what I should watch next."
+                )
+            )
+        case "next_day_follow_up":
+            sendPreparedPrompt(
+                t(
+                    "请按次日晨起恢复复盘来判断我今天适不适合继续运动，优先看睡眠、HRV、静息心率和昨天的负荷。",
+                    "Run the next-morning recovery review and tell me whether I am fit to continue training today, prioritizing sleep, HRV, resting heart rate, and yesterday's load."
+                )
+            )
+        default:
+            sendPreparedPrompt(agentSurface.proactive.continuePrompt)
         }
     }
 

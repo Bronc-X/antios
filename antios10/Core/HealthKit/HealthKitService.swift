@@ -4,6 +4,14 @@
 import Foundation
 import HealthKit
 
+struct HealthKitWorkoutSummary: Equatable {
+    let id: String
+    let activityName: String
+    let startDate: Date
+    let endDate: Date
+    let durationMinutes: Int
+}
+
 @MainActor
 final class HealthKitService: ObservableObject, HealthKitServicing {
     static let shared = HealthKitService()
@@ -49,7 +57,8 @@ final class HealthKitService: ObservableObject, HealthKitServicing {
             HKQuantityType(.heartRate),
             HKQuantityType(.stepCount),
             HKQuantityType(.activeEnergyBurned),
-            HKCategoryType(.sleepAnalysis)
+            HKCategoryType(.sleepAnalysis),
+            HKObjectType.workoutType()
         ]
         
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -68,13 +77,28 @@ final class HealthKitService: ObservableObject, HealthKitServicing {
     // MARK: - 查询方法
     
     func queryLatestHRV() async throws -> Double {
+        try await queryLatestHRV(from: nil, to: nil)
+    }
+
+    func queryLatestHRV(from startDate: Date?, to endDate: Date?) async throws -> Double {
         guard let type = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
             throw HealthKitError.typeNotAvailable
+        }
+
+        let predicate: NSPredicate?
+        if startDate != nil || endDate != nil {
+            predicate = HKQuery.predicateForSamples(
+                withStart: startDate,
+                end: endDate,
+                options: [.strictStartDate, .strictEndDate]
+            )
+        } else {
+            predicate = nil
         }
         
         return try await withCheckedThrowingContinuation { continuation in
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-            let query = HKSampleQuery(sampleType: type, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, results, error in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, results, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                     return
@@ -256,6 +280,101 @@ final class HealthKitService: ObservableObject, HealthKitServicing {
             return 60
         default:
             return 45
+        }
+    }
+
+    func queryLatestWorkout(
+        since startDate: Date? = nil,
+        to endDate: Date = Date()
+    ) async throws -> HealthKitWorkoutSummary? {
+        guard isAvailable else {
+            return nil
+        }
+
+        let predicate: NSPredicate?
+        if let startDate {
+            predicate = HKQuery.predicateForSamples(
+                withStart: startDate,
+                end: endDate,
+                options: [.strictStartDate, .strictEndDate]
+            )
+        } else {
+            predicate = nil
+        }
+
+        let workoutType = HKObjectType.workoutType()
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: workoutType,
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: [sort]
+            ) { _, results, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let workout = results?.first as? HKWorkout else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let summary = HealthKitWorkoutSummary(
+                    id: workout.uuid.uuidString,
+                    activityName: Self.displayName(for: workout.workoutActivityType),
+                    startDate: workout.startDate,
+                    endDate: workout.endDate,
+                    durationMinutes: max(1, Int((workout.duration / 60).rounded()))
+                )
+                continuation.resume(returning: summary)
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    func hasMorningRecoverySignals(at date: Date = Date()) async -> Bool {
+        guard isAvailable else { return false }
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let sleepWindowStart = calendar.date(byAdding: .hour, value: -18, to: startOfDay) ?? startOfDay
+
+        async let sleepTask = try? querySleepDuration(from: sleepWindowStart, to: date)
+        async let rhrTask = try? queryRestingHeartRate(from: startOfDay, to: date)
+        async let hrvTask = try? queryLatestHRV(from: startOfDay, to: date)
+
+        let sleep = await sleepTask
+        let restingHeartRate = await rhrTask
+        let hrv = await hrvTask
+
+        return (sleep ?? 0) > 0 || (restingHeartRate ?? 0) > 0 || (hrv ?? 0) > 0
+    }
+
+    nonisolated private static func displayName(for activityType: HKWorkoutActivityType) -> String {
+        switch activityType {
+        case .running:
+            return "running"
+        case .walking:
+            return "walking"
+        case .cycling:
+            return "cycling"
+        case .traditionalStrengthTraining:
+            return "strength"
+        case .highIntensityIntervalTraining:
+            return "hiit"
+        case .swimming:
+            return "swimming"
+        case .hiking:
+            return "hiking"
+        case .yoga:
+            return "yoga"
+        case .functionalStrengthTraining:
+            return "functional_strength"
+        default:
+            return "workout"
         }
     }
 }

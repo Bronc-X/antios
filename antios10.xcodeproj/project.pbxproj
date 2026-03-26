@@ -42,6 +42,8 @@
 		A10SBCLI000000000000101 /* SupabaseManager+ClinicalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SBCLI000000000000001 /* SupabaseManager+ClinicalService.swift */; };
 		A10SBHAB000000000000101 /* SupabaseManager+HabitsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SBHAB000000000000001 /* SupabaseManager+HabitsService.swift */; };
 		A10SBMAX000000000000101 /* SupabaseManager+MaxService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SBMAX000000000000001 /* SupabaseManager+MaxService.swift */; };
+		A10WIDAPP000000000000101 /* WidgetSharedPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10WIDFIL000000000000001 /* WidgetSharedPayload.swift */; };
+		A10WIDWGT000000000000101 /* WidgetSharedPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10WIDFIL000000000000001 /* WidgetSharedPayload.swift */; };
 		A10SHMOD0000000000000101 /* A10ShellModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SHMOD0000000000000001 /* A10ShellModels.swift */; };
 		A10SHSED0000000000000101 /* A10SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SHSED0000000000000001 /* A10SeedData.swift */; };
 		A10SHSYN0000000000000101 /* A10ShellSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SHSYN0000000000000001 /* A10ShellSyncCoordinator.swift */; };
@@ -188,6 +190,7 @@
 		A10SBCLI000000000000001 /* SupabaseManager+ClinicalService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+ClinicalService.swift"; sourceTree = "<group>"; };
 		A10SBHAB000000000000001 /* SupabaseManager+HabitsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+HabitsService.swift"; sourceTree = "<group>"; };
 		A10SBMAX000000000000001 /* SupabaseManager+MaxService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+MaxService.swift"; sourceTree = "<group>"; };
+		A10WIDFIL000000000000001 /* WidgetSharedPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSharedPayload.swift; sourceTree = "<group>"; };
 			A10SHMOD0000000000000001 /* A10ShellModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = A10ShellModels.swift; path = Models/A10ShellModels.swift; sourceTree = "<group>"; };
 			A10SHSED0000000000000001 /* A10SeedData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SeedData.swift; sourceTree = "<group>"; };
 			A10SHSYN0000000000000001 /* A10ShellSyncCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10ShellSyncCoordinator.swift; sourceTree = "<group>"; };
@@ -372,6 +375,14 @@
 				A10VISSHW000000000000001 /* A10VisualSystemShowcase.swift */,
 			);
 			path = VisualSystem;
+			sourceTree = "<group>";
+		};
+		A10WIDGRP000000000000001 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				A10WIDFIL000000000000001 /* WidgetSharedPayload.swift */,
+			);
+			path = Widget;
 			sourceTree = "<group>";
 		};
 		B5F15E5A8A7A4D9B9F0F0A04 /* Report */ = {
@@ -647,6 +658,7 @@
 				EEB545972F1A787700B61C9D /* Extensions */,
 				EEB545982F1A787700B61C9D /* Components */,
 				EEB545992F1A787700B61C9D /* Theme */,
+				A10WIDGRP000000000000001 /* Widget */,
 				A10VISSYS000000000000001 /* VisualSystem */,
 				A1C40D7B01844930B51AF724 /* Animations/BreathingAnimations.swift */,
 				083A91AA90634C2FB35E216C /* Layout/AdaptiveLayout.swift */,
@@ -926,6 +938,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10WIDWGT000000000000101 /* WidgetSharedPayload.swift in Sources */,
 				EEA092032F1A929B00193FC7 /* LiveActivityAttributes.swift in Sources */,
 				EEA091F12F1A837A00193FC7 /* antios10WidgetLiveActivity.swift in Sources */,
 				EEA091F32F1A837A00193FC7 /* antios10Widget.swift in Sources */,
@@ -938,6 +951,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10WIDAPP000000000000101 /* WidgetSharedPayload.swift in Sources */,
 				EEB545A32F1A787700B61C9D /* PlansViewModel.swift in Sources */,
 				EEDCCD592F1A623F003918D1 /* ContentView.swift in Sources */,
 				EEB545A92F1A787700B61C9D /* DashboardView.swift in Sources */,
@@ -1093,7 +1107,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = antios10Widget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = antios10Widget;
+				INFOPLIST_KEY_CFBundleDisplayName = antios;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1122,7 +1136,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = antios10Widget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = antios10Widget;
+				INFOPLIST_KEY_CFBundleDisplayName = antios;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (

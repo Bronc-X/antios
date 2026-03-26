@@ -693,7 +693,7 @@ struct Theme_Previews: PreviewProvider {
             AuroraBackground()
 
             VStack(spacing: 24) {
-                Text("AntiAnxiety")
+                Text("antios")
                     .font(GlassTypography.display(34, weight: .semibold))
                     .foregroundColor(.textPrimary)
 

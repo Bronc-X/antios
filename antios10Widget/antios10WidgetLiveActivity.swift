@@ -34,7 +34,6 @@ struct antios10WidgetLiveActivity: Widget {
             } minimal: {
                 AnxietyLiveActivityMinimal(context: context)
             }
-            .widgetURL(URL(string: "antianxiety://activity"))
             .keylineTint(Color.cyan)
         }
     }

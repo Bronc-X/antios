@@ -2,6 +2,82 @@ import XCTest
 @testable import antios10
 
 final class antios10Tests: XCTestCase {
+    func testWidgetSharedStoreWritesPayloadAndLegacyKeys() {
+        let suiteName = "test.widget.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected temporary suite")
+            return
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let payload = WidgetSharedPayloadV1(
+            stateTitle: "今日稳定度 82",
+            stateDetail: "先降级，再观察",
+            anxietyScore: 82,
+            hrv: 41.5,
+            restingHeartRate: 58,
+            sleepHours: 7.2,
+            steps: 6543,
+            proactiveTitle: "明早再看",
+            proactiveAction: "今天只做低强度",
+            followUpQuestion: "现在恢复到平时了吗？",
+            lastUpdate: Date(timeIntervalSince1970: 1_710_000_000)
+        )
+
+        WidgetSharedStore.write(payload: payload, defaults: defaults, reloadTimelines: false)
+
+        XCTAssertEqual(WidgetSharedStore.readPayload(from: defaults), payload)
+        XCTAssertEqual(defaults.object(forKey: WidgetSharedStore.anxietyScoreKey) as? Int, 82)
+        XCTAssertEqual(defaults.double(forKey: WidgetSharedStore.hrvKey), 41.5, accuracy: 0.001)
+        XCTAssertEqual(defaults.double(forKey: WidgetSharedStore.restingHeartRateKey), 58, accuracy: 0.001)
+        XCTAssertEqual(defaults.double(forKey: WidgetSharedStore.sleepHoursKey), 7.2, accuracy: 0.001)
+        XCTAssertEqual(defaults.double(forKey: WidgetSharedStore.sleepDurationKey), 7.2, accuracy: 0.001)
+        XCTAssertEqual(defaults.integer(forKey: WidgetSharedStore.stepsKey), 6543)
+        XCTAssertEqual(defaults.string(forKey: WidgetSharedStore.proactiveTitleKey), "明早再看")
+        XCTAssertEqual(defaults.string(forKey: WidgetSharedStore.proactiveActionKey), "今天只做低强度")
+        XCTAssertEqual(defaults.string(forKey: WidgetSharedStore.proactiveFollowUpKey), "现在恢复到平时了吗？")
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testWidgetSharedStoreClearsOptionalLegacyKeysWhenPayloadIsSparse() {
+        let suiteName = "test.widget.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected temporary suite")
+            return
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set("stale", forKey: WidgetSharedStore.proactiveTitleKey)
+        defaults.set("stale", forKey: WidgetSharedStore.proactiveActionKey)
+        defaults.set("stale", forKey: WidgetSharedStore.proactiveFollowUpKey)
+        defaults.set(99, forKey: WidgetSharedStore.anxietyScoreKey)
+
+        let payload = WidgetSharedPayloadV1(
+            stateTitle: "先问身体",
+            stateDetail: "打开 antios",
+            anxietyScore: nil,
+            hrv: nil,
+            restingHeartRate: nil,
+            sleepHours: nil,
+            steps: nil,
+            proactiveTitle: nil,
+            proactiveAction: nil,
+            followUpQuestion: nil,
+            lastUpdate: Date(timeIntervalSince1970: 1_710_000_123)
+        )
+
+        WidgetSharedStore.write(payload: payload, defaults: defaults, reloadTimelines: false)
+
+        XCTAssertNil(defaults.object(forKey: WidgetSharedStore.anxietyScoreKey))
+        XCTAssertNil(defaults.string(forKey: WidgetSharedStore.proactiveTitleKey))
+        XCTAssertNil(defaults.string(forKey: WidgetSharedStore.proactiveActionKey))
+        XCTAssertNil(defaults.string(forKey: WidgetSharedStore.proactiveFollowUpKey))
+        XCTAssertEqual(defaults.double(forKey: WidgetSharedStore.sleepHoursKey), 0, accuracy: 0.001)
+        XCTAssertEqual(defaults.integer(forKey: WidgetSharedStore.stepsKey), 0)
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     func testAntiAnxietyLoopStatusInitialContract() {
         let status = AntiAnxietyLoopStatus.initial(now: Date(timeIntervalSince1970: 0))
         XCTAssertEqual(status.currentStep, .proactiveInquiry)

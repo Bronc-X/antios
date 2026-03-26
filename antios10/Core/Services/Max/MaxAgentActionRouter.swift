@@ -82,6 +82,12 @@ enum MaxAgentActionRouter {
             return .sendPrompt(agentSurface.proactive.prompt)
         }
 
+        if matchesAny(normalized, patterns: [
+            "先问身体", "适合跑吗", "今天能跑吗", "要跑步", "跑步前", "run today", "ready to run", "exercise precheck"
+        ]) {
+            return .sendPrompt(agentSurface.proactive.prompt)
+        }
+
         if agentSurface.actionReview.hasAction,
            matchesAny(normalized, patterns: [
             "做完了", "完成了", "已完成", "done", "completed", "i did it", "finished"
@@ -143,6 +149,10 @@ enum MaxAgentActionRouter {
             return .execute(.planReview)
         case "proactive_brief", "care_brief":
             return .sendPrompt(agentSurface.proactive.prompt)
+        case "exercise_precheck", "risk_prevention", "fusion_reply":
+            return .sendPrompt(agentSurface.proactive.prompt)
+        case "workout_follow_up", "next_day_follow_up":
+            return .sendPrompt(agentSurface.proactive.continuePrompt)
         case "sensor_follow_up", "body_signal":
             return .sendPrompt(agentSurface.body.prompt)
         case "evidence_explain":

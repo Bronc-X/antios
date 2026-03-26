@@ -167,6 +167,138 @@ struct MaxExecutionOverviewCard: View {
     }
 }
 
+struct MaxFusionReplyCard: View {
+    let runtime: FusionReplyRuntime
+    let language: AppLanguage
+    let onPrimaryAction: () -> Void
+    let onSecondaryAction: () -> Void
+    let onDiscomfortAction: () -> Void
+    let onExplainAction: () -> Void
+
+    private var accent: Color {
+        switch runtime.riskLevel {
+        case .green:
+            return .liquidGlassAccent
+        case .yellow:
+            return .liquidGlassWarm
+        case .red:
+            return .red.opacity(0.82)
+        }
+    }
+
+    var body: some View {
+        MaxAgentCard(
+            icon: "figure.run",
+            title: runtime.primaryConclusion,
+            detail: runtime.reasonSummary,
+            accent: accent
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                MaxAgentKeyValueRow(
+                    title: L10n.text("身体摘要", "Body summary", language: language),
+                    value: runtime.bodySignalSummary
+                )
+                MaxAgentKeyValueRow(
+                    title: L10n.text("现在做什么", "Do this now", language: language),
+                    value: runtime.recommendedAction
+                )
+
+                if !runtime.blockedActions.isEmpty {
+                    MaxAgentKeyValueRow(
+                        title: L10n.text("今天不要做什么", "Do not do this today", language: language),
+                        value: runtime.blockedActions.joined(separator: language == .en ? " · " : "｜")
+                    )
+                }
+
+                MaxAgentKeyValueRow(
+                    title: L10n.text("下次跟进", "Follow-up", language: language),
+                    value: runtime.followUpTask
+                )
+
+                HStack(spacing: 8) {
+                    MaxStatusChip(title: "\(L10n.text("风险", "Risk", language: language)) \(runtime.riskLevel.title(language: language))")
+                    MaxStatusChip(title: "\(L10n.text("就绪度", "Readiness", language: language)) \(runtime.readinessScore)")
+                    MaxStatusChip(title: runtime.intensityCap.shortLabel(language: language))
+                }
+
+                HStack(spacing: 10) {
+                    MaxAgentButton(
+                        title: runtime.primaryActionTitle,
+                        systemImage: "sparkles",
+                        prominence: .primary,
+                        action: onPrimaryAction
+                    )
+                    .accessibilityIdentifier("max.fusion.primaryAction")
+                    MaxAgentButton(
+                        title: runtime.explanationActionTitle,
+                        systemImage: "doc.text.magnifyingglass",
+                        prominence: .secondary,
+                        action: onExplainAction
+                    )
+                    .accessibilityIdentifier("max.fusion.explainAction")
+                }
+
+                HStack(spacing: 8) {
+                    MaxAgentChipButton(
+                        title: runtime.secondaryActionTitle,
+                        systemImage: "figure.run",
+                        accent: .liquidGlassWarm,
+                        action: onSecondaryAction
+                    )
+                    .accessibilityIdentifier("max.fusion.overrideAction")
+                    MaxAgentChipButton(
+                        title: L10n.text("我现在不舒服", "I feel off now", language: language),
+                        systemImage: "cross.case",
+                        accent: .red.opacity(0.72),
+                        action: onDiscomfortAction
+                    )
+                    .accessibilityIdentifier("max.fusion.discomfortAction")
+                }
+            }
+        }
+        .accessibilityIdentifier("max.fusionReplyCard")
+    }
+}
+
+struct MaxFollowUpCard: View {
+    let runtime: FollowUpRuntime
+    let language: AppLanguage
+    let onOpen: () -> Void
+
+    private var accent: Color {
+        switch runtime.status {
+        case .automatic:
+            return .liquidGlassSecondary
+        case .pending:
+            return .liquidGlassWarm
+        case .passive:
+            return .liquidGlassAccent
+        }
+    }
+
+    var body: some View {
+        MaxAgentCard(
+            icon: "clock.arrow.circlepath",
+            title: runtime.title,
+            detail: runtime.detail,
+            accent: accent
+        ) {
+            HStack(spacing: 10) {
+                MaxStatusChip(title: runtime.status.title(language: language))
+                Spacer(minLength: 0)
+                MaxAgentButton(
+                    title: runtime.actionTitle,
+                    systemImage: "arrow.right.circle",
+                    prominence: .secondary,
+                    action: onOpen
+                )
+                .accessibilityIdentifier("max.followUp.primaryAction")
+            }
+        }
+        .accessibilityIdentifier("max.followUpCard")
+    }
+}
+
 struct MaxLoopBridgeSurface: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.screenMetrics) private var metrics

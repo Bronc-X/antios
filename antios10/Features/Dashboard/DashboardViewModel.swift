@@ -845,28 +845,50 @@ class DashboardViewModel: ObservableObject {
             return
         }
 
+        let payload = WidgetSharedPayloadV1(
+            stateTitle: widgetStateTitle,
+            stateDetail: widgetStateDetail,
+            anxietyScore: overallScore,
+            hrv: hardwareData?.hrv?.value,
+            restingHeartRate: hardwareData?.resting_heart_rate?.value,
+            sleepHours: averageSleepHours > 0 ? averageSleepHours : nil,
+            steps: {
+                guard let stepsValue = hardwareData?.steps?.value else { return nil }
+                return Int(stepsValue.rounded())
+            }(),
+            proactiveTitle: proactiveCareBrief?.title,
+            proactiveAction: proactiveCareBrief?.microAction,
+            followUpQuestion: proactiveCareBrief?.followUpQuestion,
+            lastUpdate: Date()
+        )
+
+        WidgetSharedStore.write(payload: payload, defaults: sharedDefaults)
+    }
+
+    private var widgetStateTitle: String {
         if let score = overallScore {
-            sharedDefaults.set(score, forKey: "widget_anxietyScore")
-        } else {
-            sharedDefaults.removeObject(forKey: "widget_anxietyScore")
+            return t("今日稳定度 \(score)", "Today's stability \(score)")
         }
-        sharedDefaults.set(hardwareData?.hrv?.value ?? 0, forKey: "widget_hrv")
-        sharedDefaults.set(hardwareData?.resting_heart_rate?.value ?? 0, forKey: "widget_restingHeartRate")
-        sharedDefaults.set(averageSleepHours, forKey: "widget_sleepDuration")
-        sharedDefaults.set(averageSleepHours, forKey: "widget_sleepHours")
-        sharedDefaults.set(hardwareData?.steps?.value ?? 0, forKey: "widget_steps")
-        if let proactiveCareBrief {
-            sharedDefaults.set(proactiveCareBrief.title, forKey: "widget_proactive_title")
-            sharedDefaults.set(proactiveCareBrief.microAction, forKey: "widget_proactive_action")
-            sharedDefaults.set(proactiveCareBrief.followUpQuestion, forKey: "widget_proactive_follow_up")
-        } else {
-            sharedDefaults.removeObject(forKey: "widget_proactive_title")
-            sharedDefaults.removeObject(forKey: "widget_proactive_action")
-            sharedDefaults.removeObject(forKey: "widget_proactive_follow_up")
+        return t("先问身体", "Check with body first")
+    }
+
+    private var widgetStateDetail: String {
+        if let proactiveAction = proactiveCareBrief?.microAction,
+           !proactiveAction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return proactiveAction
         }
-        sharedDefaults.set(Date(), forKey: "widget_lastUpdate")
-        
-        WidgetCenter.shared.reloadAllTimelines()
+        if let proactiveTitle = proactiveCareBrief?.title,
+           !proactiveTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return proactiveTitle
+        }
+        if let recommendation = todayLog?.ai_recommendation,
+           !recommendation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return recommendation
+        }
+        return t(
+            "打开 antios，让 Max 结合身体信号继续判断。",
+            "Open antios and let Max continue from your body signals."
+        )
     }
     
     // MARK: - Unified Stability Scoring

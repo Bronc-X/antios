@@ -7,7 +7,16 @@ private enum WidgetSharedConfig {
     static let suiteName = "group.com.youngtony.antios10"
 }
 
+private enum WidgetL10n {
+    static func text(_ zh: String, _ en: String) -> String {
+        let preferred = Locale.preferredLanguages.first?.lowercased() ?? ""
+        return preferred.hasPrefix("en") ? en : zh
+    }
+}
+
 struct WidgetSnapshot {
+    let stateTitleOverride: String?
+    let stateDetailOverride: String?
     let anxietyScore: Int?
     let hrv: Double
     let restingHeartRate: Double
@@ -23,17 +32,35 @@ struct WidgetSnapshot {
             return .empty
         }
 
-        let anxietyScore: Int? = defaults.object(forKey: "widget_anxietyScore") as? Int
-        let hrv = defaults.double(forKey: "widget_hrv")
-        let restingHeartRate = defaults.double(forKey: "widget_restingHeartRate")
-        let sleepHours = defaults.double(forKey: "widget_sleepHours")
-        let steps = defaults.integer(forKey: "widget_steps")
-        let proactiveTitle = defaults.string(forKey: "widget_proactive_title")
-        let proactiveAction = defaults.string(forKey: "widget_proactive_action")
-        let followUpQuestion = defaults.string(forKey: "widget_proactive_follow_up")
-        let lastUpdate = defaults.object(forKey: "widget_lastUpdate") as? Date
+        if let payload = WidgetSharedStore.readPayload(from: defaults) {
+            return WidgetSnapshot(
+                stateTitleOverride: payload.stateTitle,
+                stateDetailOverride: payload.stateDetail,
+                anxietyScore: payload.anxietyScore,
+                hrv: payload.hrv ?? 0,
+                restingHeartRate: payload.restingHeartRate ?? 0,
+                sleepHours: payload.sleepHours ?? 0,
+                steps: payload.steps ?? 0,
+                proactiveTitle: payload.proactiveTitle,
+                proactiveAction: payload.proactiveAction,
+                followUpQuestion: payload.followUpQuestion,
+                lastUpdate: payload.lastUpdate
+            )
+        }
+
+        let anxietyScore: Int? = defaults.object(forKey: WidgetSharedStore.anxietyScoreKey) as? Int
+        let hrv = defaults.double(forKey: WidgetSharedStore.hrvKey)
+        let restingHeartRate = defaults.double(forKey: WidgetSharedStore.restingHeartRateKey)
+        let sleepHours = defaults.double(forKey: WidgetSharedStore.sleepHoursKey)
+        let steps = defaults.integer(forKey: WidgetSharedStore.stepsKey)
+        let proactiveTitle = defaults.string(forKey: WidgetSharedStore.proactiveTitleKey)
+        let proactiveAction = defaults.string(forKey: WidgetSharedStore.proactiveActionKey)
+        let followUpQuestion = defaults.string(forKey: WidgetSharedStore.proactiveFollowUpKey)
+        let lastUpdate = defaults.object(forKey: WidgetSharedStore.lastUpdateKey) as? Date
 
         return WidgetSnapshot(
+            stateTitleOverride: nil,
+            stateDetailOverride: nil,
             anxietyScore: anxietyScore,
             hrv: hrv,
             restingHeartRate: restingHeartRate,
@@ -47,6 +74,8 @@ struct WidgetSnapshot {
     }
 
     static let empty = WidgetSnapshot(
+        stateTitleOverride: nil,
+        stateDetailOverride: nil,
         anxietyScore: nil,
         hrv: 0,
         restingHeartRate: 0,
@@ -59,20 +88,29 @@ struct WidgetSnapshot {
     )
 
     var stateTitle: String {
-        if let anxietyScore {
-            return "今日稳定度 \(anxietyScore)"
+        if let stateTitleOverride, !stateTitleOverride.isEmpty {
+            return stateTitleOverride
         }
-        return "等待同步"
+        if let anxietyScore {
+            return WidgetL10n.text("今日稳定度 \(anxietyScore)", "Today's stability \(anxietyScore)")
+        }
+        return WidgetL10n.text("先问身体", "Check with body first")
     }
 
     var stateDetail: String {
+        if let stateDetailOverride, !stateDetailOverride.isEmpty {
+            return stateDetailOverride
+        }
         if let proactiveAction, !proactiveAction.isEmpty {
             return proactiveAction
         }
         if let proactiveTitle, !proactiveTitle.isEmpty {
             return proactiveTitle
         }
-        return "打开 AntiAnxiety 同步 Dashboard 与 Max 建议。"
+        return WidgetL10n.text(
+            "打开 antios，同步今天的身体信号和 Max 建议。",
+            "Open antios to sync today's body signals and Max guidance."
+        )
     }
 }
 
@@ -116,10 +154,25 @@ struct antios10WidgetEntryView : View {
     var entry: Provider.Entry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(entry.snapshot.stateTitle)
-                .font(.headline)
-                .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("antios")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(entry.snapshot.stateTitle)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer(minLength: 8)
+
+                if let lastUpdate = entry.snapshot.lastUpdate {
+                    Text(relativeUpdateText(for: lastUpdate))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Text(entry.snapshot.stateDetail)
                 .font(.caption)
@@ -128,9 +181,11 @@ struct antios10WidgetEntryView : View {
 
             HStack(spacing: 10) {
                 metric(label: "HRV", value: entry.snapshot.hrv > 0 ? "\(Int(entry.snapshot.hrv))" : "--")
-                metric(label: "睡眠", value: entry.snapshot.sleepHours > 0 ? String(format: "%.1fh", entry.snapshot.sleepHours) : "--")
-                metric(label: "步数", value: entry.snapshot.steps > 0 ? "\(entry.snapshot.steps)" : "--")
+                metric(label: WidgetL10n.text("静息心率", "Resting HR"), value: entry.snapshot.restingHeartRate > 0 ? "\(Int(entry.snapshot.restingHeartRate))" : "--")
+                metric(label: WidgetL10n.text("睡眠", "Sleep"), value: entry.snapshot.sleepHours > 0 ? String(format: "%.1fh", entry.snapshot.sleepHours) : "--")
+                metric(label: WidgetL10n.text("步数", "Steps"), value: entry.snapshot.steps > 0 ? "\(entry.snapshot.steps)" : "--")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if let followUpQuestion = entry.snapshot.followUpQuestion, !followUpQuestion.isEmpty {
                 Text(followUpQuestion)
@@ -153,6 +208,12 @@ struct antios10WidgetEntryView : View {
                 .foregroundStyle(.primary)
         }
     }
+
+    private func relativeUpdateText(for date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
 }
 
 struct antios10Widget: Widget {
@@ -162,8 +223,8 @@ struct antios10Widget: Widget {
         IntentConfiguration(kind: kind, intent: ConfigurationIntent.self, provider: Provider()) { entry in
             antios10WidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("AntiAnxiety 状态卡")
-        .description("显示今日稳定度、恢复动作和关键身体信号。")
+        .configurationDisplayName(WidgetL10n.text("antios 状态卡", "antios status"))
+        .description(WidgetL10n.text("显示今日稳定度、恢复动作和关键身体信号。", "Shows today's stability, recovery action, and key body signals."))
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

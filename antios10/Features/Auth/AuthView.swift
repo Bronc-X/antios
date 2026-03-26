@@ -32,6 +32,9 @@ struct AuthView: View {
     @State private var showAuthInfoSheet = false
     @Environment(\.screenMetrics) private var metrics
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var appSettings: AppSettings
+
+    private var language: AppLanguage { appSettings.language }
     
     var body: some View {
         ZStack {
@@ -45,11 +48,11 @@ struct AuthView: View {
                 VStack(spacing: 14) {
                     AuthBrandMark()
                     
-                    Text("AntiAnxiety")
+                    Text("antios")
                         .font(GlassTypography.loviTitle(34, weight: .semibold))
                         .foregroundColor(.textPrimary)
                     
-                    Text("更轻、更稳地回到你自己")
+                    Text(L10n.text("更轻、更稳地回到你自己", "Return to yourself, lighter and steadier", language: language))
                         .font(GlassTypography.cnLovi(16, weight: .medium))
                         .foregroundColor(.textSecondary)
 

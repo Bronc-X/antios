@@ -14,9 +14,12 @@
 - Only high-value interpretations enter vector memory.
 
 ### Principle 2: Agent-First Product
-- `Coach` is the primary operating surface.
+- `Max` is the primary operating surface.
 - Critical workflows should be driven through agent-led structured capture before standalone forms.
 - Home and dedicated pages should act as overview and fallback surfaces unless explicitly justified.
+
+Current phase tracking lives in:
+- `HARNESS_AGENT_DEVELOPMENT_PROCESS.md`
 
 ## Dual-Agent Roles
 
@@ -53,7 +56,7 @@ Deliverables:
 - Dependency: Thread 1 contracts.
 
 ### Thread 3: Agent Router and Workflow Migration
-- Output: Coach-led check-in, evidence, action, and follow-up flows.
+- Output: Max-led check-in, evidence, action, and follow-up flows.
 - Dependency: Thread 1 and Thread 2.
 
 ### Thread 4: Home Simplification and Fallback Surfaces

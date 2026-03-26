@@ -114,7 +114,7 @@ struct OnboardingView: View {
                     }
                     
                     VStack(spacing: 16) {
-                        Text("欢迎来到 AntiAnxiety")
+                        Text(L10n.text("欢迎来到 antios", "Welcome to antios", language: appSettings.language))
                             .font(GlassTypography.cnLovi(30, weight: .semibold))
                             .foregroundColor(.bioTextPrimary(for: colorScheme))
                         
