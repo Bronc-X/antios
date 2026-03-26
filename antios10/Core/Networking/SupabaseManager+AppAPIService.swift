@@ -194,8 +194,8 @@ extension SupabaseManager {
     }
 
     func attachSupabaseCookies(to request: inout URLRequest) {
-        if let accessToken = UserDefaults.standard.string(forKey: "supabase_access_token") {
-            let refreshToken = UserDefaults.standard.string(forKey: "supabase_refresh_token") ?? ""
+        if let accessToken = SupabaseCredentialStore.token(for: .access) {
+            let refreshToken = SupabaseCredentialStore.token(for: .refresh) ?? ""
             request.setValue("sb-access-token=\(accessToken); sb-refresh-token=\(refreshToken)", forHTTPHeaderField: "Cookie")
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("ios", forHTTPHeaderField: "X-Client-Platform")

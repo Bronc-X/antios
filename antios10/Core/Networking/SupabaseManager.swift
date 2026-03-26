@@ -2,6 +2,116 @@
 // Supabase 客户端管理器 - 连接现有后端
 
 import Foundation
+import Security
+
+enum AppGroupConfig {
+    static let sharedSuiteName = "group.com.youngtony.antios10"
+}
+
+enum SupabaseCredentialStore {
+    private static let service = "com.youngtony.antios10.supabase"
+    private static let legacyAccessTokenKey = "supabase_access_token"
+    private static let legacyRefreshTokenKey = "supabase_refresh_token"
+
+    enum TokenKind {
+        case access
+        case refresh
+
+        var account: String {
+            switch self {
+            case .access:
+                return "access_token"
+            case .refresh:
+                return "refresh_token"
+            }
+        }
+
+        var legacyDefaultsKey: String {
+            switch self {
+            case .access:
+                return legacyAccessTokenKey
+            case .refresh:
+                return legacyRefreshTokenKey
+            }
+        }
+    }
+
+    static func token(for kind: TokenKind) -> String? {
+        if let stored = readToken(for: kind), !stored.isEmpty {
+            removeLegacyToken(for: kind)
+            return stored
+        }
+        guard let legacy = UserDefaults.standard.string(forKey: kind.legacyDefaultsKey), !legacy.isEmpty else {
+            return nil
+        }
+        writeToken(legacy, for: kind)
+        removeLegacyToken(for: kind)
+        return legacy
+    }
+
+    static func store(accessToken: String, refreshToken: String) {
+        writeToken(accessToken, for: .access)
+        writeToken(refreshToken, for: .refresh)
+        removeLegacyToken(for: .access)
+        removeLegacyToken(for: .refresh)
+    }
+
+    static func clear() {
+        deleteToken(for: .access)
+        deleteToken(for: .refresh)
+        removeLegacyToken(for: .access)
+        removeLegacyToken(for: .refresh)
+    }
+
+    private static func baseQuery(for kind: TokenKind) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: kind.account
+        ]
+    }
+
+    private static func readToken(for kind: TokenKind) -> String? {
+        var query = baseQuery(for: kind)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let token = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return token
+    }
+
+    private static func writeToken(_ token: String, for kind: TokenKind) {
+        guard let data = token.data(using: .utf8) else { return }
+
+        let query = baseQuery(for: kind)
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var createQuery = query
+            attributes.forEach { createQuery[$0.key] = $0.value }
+            SecItemAdd(createQuery as CFDictionary, nil)
+        }
+    }
+
+    private static func deleteToken(for kind: TokenKind) {
+        let query = baseQuery(for: kind)
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private static func removeLegacyToken(for kind: TokenKind) {
+        UserDefaults.standard.removeObject(forKey: kind.legacyDefaultsKey)
+    }
+}
 
 private enum DebugNetworkConfig {
     static let allowInsecureTLS: Bool = {
@@ -885,12 +995,12 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
     }
 
     private func ensureAccessToken() async throws -> String {
-        if let token = UserDefaults.standard.string(forKey: "supabase_access_token"), !token.isEmpty {
+        if let token = SupabaseCredentialStore.token(for: .access), !token.isEmpty {
             return token
         }
 
         try await refreshSession()
-        guard let refreshed = UserDefaults.standard.string(forKey: "supabase_access_token"), !refreshed.isEmpty else {
+        guard let refreshed = SupabaseCredentialStore.token(for: .access), !refreshed.isEmpty else {
             throw SupabaseError.notAuthenticated
         }
         return refreshed
@@ -2256,7 +2366,7 @@ final class SupabaseManager: ObservableObject, SupabaseManaging {
 
     func uploadAvatar(imageData: Data, contentType: String = "image/jpeg", fileExtension: String = "jpg") async throws -> String {
         guard let user = currentUser else { throw SupabaseError.notAuthenticated }
-        guard let token = UserDefaults.standard.string(forKey: "supabase_access_token") else {
+        guard let token = SupabaseCredentialStore.token(for: .access) else {
             throw SupabaseError.notAuthenticated
         }
         let config = try validatedSupabaseConfig()
@@ -3098,7 +3208,7 @@ extension SupabaseManager {
     }
 
     private func updateInquirySession(userId: String) {
-        let token = UserDefaults.standard.string(forKey: "supabase_access_token") ?? ""
+        let token = SupabaseCredentialStore.token(for: .access) ?? ""
         let sessionKey = "\(userId)|\(token)"
         if Self.inquirySessionKey != sessionKey {
             Self.inquirySessionKey = sessionKey

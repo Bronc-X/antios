@@ -93,7 +93,7 @@ struct antios10App: App {
             print("❌ [Config] SUPABASE_URL 未配置!")
         }
 
-        if UserDefaults.standard.string(forKey: "supabase_access_token") != nil {
+        if SupabaseCredentialStore.token(for: .access) != nil {
             print("✅ [Auth] cached access_token present")
         } else {
             print("⚠️ [Auth] 未找到 access_token，需要登录")

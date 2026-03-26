@@ -31,8 +31,10 @@ extension SupabaseManager {
 
         if (200...299).contains(httpResponse.statusCode) {
             if let authResponse = try? JSONDecoder().decode(AuthResponse.self, from: data) {
-                UserDefaults.standard.set(authResponse.accessToken, forKey: "supabase_access_token")
-                UserDefaults.standard.set(authResponse.refreshToken, forKey: "supabase_refresh_token")
+                SupabaseCredentialStore.store(
+                    accessToken: authResponse.accessToken,
+                    refreshToken: authResponse.refreshToken
+                )
                 currentUser = authResponse.user
                 cacheAuthUser(authResponse.user)
                 isAuthenticated = true
@@ -99,8 +101,10 @@ extension SupabaseManager {
 
         if httpResponse.statusCode == 200 {
             let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
-            UserDefaults.standard.set(authResponse.accessToken, forKey: "supabase_access_token")
-            UserDefaults.standard.set(authResponse.refreshToken, forKey: "supabase_refresh_token")
+            SupabaseCredentialStore.store(
+                accessToken: authResponse.accessToken,
+                refreshToken: authResponse.refreshToken
+            )
 
             currentUser = authResponse.user
             cacheAuthUser(authResponse.user)
@@ -123,8 +127,7 @@ extension SupabaseManager {
     }
 
     func signOut() async {
-        UserDefaults.standard.removeObject(forKey: "supabase_access_token")
-        UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
+        SupabaseCredentialStore.clear()
         UserDefaults.standard.removeObject(forKey: cachedAuthUserKey)
         currentUser = nil
         isAuthenticated = false
@@ -142,7 +145,8 @@ extension SupabaseManager {
     }
 
     func checkSession() async {
-        guard let token = UserDefaults.standard.string(forKey: "supabase_access_token") else {
+        guard let token = SupabaseCredentialStore.token(for: .access) else {
+            currentUser = nil
             isAuthenticated = false
             isSessionRestored = true
             return
@@ -167,10 +171,10 @@ extension SupabaseManager {
                    let cachedUser = loadCachedAuthUser() {
                     currentUser = cachedUser
                     applyCachedClinicalCompletion(for: cachedUser.id)
-                    isAuthenticated = true
-                    triggerMemoryPipelineMaintenance()
-                    print("[SupabaseManager] ⚠️ Supabase 网络不可达，已恢复本地缓存会话 userId=\(cachedUser.id)")
+                    isAuthenticated = false
+                    print("[SupabaseManager] ⚠️ Supabase 网络不可达，仅保留本地缓存资料，未恢复登录态 userId=\(cachedUser.id)")
                 } else {
+                    currentUser = nil
                     isAuthenticated = false
                     isClinicalComplete = false
                 }
@@ -180,7 +184,7 @@ extension SupabaseManager {
     }
 
     func refreshSession() async throws {
-        guard let refreshToken = UserDefaults.standard.string(forKey: "supabase_refresh_token") else {
+        guard let refreshToken = SupabaseCredentialStore.token(for: .refresh) else {
             throw SupabaseError.notAuthenticated
         }
 
@@ -234,8 +238,10 @@ extension SupabaseManager {
         }
 
         let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
-        UserDefaults.standard.set(authResponse.accessToken, forKey: "supabase_access_token")
-        UserDefaults.standard.set(authResponse.refreshToken, forKey: "supabase_refresh_token")
+        SupabaseCredentialStore.store(
+            accessToken: authResponse.accessToken,
+            refreshToken: authResponse.refreshToken
+        )
 
         currentUser = authResponse.user
         cacheAuthUser(authResponse.user)

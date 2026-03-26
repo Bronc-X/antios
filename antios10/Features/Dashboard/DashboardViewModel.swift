@@ -484,7 +484,7 @@ class DashboardViewModel: ObservableObject {
     private func shouldRefreshInquiry(force: Bool) -> Bool {
         if force { return true }
         guard let userId = supabase.currentUser?.id else { return false }
-        let token = UserDefaults.standard.string(forKey: "supabase_access_token") ?? ""
+        let token = SupabaseCredentialStore.token(for: .access) ?? ""
         if Self.lastInquiryUserId != userId || Self.lastInquiryToken != token {
             Self.lastInquiryUserId = userId
             Self.lastInquiryToken = token
@@ -841,7 +841,7 @@ class DashboardViewModel: ObservableObject {
     // MARK: - Widget Sync
     
     private func syncToWidget() {
-        guard let sharedDefaults = UserDefaults(suiteName: "group.com.youngtony") else {
+        guard let sharedDefaults = UserDefaults(suiteName: AppGroupConfig.sharedSuiteName) else {
             return
         }
 
