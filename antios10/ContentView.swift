@@ -98,6 +98,10 @@ private struct A10AppShell: View {
             processDebugMaxCommand(debugMaxCommand)
             processDebugMaxBatch(debugLaunchMaxBatchFile)
             processDebugMaxBatch(debugMaxBatchFile)
+            processDebugA10Navigation(
+                tabRawValue: debugLaunchA10Tab,
+                shortcutRawValue: debugLaunchA10Shortcut
+            )
         }
         .onChange(of: debugMaxCommand) { _, newValue in
             processDebugMaxCommand(newValue)
@@ -124,6 +128,22 @@ private struct A10AppShell: View {
 
     private var debugLaunchMaxBatchFile: String {
         let prefix = "-debug-max-batch-file="
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return ""
+        }
+        return String(argument.dropFirst(prefix.count))
+    }
+
+    private var debugLaunchA10Tab: String {
+        let prefix = "-debug-a10-tab="
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return ""
+        }
+        return String(argument.dropFirst(prefix.count))
+    }
+
+    private var debugLaunchA10Shortcut: String {
+        let prefix = "-debug-a10-shortcut="
         guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
             return ""
         }
@@ -196,6 +216,35 @@ private struct A10AppShell: View {
             }
         }
     }
+
+    private func processDebugA10Navigation(
+        tabRawValue: String,
+        shortcutRawValue: String
+    ) {
+        let normalizedTab = tabRawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedShortcut = shortcutRawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        switch normalizedTab {
+        case "home":
+            selectedTab = .home
+        case "me", "profile":
+            selectedTab = .me
+        case "max":
+            selectedTab = .max
+        default:
+            break
+        }
+
+        guard !normalizedShortcut.isEmpty else { return }
+        selectedTab = .me
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            NotificationCenter.default.post(
+                name: .debugOpenA10Shortcut,
+                object: nil,
+                userInfo: ["shortcutID": normalizedShortcut]
+            )
+        }
+    }
     #endif
 }
 
@@ -242,7 +291,7 @@ private struct A10HomeView: View {
 
                             A10SectionHeader(
                                 title: L10n.text("当前进度", "Current progress", language: language),
-                                subtitle: L10n.text("能交给 Max 的步骤，会优先放在最前面。", "The steps Max can take over are surfaced first.", language: language)
+                                subtitle: L10n.text("问题和后续动作都集中在这里，减少首页噪音。", "Questions and next actions stay here so home remains clean.", language: language)
                             )
 
                             A10Card {
@@ -260,17 +309,26 @@ private struct A10HomeView: View {
                                 }
                             }
 
-                            A10SectionHeader(
-                                title: L10n.text("今日总览", "Today's overview", language: language),
-                                subtitle: L10n.text("把今天最关键的状态先放在一起看。", "Keep today's key state in one place.", language: language)
-                            )
-
                             A10HomeOverviewCard(
                                 snapshot: currentSnapshot,
                                 activePlansCount: activePlansCount,
                                 completedPlansCount: completedPlansCount,
                                 language: language
                             )
+
+                            if let bayesianInsight = bayesianInsightModel(snapshot: currentSnapshot) {
+                                A10SectionHeader(
+                                    title: L10n.text("贝叶斯提升", "Bayesian uplift", language: language),
+                                    subtitle: L10n.text("把先验、身体信号和证据权重压成一个更稳的判断。", "Compress priors, body signals, and evidence weight into one steadier judgment.", language: language)
+                                )
+
+                                A10BayesianInsightCard(
+                                    insight: bayesianInsight,
+                                    language: language
+                                )
+                            }
+
+                            scienceSection
                         } else {
                             A10EmptyStateCard(
                                 title: L10n.text("正在整理今天重点", "Preparing today's overview", language: language),
@@ -296,7 +354,7 @@ private struct A10HomeView: View {
                 language: language,
                 onPrimaryAction: { performProgressAction(item) }
             )
-            .presentationDetents([.height(340), .medium])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
     }
@@ -349,10 +407,18 @@ private struct A10HomeView: View {
     }
 
     private var homeHeaderSubtitle: String {
-        if syncCoordinator.isSyncing {
+        if syncCoordinator.isCoreSyncing {
             return L10n.text(
-                "正在同步今天的状态和安排",
-                "Syncing today's state and plans",
+                "正在同步今天的核心状态和安排",
+                "Syncing today's core state and plans",
+                language: language
+            )
+        }
+
+        if syncCoordinator.isEnrichmentSyncing && remoteContext != nil {
+            return L10n.text(
+                "核心状态已就绪，正在补充贝叶斯判断和科学期刊",
+                "Core state is ready. Bayesian guidance and science journals are still loading.",
                 language: language
             )
         }
@@ -373,8 +439,12 @@ private struct A10HomeView: View {
     }
 
     private var homeHeaderBadgeTitle: String {
-        if syncCoordinator.isSyncing {
+        if syncCoordinator.isCoreSyncing {
             return L10n.text("同步中", "Syncing", language: language)
+        }
+
+        if syncCoordinator.isEnrichmentSyncing {
+            return L10n.text("补充中", "Enriching", language: language)
         }
 
         if syncCoordinator.lastSyncAt != nil {
@@ -385,8 +455,12 @@ private struct A10HomeView: View {
     }
 
     private var homeHeaderBadgeTint: Color {
-        if syncCoordinator.isSyncing {
+        if syncCoordinator.isCoreSyncing {
             return A10Palette.info
+        }
+
+        if syncCoordinator.isEnrichmentSyncing {
+            return A10Palette.brandSecondary
         }
 
         if syncCoordinator.lastSyncAt != nil {
@@ -775,7 +849,7 @@ private struct A10HomeView: View {
 
     private func heroPrimaryActionTitle() -> A10LocalizedText {
         if remoteContext?.pendingInquiry != nil {
-            return A10LocalizedText(zh: "回答问题", en: "Answer question")
+            return A10LocalizedText(zh: "查看进度", en: "Review progress")
         }
         if remoteContext?.hasActivePlan == true || activePlansCount > 0 {
             return A10LocalizedText(zh: "推进计划", en: "Continue plan")
@@ -790,33 +864,45 @@ private struct A10HomeView: View {
     }
 
     private func heroActionHeadline(snapshot: A10LoopSnapshot) -> String {
-        if let inquiry = remoteContext?.pendingInquiry {
-            return L10n.text("先回答一个关键问题", "Answer one key question first", language: language) + " · " + inquiry.questionText
+        if remoteContext?.pendingInquiry != nil {
+            return L10n.text(
+                "当前状态已经初步收口，下一步会围绕一个关键变量继续判断。",
+                "Your state is narrowed enough; the next step will refine one key variable.",
+                language: language
+            )
         }
-        if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
-            return activePlan.title
+        if remoteContext?.activePlan != nil, remoteContext?.hasActivePlan == true {
+            return L10n.text(
+                "今天已经有执行路径，继续一个最小动作就够了。",
+                "Today's execution path is already in place. One small action is enough.",
+                language: language
+            )
         }
         if let brief = remoteContext?.proactiveBrief, !brief.microAction.isEmpty {
-            return brief.microAction
+            return brief.understanding
         }
         if remoteContext?.hasSignals == false {
-            return L10n.text("先记录一下现在的状态", "Start by noting how you feel right now", language: language)
+            return L10n.text("今天还缺少状态记录，先补一条最低负担记录。", "Today's state record is still missing. Start with the lightest note first.", language: language)
         }
-        return snapshot.nextActionTitle
+        return snapshot.summary
     }
 
     private func heroActionDetail(snapshot: A10LoopSnapshot) -> String {
-        if let inquiry = remoteContext?.pendingInquiry {
-            return inquiry.feedContent?.title ?? L10n.text("回答这一个问题后，Max 才能更准确地接手。", "Once you answer this, Max can take over more accurately.", language: language)
+        if remoteContext?.pendingInquiry != nil {
+            return L10n.text(
+                "具体问题已经下沉到下面“当前进度”，首页只保留总览判断。",
+                "The specific question has moved down into Current progress, while home keeps only the overview.",
+                language: language
+            )
         }
         if let activePlan = remoteContext?.activePlan, remoteContext?.hasActivePlan == true {
             return L10n.text("当前进度", "Current progress", language: language) + " \(activePlan.progress)%"
         }
         if let brief = remoteContext?.proactiveBrief {
-            return brief.understanding
+            return brief.microAction
         }
         if remoteContext?.hasSignals == false {
-            return L10n.text("先补今天最少的信息，Max 才知道怎么继续。", "Add the minimum state details first so Max knows what to do next.", language: language)
+            return L10n.text("问题会放到下面当前进度里继续问，首页只保留总览。", "Questions continue below in Current progress; home keeps only the overview.", language: language)
         }
         return snapshot.nextActionDetail
     }
@@ -959,6 +1045,117 @@ private struct A10HomeView: View {
             try? await Task.sleep(nanoseconds: 180_000_000)
             NotificationCenter.default.post(name: notification, object: nil, userInfo: userInfo)
         }
+    }
+
+    private var currentScienceArticles: [ScienceArticle] {
+        Array((remoteContext?.scienceArticles ?? []).prefix(3))
+    }
+
+    @ViewBuilder
+    private var scienceSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.text("个性化科学期刊", "Personalized science journals", language: language))
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+                    Text(L10n.text("至少三篇，持续可刷新。", "At least three items and always refreshable.", language: language))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                }
+
+                Spacer()
+
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .soft)
+                    impact.impactOccurred()
+                    Task {
+                        await syncCoordinator.refreshEnrichment(
+                            context: modelContext,
+                            language: language,
+                            force: true,
+                            trigger: "home_science_refresh"
+                        )
+                    }
+                } label: {
+                    Label(L10n.text("刷新", "Refresh", language: language), systemImage: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(A10Palette.brand)
+            }
+
+            A10ScienceRecommendationSection(
+                articles: currentScienceArticles,
+                language: language
+            )
+            if currentScienceArticles.isEmpty {
+                A10Card {
+                    Text(
+                        syncCoordinator.isEnrichmentSyncing
+                        ? L10n.text("核心状态已经回来了，科学期刊还在做个性化富化。稍等一下，或者点刷新继续拉取至少三篇高匹配内容。", "Core state is already back. Science journals are still being personalized. Wait a moment or refresh to keep pulling at least three high-match papers.", language: language)
+                        : L10n.text("科学期刊正在整理中，点刷新会继续拉取至少三篇与你当前状态匹配的内容。", "Science journals are still being prepared. Tap refresh to keep fetching at least three items matched to your current state.", language: language)
+                    )
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func bayesianInsightModel(snapshot: A10LoopSnapshot) -> A10BayesianInsight? {
+        guard remoteContext != nil else { return nil }
+
+        let stressScore = remoteContext?.effectiveStressScore ?? snapshot.stressScore
+        let readiness = remoteContext?.readinessScore ?? max(32, 100 - stressScore * 7)
+        let sleepHours = remoteContext?.dashboard?.todayLog?.sleep_duration_minutes.map { Double($0) / 60.0 } ?? 0
+        let priorBase = Double(readiness) - Double(stressScore * 3) + (sleepHours >= 6.5 ? 6 : -4)
+        let prior = min(max(priorBase, 18), 92)
+        let hrv = remoteContext?.dashboard?.hardwareData?.hrv?.value
+        let likelihood = BayesianEngine.calculateLikelihood(
+            hrvData: BayesianHRVData(rmssd: hrv, lf_hf_ratio: nil)
+        )
+        let evidenceWeight = BayesianEngine.calculateEvidenceWeight(
+            papers: (remoteContext?.scienceArticles ?? []).prefix(5).map { article in
+                BayesianPaper(
+                    id: article.id,
+                    title: article.title,
+                    relevanceScore: Double(article.matchPercentage ?? 55) / 100.0,
+                    url: article.sourceUrl
+                )
+            }
+        )
+        let posterior = BayesianEngine.calculateBayesianPosterior(
+            prior: prior,
+            likelihood: likelihood,
+            evidence: evidenceWeight
+        )
+        let primaryAction = remoteContext?.proactiveBrief?.microAction
+            ?? remoteContext?.recommendations.first?.action
+            ?? snapshot.nextActionTitle
+
+        let headline: String
+        if posterior >= 72 {
+            headline = L10n.text("当前先验支持先做恢复动作，你很可能会在小动作后明显降焦虑。", "Current priors support a recovery-first move; a small action is likely to reduce anxiety noticeably.", language: language)
+        } else if posterior >= 56 {
+            headline = L10n.text("当前判断偏向先稳住身体，再继续补证据。", "Current judgment leans toward stabilizing the body first, then gathering more evidence.", language: language)
+        } else {
+            headline = L10n.text("当前先验还不够稳，先补状态信号再判断会更准。", "The current prior is still weak. Add more state signals before deciding.", language: language)
+        }
+
+        let detail = L10n.text(
+            "先验 \(Int(prior.rounded())) · 身体似然 \(Int(likelihood.rounded())) · 证据权重 \(Int(evidenceWeight.rounded()))。当前最优策略不是多想，而是先降低唤醒。",
+            "Prior \(Int(prior.rounded())) · body likelihood \(Int(likelihood.rounded())) · evidence weight \(Int(evidenceWeight.rounded())). The best next move is not more thinking, but lowering arousal first.",
+            language: language
+        )
+
+        return A10BayesianInsight(
+            headline: headline,
+            detail: detail,
+            action: primaryAction,
+            posterior: Int(posterior.rounded())
+        )
     }
 
     private func homeProgressItems(snapshot: A10LoopSnapshot) -> [A10HomeProgressItem] {
@@ -1119,6 +1316,10 @@ private struct A10MeView: View {
     @Query(sort: \A10LoopSnapshot.updatedAt, order: .reverse) private var loopSnapshots: [A10LoopSnapshot]
     @Query(sort: \A10ActionPlan.sortOrder) private var plans: [A10ActionPlan]
     @State private var selectedEmotionShortcutID: String?
+    @State private var selectedEmotionShortcut: A10EmotionShortcut?
+    @State private var shortcutSheetModels: [String: A10EmotionShortcutSheetModel] = [:]
+    @State private var shortcutSheetLoadingIDs: Set<String> = []
+    @State private var selectedShortcutDetent: PresentationDetent = .large
 
     let language: AppLanguage
 
@@ -1133,7 +1334,7 @@ private struct A10MeView: View {
 
             VStack(spacing: 0) {
                 A10ShellPageHeader(
-                    eyebrow: L10n.text("我的概览", "Overview", language: language),
+                    eyebrow: L10n.text("系统状态", "System status", language: language),
                     title: A10Tab.me.title(language: language),
                     subtitle: meHeaderSubtitle,
                     badgeTitle: meHeaderBadgeTitle,
@@ -1153,14 +1354,6 @@ private struct A10MeView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
-                        A10MeOverviewCard(
-                            snapshot: currentSnapshot,
-                            preferences: preferences,
-                            planCount: plans.count,
-                            language: language,
-                            isSyncing: syncCoordinator.isSyncing
-                        )
-
                         A10EmotionWheelScaffold(
                             model: emotionWheelModel,
                             language: language,
@@ -1304,6 +1497,25 @@ private struct A10MeView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $selectedEmotionShortcut) { shortcut in
+            A10EmotionShortcutSheet(
+                shortcut: shortcut,
+                model: shortcutSheetModel(for: shortcut),
+                isLoading: shortcutSheetLoadingIDs.contains(shortcut.id),
+                language: language
+            )
+            .presentationDetents([.medium, .large], selection: $selectedShortcutDetent)
+            .presentationDragIndicator(.visible)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .debugOpenA10Shortcut)) { notification in
+            guard let shortcutID = (notification.userInfo?["shortcutID"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+                  let shortcut = emotionWheelModel.shortcuts.first(where: { $0.id == shortcutID }) else {
+                return
+            }
+            handleEmotionShortcut(shortcut)
+        }
     }
 
     private func updatePreferences(_ mutate: (A10PreferenceRecord) -> Void) {
@@ -1318,10 +1530,18 @@ private struct A10MeView: View {
     }
 
     private var meHeaderSubtitle: String {
-        if syncCoordinator.isSyncing {
+        if syncCoordinator.isCoreSyncing {
             return L10n.text(
-                "同步偏好与系统状态",
-                "Syncing preferences and system state",
+                "同步偏好与核心系统状态",
+                "Syncing preferences and core system state",
+                language: language
+            )
+        }
+
+        if syncCoordinator.isEnrichmentSyncing && remoteContext != nil {
+            return L10n.text(
+                "核心状态已就绪，正在补充解释和期刊匹配",
+                "Core state is ready while explanations and journal matching are still loading.",
                 language: language
             )
         }
@@ -1334,8 +1554,12 @@ private struct A10MeView: View {
     }
 
     private var meHeaderBadgeTitle: String {
-        if syncCoordinator.isSyncing {
+        if syncCoordinator.isCoreSyncing {
             return L10n.text("同步中", "Syncing", language: language)
+        }
+
+        if syncCoordinator.isEnrichmentSyncing {
+            return L10n.text("补充中", "Enriching", language: language)
         }
 
         if remoteContext != nil {
@@ -1346,8 +1570,12 @@ private struct A10MeView: View {
     }
 
     private var meHeaderBadgeTint: Color {
-        if syncCoordinator.isSyncing {
+        if syncCoordinator.isCoreSyncing {
             return A10Palette.info
+        }
+
+        if syncCoordinator.isEnrichmentSyncing {
+            return A10Palette.brandSecondary
         }
 
         if remoteContext != nil {
@@ -1484,6 +1712,11 @@ private struct A10MeView: View {
 
     private func handleEmotionShortcut(_ shortcut: A10EmotionShortcut) {
         selectedEmotionShortcutID = shortcut.id
+        selectedShortcutDetent = .large
+        selectedEmotionShortcut = shortcut
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        UISelectionFeedbackGenerator().selectionChanged()
+        loadEmotionShortcutSheet(shortcut)
 
         Task {
             await SupabaseManager.shared.captureUserSignal(
@@ -1496,51 +1729,460 @@ private struct A10MeView: View {
             )
         }
 
-        switch shortcut.id {
-        case "state":
-            if remoteContext?.pendingInquiry != nil {
-                openMaxFromMe(intent: "inquiry")
-            } else if remoteContext?.hasSignals == true {
-                openMaxFromMe(intent: "body_signal")
-            } else {
-                triggerMaxExecutionFromMe(.startCalibration)
-            }
-        case "plan":
-            if remoteContext?.hasActivePlan == true || plans.contains(where: { !$0.isCompleted }) {
-                openMaxFromMe(intent: "plan_review")
-            } else {
-                openMaxFromMe(
-                    question: L10n.text(
-                        "请基于我当前状态，给我一个今天 10 分钟内可以完成的动作。",
-                        "Based on my current state, give me one action I can complete within 10 minutes today.",
-                        language: language
-                    )
-                )
-            }
-        case "signal":
+        if shortcut.id == "signal" {
             Task {
                 await syncCoordinator.sync(context: modelContext, language: language, force: true, trigger: "me_shortcut_signal")
             }
-            if remoteContext?.hasSignals == true {
-                openMaxFromMe(intent: "body_signal")
-            } else {
-                triggerMaxExecutionFromMe(.startCalibration)
-            }
-        case "focus":
-            if let focus = remoteContext?.focusText {
-                openMaxFromMe(
-                    question: language == .en
-                        ? "Use my current focus \"\(focus)\" to decide the next smallest action and one follow-up question."
-                        : "请围绕我当前焦点「\(focus)」决定下一步最小动作，并给我一个跟进问题。"
-                )
-            } else {
-                NotificationCenter.default.post(name: .openDashboard, object: nil)
-            }
-        case "max":
-            NotificationCenter.default.post(name: .openMaxChat, object: nil)
-        default:
-            break
         }
+    }
+
+    private func shortcutSheetModel(for shortcut: A10EmotionShortcut) -> A10EmotionShortcutSheetModel {
+        shortcutSheetModels[shortcut.id] ?? placeholderShortcutSheetModel(for: shortcut)
+    }
+
+    private func placeholderShortcutSheetModel(for shortcut: A10EmotionShortcut) -> A10EmotionShortcutSheetModel {
+        let badges: [A10EmotionShortcutBadge]
+        switch shortcut.id {
+        case "state":
+            badges = [
+                A10EmotionShortcutBadge(title: L10n.text("7天睡眠", "7d sleep", language: language), value: sleepAverageText, tint: A10Palette.info),
+                A10EmotionShortcutBadge(title: L10n.text("7天压力", "7d stress", language: language), value: stressAverageText, tint: A10Palette.warning),
+                A10EmotionShortcutBadge(title: L10n.text("就绪度", "Readiness", language: language), value: readinessText, tint: A10Palette.success)
+            ]
+        case "plan":
+            badges = [
+                A10EmotionShortcutBadge(title: L10n.text("进行中", "Active", language: language), value: "\(plans.filter { !$0.isCompleted }.count)", tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: L10n.text("完成率", "Completion", language: language), value: completionRateText, tint: A10Palette.success),
+                A10EmotionShortcutBadge(title: L10n.text("主计划", "Lead plan", language: language), value: planProgressText, tint: A10Palette.info)
+            ]
+        case "signal":
+            badges = [
+                A10EmotionShortcutBadge(title: "HRV", value: hrvText, tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: "RHR", value: rhrText, tint: A10Palette.warning),
+                A10EmotionShortcutBadge(title: L10n.text("步数", "Steps", language: language), value: stepsText, tint: A10Palette.success)
+            ]
+        case "focus":
+            badges = [
+                A10EmotionShortcutBadge(title: L10n.text("当前焦点", "Current focus", language: language), value: remoteContext?.focusText ?? "—", tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: L10n.text("待补变量", "Open gaps", language: language), value: "\(remoteContext?.pendingInquiry == nil ? 0 : 1)", tint: A10Palette.warning),
+                A10EmotionShortcutBadge(title: L10n.text("主导阶段", "Lead stage", language: language), value: currentSnapshot?.stage.title(language: language) ?? "A10", tint: A10Palette.info)
+            ]
+        case "max":
+            badges = [
+                A10EmotionShortcutBadge(title: L10n.text("最近状态", "Latest state", language: language), value: remoteContext?.proactiveBrief == nil ? L10n.text("待命", "Ready", language: language) : L10n.text("已理解", "Context built", language: language), tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: L10n.text("进行中计划", "Active plans", language: language), value: "\(plans.filter { !$0.isCompleted }.count)", tint: A10Palette.success),
+                A10EmotionShortcutBadge(title: L10n.text("待答问题", "Pending Q", language: language), value: "\(remoteContext?.pendingInquiry == nil ? 0 : 1)", tint: A10Palette.warning)
+            ]
+        default:
+            badges = [
+                A10EmotionShortcutBadge(title: L10n.text("状态", "Status", language: language), value: L10n.text("已记录", "Tracked", language: language), tint: A10Palette.info)
+            ]
+        }
+
+        return A10EmotionShortcutSheetModel(
+            title: shortcut.title.resolve(language),
+            summary: L10n.text("正在汇总真实统计，而不是只给说明文案。", "Loading actual stats instead of a generic explanation.", language: language),
+            badges: badges,
+            sections: [
+                A10EmotionShortcutSection(
+                    title: L10n.text("统计视图", "Stats view", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(
+                            label: L10n.text("状态", "Status", language: language),
+                            value: L10n.text("准备中", "Preparing", language: language)
+                        )
+                    ]
+                )
+            ]
+        )
+    }
+
+    private func loadEmotionShortcutSheet(_ shortcut: A10EmotionShortcut) {
+        shortcutSheetLoadingIDs.insert(shortcut.id)
+
+        Task {
+            let model = await buildEmotionShortcutSheetModel(for: shortcut)
+            await MainActor.run {
+                shortcutSheetModels[shortcut.id] = model
+                shortcutSheetLoadingIDs.remove(shortcut.id)
+            }
+        }
+    }
+
+    private func buildEmotionShortcutSheetModel(for shortcut: A10EmotionShortcut) async -> A10EmotionShortcutSheetModel {
+        switch shortcut.id {
+        case "state":
+            return await buildStateShortcutSheetModel()
+        case "plan":
+            return buildPlanShortcutSheetModel()
+        case "signal":
+            return await buildSignalShortcutSheetModel()
+        case "focus":
+            return await buildFocusShortcutSheetModel()
+        case "max":
+            return await buildMaxShortcutSheetModel()
+        default:
+            return placeholderShortcutSheetModel(for: shortcut)
+        }
+    }
+
+    private func buildStateShortcutSheetModel() async -> A10EmotionShortcutSheetModel {
+        let analysisHistory = (try? await supabase.getAnalysisHistory(limit: 6)) ?? []
+        let weeklyLogs = remoteContext?.dashboard?.weeklyLogs ?? []
+        let todayLog = remoteContext?.dashboard?.todayLog
+        let summary = remoteContext?.dashboard?.todayLog?.ai_recommendation
+            ?? currentSnapshot?.summary
+            ?? L10n.text("系统还在补状态。", "The system is still filling in state data.", language: language)
+
+        return A10EmotionShortcutSheetModel(
+            title: L10n.text("状态", "State", language: language),
+            summary: summary,
+            badges: [
+                A10EmotionShortcutBadge(title: L10n.text("7天睡眠", "7d sleep", language: language), value: sleepAverageText, tint: A10Palette.info),
+                A10EmotionShortcutBadge(title: L10n.text("7天压力", "7d stress", language: language), value: stressAverageText, tint: A10Palette.warning),
+                A10EmotionShortcutBadge(title: L10n.text("就绪度", "Readiness", language: language), value: readinessText, tint: A10Palette.success)
+            ],
+            sections: [
+                A10EmotionShortcutSection(
+                    title: L10n.text("今日状态", "Today", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("压力", "Stress", language: language), value: metricValue(todayLog?.stress_level, suffix: "/10")),
+                        A10EmotionShortcutRow(label: L10n.text("焦虑", "Anxiety", language: language), value: metricValue(todayLog?.anxiety_level, suffix: "/10")),
+                        A10EmotionShortcutRow(label: L10n.text("精力", "Energy", language: language), value: metricValue(todayLog?.energy_level ?? todayLog?.morning_energy, suffix: "/10")),
+                        A10EmotionShortcutRow(label: L10n.text("清晰度", "Clarity", language: language), value: metricValue(todayLog?.mental_clarity, suffix: "/10"))
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("近7天趋势", "Last 7 days", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("平均睡眠", "Average sleep", language: language), value: sleepAverageText),
+                        A10EmotionShortcutRow(label: L10n.text("平均压力", "Average stress", language: language), value: stressAverageText),
+                        A10EmotionShortcutRow(label: L10n.text("记录天数", "Logged days", language: language), value: "\(weeklyLogs.count)")
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("系统判断", "System view", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("最新分析", "Latest analysis", language: language), value: analysisHistory.first?.statusText ?? L10n.text("暂无", "None", language: language)),
+                        A10EmotionShortcutRow(label: L10n.text("置信度", "Confidence", language: language), value: analysisHistory.first?.confidenceText ?? "—"),
+                        A10EmotionShortcutRow(label: L10n.text("更新时间", "Updated", language: language), value: analysisHistory.first?.createdAt ?? formattedDate(remoteContext?.refreshedAt))
+                    ]
+                )
+            ]
+        )
+    }
+
+    private func buildPlanShortcutSheetModel() -> A10EmotionShortcutSheetModel {
+        let activePlans = plans.filter { !$0.isCompleted }
+        let completedPlans = plans.filter(\.isCompleted)
+        let totalPlans = max(plans.count, 1)
+        let completionRate = Int(round(Double(completedPlans.count) / Double(totalPlans) * 100))
+        let avgMinutes = plans.isEmpty ? 0 : Int(round(Double(plans.map(\.estimatedMinutes).reduce(0, +)) / Double(plans.count)))
+        let activePlanTitle = remoteContext?.activePlan?.title
+            ?? activePlans.first?.title
+            ?? L10n.text("今天还没有在执行的计划。", "There is no active plan right now.", language: language)
+
+        return A10EmotionShortcutSheetModel(
+            title: L10n.text("计划", "Plans", language: language),
+            summary: activePlanTitle,
+            badges: [
+                A10EmotionShortcutBadge(title: L10n.text("进行中", "Active", language: language), value: "\(activePlans.count)", tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: L10n.text("完成率", "Completion", language: language), value: "\(completionRate)%", tint: A10Palette.success),
+                A10EmotionShortcutBadge(title: L10n.text("平均时长", "Avg time", language: language), value: avgMinutes > 0 ? "\(avgMinutes)m" : "—", tint: A10Palette.info)
+            ],
+            sections: [
+                A10EmotionShortcutSection(
+                    title: L10n.text("执行统计", "Execution", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("主计划", "Lead plan", language: language), value: activePlanTitle),
+                        A10EmotionShortcutRow(label: L10n.text("远端进度", "Remote progress", language: language), value: planProgressText),
+                        A10EmotionShortcutRow(label: L10n.text("已完成", "Completed", language: language), value: "\(completedPlans.count)")
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("阻力点", "Friction", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("当前掉队点", "Current drop-off", language: language), value: activePlans.first?.detail ?? L10n.text("当前没有明显掉队点。", "No clear drop-off point right now.", language: language)),
+                        A10EmotionShortcutRow(label: L10n.text("未完成项", "Open items", language: language), value: "\(activePlans.count)")
+                    ]
+                )
+            ]
+        )
+    }
+
+    private func buildSignalShortcutSheetModel() async -> A10EmotionShortcutSheetModel {
+        let historyRows = await loadHealthMetricRows(limit: 160)
+        let grouped = Dictionary(grouping: historyRows, by: \.data_type)
+
+        return A10EmotionShortcutSheetModel(
+            title: L10n.text("信号", "Signals", language: language),
+            summary: remoteContext?.hasSignals == true
+                ? L10n.text("穿戴和主观状态信号已经接入。", "Wearable and subjective signals are connected.", language: language)
+                : L10n.text("目前信号还不够密。", "Signals are still sparse.", language: language),
+            badges: [
+                A10EmotionShortcutBadge(title: "HRV", value: hrvText, tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: "RHR", value: rhrText, tint: A10Palette.warning),
+                A10EmotionShortcutBadge(title: L10n.text("步数", "Steps", language: language), value: stepsText, tint: A10Palette.success)
+            ],
+            sections: [
+                A10EmotionShortcutSection(
+                    title: L10n.text("当前硬件", "Current hardware", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: "HRV", value: hrvText),
+                        A10EmotionShortcutRow(label: "RHR", value: rhrText),
+                        A10EmotionShortcutRow(label: L10n.text("睡眠分", "Sleep score", language: language), value: sleepScoreText),
+                        A10EmotionShortcutRow(label: L10n.text("步数", "Steps", language: language), value: stepsText)
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("近30天均值", "30d averages", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: "HRV", value: metricValue(averageMetric(grouped["hrv"]).map { Int($0.rounded()) })),
+                        A10EmotionShortcutRow(label: "RHR", value: metricValue(averageMetric(grouped["resting_heart_rate"]).map { Int($0.rounded()) })),
+                        A10EmotionShortcutRow(label: L10n.text("步数", "Steps", language: language), value: metricValue(averageMetric(grouped["steps"]).map { Int($0.rounded()) })),
+                        A10EmotionShortcutRow(label: L10n.text("睡眠分", "Sleep score", language: language), value: metricValue(averageMetric(grouped["sleep_score"]).map { Int($0.rounded()) }))
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("联动状态", "Coupled state", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("7天睡眠", "7d sleep", language: language), value: sleepAverageText),
+                        A10EmotionShortcutRow(label: L10n.text("7天压力", "7d stress", language: language), value: stressAverageText),
+                        A10EmotionShortcutRow(label: L10n.text("有效信号数", "Signal count", language: language), value: "\(remoteContext?.signalCount ?? 0)")
+                    ]
+                )
+            ]
+        )
+    }
+
+    private func buildFocusShortcutSheetModel() async -> A10EmotionShortcutSheetModel {
+        let inquiryRows = await loadInquiryHistoryRows(limit: 12)
+        let inquirySummary = (try? await supabase.getInquiryContextSummary(language: language.apiCode, limit: 8))
+            ?? L10n.text("还没有足够的问询上下文。", "There is not enough inquiry context yet.", language: language)
+        let topTopic = Dictionary(grouping: inquiryRows.compactMap(\.question_type), by: { $0 })
+            .mapValues(\.count)
+            .sorted { $0.value > $1.value }
+            .first?.key ?? L10n.text("未形成", "Not formed", language: language)
+        let topGap = inquiryRows
+            .flatMap { $0.data_gaps_addressed ?? [] }
+            .reduce(into: [String: Int]()) { result, gap in
+                result[gap, default: 0] += 1
+            }
+            .sorted { $0.value > $1.value }
+            .first?.key ?? L10n.text("暂无", "None", language: language)
+
+        return A10EmotionShortcutSheetModel(
+            title: L10n.text("聚焦", "Focus", language: language),
+            summary: remoteContext?.focusText
+                ?? L10n.text("当前没有显式聚焦，系统还在压缩主要变量。", "There is no explicit focus yet, so the system is still compressing the key variable.", language: language),
+            badges: [
+                A10EmotionShortcutBadge(title: L10n.text("当前焦点", "Current focus", language: language), value: remoteContext?.focusText ?? "—", tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: L10n.text("高频主题", "Top theme", language: language), value: topTopic, tint: A10Palette.info),
+                A10EmotionShortcutBadge(title: L10n.text("主缺口", "Top gap", language: language), value: topGap, tint: A10Palette.warning)
+            ],
+            sections: [
+                A10EmotionShortcutSection(
+                    title: L10n.text("当前聚焦", "Current focus", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("系统焦点", "System focus", language: language), value: remoteContext?.focusText ?? "—"),
+                        A10EmotionShortcutRow(label: L10n.text("待答问题", "Pending question", language: language), value: remoteContext?.pendingInquiry?.questionText ?? L10n.text("暂无", "None", language: language))
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("近7天高频触发", "Recent frequent triggers", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("高频主题", "Top theme", language: language), value: topTopic),
+                        A10EmotionShortcutRow(label: L10n.text("主数据缺口", "Primary data gap", language: language), value: topGap)
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("问询总结", "Inquiry summary", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("上下文", "Context", language: language), value: inquirySummary)
+                    ]
+                )
+            ]
+        )
+    }
+
+    private func buildMaxShortcutSheetModel() async -> A10EmotionShortcutSheetModel {
+        let conversations = await loadConversationRows(limit: 120)
+        let analysisHistory = (try? await supabase.getAnalysisHistory(limit: 10)) ?? []
+        let userMessages = conversations.filter { ($0.role ?? "") == "user" }
+        let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? .distantPast
+        let recentSevenDays = userMessages.filter {
+            guard let created = parseISODate($0.created_at) else { return false }
+            return created >= sevenDaysAgo
+        }
+        let topicCounts = inferConversationTopics(from: userMessages)
+
+        return A10EmotionShortcutSheetModel(
+            title: "Max",
+            summary: remoteContext?.proactiveBrief?.title
+                ?? L10n.text("Max 已经待命，但这里只展示工作统计。", "Max is ready; this surface now shows operational stats only.", language: language),
+            badges: [
+                A10EmotionShortcutBadge(title: L10n.text("7天对话", "7d chats", language: language), value: "\(recentSevenDays.count)", tint: A10Palette.brand),
+                A10EmotionShortcutBadge(title: L10n.text("主主题", "Top theme", language: language), value: topicCounts.sorted { $0.value > $1.value }.first?.key ?? L10n.text("未形成", "Not formed", language: language), tint: A10Palette.info),
+                A10EmotionShortcutBadge(title: L10n.text("已落地动作", "Landed actions", language: language), value: "\(plans.filter(\.isCompleted).count)", tint: A10Palette.success)
+            ],
+            sections: [
+                A10EmotionShortcutSection(
+                    title: L10n.text("近7/30天使用", "7d / 30d usage", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("7天用户消息", "7d user turns", language: language), value: "\(recentSevenDays.count)"),
+                        A10EmotionShortcutRow(label: L10n.text("30天消息总数", "30d total turns", language: language), value: "\(userMessages.count)"),
+                        A10EmotionShortcutRow(label: L10n.text("最近一次交互", "Last interaction", language: language), value: formattedDate(parseISODate(conversations.first?.created_at)))
+                    ]
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("主题分布", "Topic distribution", language: language),
+                    rows: topicCounts
+                        .sorted { $0.value > $1.value }
+                        .prefix(3)
+                        .map { A10EmotionShortcutRow(label: $0.key, value: "\($0.value)") }
+                ),
+                A10EmotionShortcutSection(
+                    title: L10n.text("分析联动", "Analysis linkage", language: language),
+                    rows: [
+                        A10EmotionShortcutRow(label: L10n.text("最近分析状态", "Latest analysis state", language: language), value: analysisHistory.first?.statusText ?? L10n.text("暂无", "None", language: language)),
+                        A10EmotionShortcutRow(label: L10n.text("最近置信度", "Latest confidence", language: language), value: analysisHistory.first?.confidenceText ?? "—"),
+                        A10EmotionShortcutRow(label: L10n.text("待答问题", "Pending question", language: language), value: "\(remoteContext?.pendingInquiry == nil ? 0 : 1)")
+                    ]
+                )
+            ]
+        )
+    }
+
+    private func loadHealthMetricRows(limit: Int) async -> [A10HealthMetricRow] {
+        guard let user = supabase.currentUser else { return [] }
+        let endpoint = "user_health_data?user_id=eq.\(user.id)&select=data_type,value,recorded_at&order=recorded_at.desc&limit=\(max(20, limit))"
+        return (try? await supabase.request(endpoint)) ?? []
+    }
+
+    private func loadInquiryHistoryRows(limit: Int) async -> [A10InquirySheetRow] {
+        guard let user = supabase.currentUser else { return [] }
+        let endpoint = "inquiry_history?user_id=eq.\(user.id)&select=question_type,data_gaps_addressed,user_response,created_at,responded_at&order=created_at.desc&limit=\(max(4, limit))"
+        return (try? await supabase.request(endpoint)) ?? []
+    }
+
+    private func loadConversationRows(limit: Int) async -> [A10ConversationSheetRow] {
+        guard let user = supabase.currentUser else { return [] }
+        let endpoint = "chat_conversations?user_id=eq.\(user.id)&select=role,content,created_at&order=created_at.desc&limit=\(max(20, limit))"
+        return (try? await supabase.request(endpoint)) ?? []
+    }
+
+    private func averageMetric(_ rows: [A10HealthMetricRow]?) -> Double? {
+        guard let rows, !rows.isEmpty else { return nil }
+        let values = rows.map(\.value)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    private func inferConversationTopics(from rows: [A10ConversationSheetRow]) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for row in rows {
+            let content = (row.content ?? "").lowercased()
+            if content.contains("sleep") || content.contains("睡眠") || content.contains("失眠") {
+                counts[L10n.text("睡眠", "Sleep", language: language), default: 0] += 1
+            }
+            if content.contains("stress") || content.contains("压力") || content.contains("焦虑") || content.contains("anxiety") {
+                counts[L10n.text("压力/焦虑", "Stress / anxiety", language: language), default: 0] += 1
+            }
+            if content.contains("energy") || content.contains("能量") || content.contains("疲劳") {
+                counts[L10n.text("能量", "Energy", language: language), default: 0] += 1
+            }
+            if content.contains("exercise") || content.contains("运动") || content.contains("锻炼") {
+                counts[L10n.text("运动", "Exercise", language: language), default: 0] += 1
+            }
+        }
+        return counts
+    }
+
+    private func metricValue(_ value: Int?, suffix: String = "") -> String {
+        guard let value else { return "—" }
+        return "\(value)\(suffix)"
+    }
+
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func parseISODate(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+        return ISO8601DateFormatter().date(from: raw)
+    }
+
+    private var sleepAverageText: String {
+        let hours = remoteContext?.dashboard?.averageSleepHours ?? 0
+        guard hours > 0 else { return "—" }
+        return String(format: "%.1fh", hours)
+    }
+
+    private var stressAverageText: String {
+        let stress = remoteContext?.dashboard?.averageStress ?? 0
+        guard stress > 0 else { return "—" }
+        return String(format: "%.1f/10", stress)
+    }
+
+    private var readinessText: String {
+        guard let readiness = remoteContext?.readinessScore else { return "—" }
+        return "\(readiness)"
+    }
+
+    private var completionRateText: String {
+        guard !plans.isEmpty else { return "0%" }
+        let completed = plans.filter(\.isCompleted).count
+        return "\(Int(round(Double(completed) / Double(plans.count) * 100)))%"
+    }
+
+    private var planProgressText: String {
+        if let activePlan = remoteContext?.activePlan {
+            return "\(activePlan.progress)%"
+        }
+        return plans.first(where: { !$0.isCompleted }) == nil ? "—" : "0%"
+    }
+
+    private var hrvText: String {
+        guard let hrv = remoteContext?.dashboard?.hardwareData?.hrv?.value else { return "—" }
+        return "\(Int(hrv.rounded()))"
+    }
+
+    private var rhrText: String {
+        guard let rhr = remoteContext?.dashboard?.hardwareData?.resting_heart_rate?.value else { return "—" }
+        return "\(Int(rhr.rounded()))"
+    }
+
+    private var sleepScoreText: String {
+        guard let score = remoteContext?.dashboard?.hardwareData?.sleep_score?.value else { return "—" }
+        return "\(Int(score.rounded()))"
+    }
+
+    private var stepsText: String {
+        guard let steps = remoteContext?.dashboard?.hardwareData?.steps?.value else { return "—" }
+        return "\(Int(steps.rounded()))"
+    }
+
+    private struct A10HealthMetricRow: Decodable {
+        let data_type: String
+        let value: Double
+        let recorded_at: String?
+    }
+
+    private struct A10InquirySheetRow: Decodable {
+        let question_type: String?
+        let data_gaps_addressed: [String]?
+        let user_response: String?
+        let created_at: String?
+        let responded_at: String?
+    }
+
+    private struct A10ConversationSheetRow: Decodable {
+        let role: String?
+        let content: String?
+        let created_at: String?
     }
 
     private func openMaxFromMe(intent: String? = nil, question: String? = nil) {
@@ -1824,7 +2466,7 @@ private struct A10HomeOverviewCard: View {
 
     var body: some View {
         LiquidGlassCard(style: .standard, padding: 10) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L10n.text("今日总览", "Today's overview", language: language))
@@ -1995,70 +2637,447 @@ private struct A10HomeProgressSheet: View {
             AuroraBackground()
                 .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.stage.title(language: language))
-                            .font(.system(size: 28, weight: .semibold, design: .rounded))
-                            .foregroundStyle(A10Palette.ink)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.stage.title(language: language))
+                                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                                .foregroundStyle(A10Palette.ink)
 
-                        Text(item.statusText + " · \(item.progress)%")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(item.tint)
+                            Text(item.statusText + " · \(item.progress)%")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(item.tint)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(A10Palette.ink)
+                                .frame(width: 34, height: 34)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    A10Card(highlighted: true) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(item.summary)
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .foregroundStyle(A10Palette.ink)
+
+                            Text(item.detail)
+                                .font(.system(size: 14, weight: .regular, design: .rounded))
+                                .foregroundStyle(A10Palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Button {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                            onPrimaryAction()
+                        }
+                    } label: {
+                        Text(item.ctaTitle)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(A10PrimaryButtonStyle())
+
+                    Text(
+                        L10n.text(
+                            "首页只保留判断和入口，真正的下一步交给 Max 来接手。",
+                            "Home only keeps the judgment and the entry point. Let Max take over the actual next step.",
+                            language: language
+                        )
+                    )
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+                }
+                .padding(20)
+            }
+        }
+    }
+}
+
+private struct A10BayesianInsight {
+    let headline: String
+    let detail: String
+    let action: String
+    let posterior: Int
+}
+
+private struct A10BayesianInsightCard: View {
+    let insight: A10BayesianInsight
+    let language: AppLanguage
+
+    var body: some View {
+        A10Card(highlighted: true) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.text("降低焦虑后验", "Anxiety-lowering posterior", language: language))
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.inkSecondary)
+                        Text("\(insight.posterior)%")
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.brand)
                     }
 
                     Spacer()
 
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(A10Palette.ink)
-                            .frame(width: 34, height: 34)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
+                    Image(systemName: "waveform.path.ecg.text.page")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(A10Palette.brand)
                 }
 
-                A10Card(highlighted: true) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(item.summary)
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundStyle(A10Palette.ink)
+                Text(insight.headline)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(A10Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                        Text(item.detail)
-                            .font(.system(size: 14, weight: .regular, design: .rounded))
-                            .foregroundStyle(A10Palette.inkSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                Text(insight.detail)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.heart.fill")
+                        .foregroundStyle(A10Palette.warning)
+                    Text(insight.action)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Button {
-                    dismiss()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                        onPrimaryAction()
-                    }
-                } label: {
-                    Text(item.ctaTitle)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(A10PrimaryButtonStyle())
-
-                Text(
-                    L10n.text(
-                        "首页只保留判断和入口，真正的下一步交给 Max 来接手。",
-                        "Home only keeps the judgment and the entry point. Let Max take over the actual next step.",
-                        language: language
-                    )
-                )
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(A10Palette.inkSecondary)
-
-                Spacer(minLength: 0)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(A10Palette.inset.opacity(0.75))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .padding(20)
         }
+    }
+}
+
+private struct A10ScienceRecommendationSection: View {
+    let articles: [ScienceArticle]
+    let language: AppLanguage
+
+    var body: some View {
+        VStack(spacing: 10) {
+            ForEach(articles) { article in
+                A10ScienceArticleCard(article: article, language: language)
+            }
+        }
+    }
+}
+
+private struct A10ScienceArticleCard: View {
+    let article: ScienceArticle
+    let language: AppLanguage
+
+    private var localizedSummary: String {
+        if language == .en {
+            return article.summary ?? article.summaryZh ?? L10n.text("摘要待补充。", "Summary unavailable.", language: language)
+        }
+        return article.summaryZh ?? article.summary ?? L10n.text("摘要待补充。", "Summary unavailable.", language: language)
+    }
+
+    var body: some View {
+        A10Card {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(article.titleZh ?? article.title)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(article.sourceType ?? L10n.text("科学来源", "Scientific source", language: language))
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(A10Palette.inkSecondary)
+                    }
+
+                    Spacer()
+
+                    Text("\(article.matchPercentage ?? 0)%")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(A10Palette.brand)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(A10Palette.brand.opacity(0.12), in: Capsule())
+                }
+
+                Text(localizedSummary)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(A10Palette.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let breakdown = article.scoreBreakdown {
+                    HStack(spacing: 8) {
+                        A10ScienceBreakdownPill(title: L10n.text("历史", "History", language: language), value: breakdown.historyAlignment)
+                        A10ScienceBreakdownPill(title: L10n.text("信号", "Signals", language: language), value: breakdown.signalAlignment)
+                        A10ScienceBreakdownPill(title: L10n.text("主题", "Topic", language: language), value: breakdown.topicAlignment)
+                    }
+                }
+
+                if let whyRecommended = A10NonEmpty(article.whyRecommended) {
+                    Text(L10n.text("为什么推荐给你：", "Why this fits you: ", language: language) + whyRecommended)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(A10Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let reasons = article.matchReasons, !reasons.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(reasons.prefix(3).enumerated()), id: \.offset) { item in
+                            Text("• \(item.element)")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(A10Palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                if let actionableInsight = A10NonEmpty(article.actionableInsight) {
+                    Text(L10n.text("可执行点：", "Actionable point: ", language: language) + actionableInsight)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(A10Palette.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let urlString = article.sourceUrl, let url = URL(string: urlString) {
+                    Link(destination: url) {
+                        Label(L10n.text("打开原文", "Open source", language: language), systemImage: "link")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(A10Palette.brand)
+                }
+            }
+        }
+    }
+}
+
+private struct A10ScienceBreakdownPill: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title)
+            Text("\(value)")
+                .fontWeight(.bold)
+        }
+        .font(.system(size: 11, weight: .semibold, design: .rounded))
+        .foregroundStyle(A10Palette.inkSecondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(A10Palette.inset.opacity(0.75), in: Capsule())
+    }
+}
+
+private struct A10EmotionShortcutBadge: Identifiable {
+    let id = UUID()
+    let title: String
+    let value: String
+    let tint: Color
+}
+
+private struct A10EmotionShortcutRow: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: String
+}
+
+private struct A10EmotionShortcutSection: Identifiable {
+    let id = UUID()
+    let title: String
+    let rows: [A10EmotionShortcutRow]
+}
+
+private struct A10EmotionShortcutSheetModel {
+    let title: String
+    let summary: String
+    let badges: [A10EmotionShortcutBadge]
+    let sections: [A10EmotionShortcutSection]
+}
+
+private struct A10EmotionShortcutSheet: View {
+    let shortcut: A10EmotionShortcut
+    let model: A10EmotionShortcutSheetModel
+    let isLoading: Bool
+    let language: AppLanguage
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var accentTint: Color {
+        model.badges.first?.tint ?? A10Palette.brand
+    }
+
+    var body: some View {
+        ZStack {
+            AuroraBackground()
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(alignment: .top, spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(accentTint.opacity(0.16))
+                                .frame(width: 52, height: 52)
+
+                            Image(systemName: shortcut.symbol)
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(accentTint)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.title)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(A10Palette.ink)
+
+                            Text(L10n.text("健康统计概览", "Health stats overview", language: language))
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(A10Palette.inkSecondary)
+                        }
+
+                        Spacer(minLength: 12)
+
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(A10Palette.ink)
+                                .frame(width: 34, height: 34)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    A10Card(highlighted: true) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text(L10n.text("今日概览", "Today's overview", language: language))
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(A10Palette.inkSecondary)
+                                Spacer()
+                                Text(shortcutSheetTimestamp)
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(A10Palette.inkSecondary)
+                            }
+
+                            Text(model.summary)
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .foregroundStyle(A10Palette.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    if !model.badges.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(L10n.text("关键指标", "Key metrics", language: language))
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(A10Palette.inkSecondary)
+
+                            LazyVGrid(
+                                columns: [
+                                    GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)
+                                ],
+                                spacing: 12
+                            ) {
+                                ForEach(model.badges) { badge in
+                                    A10EmotionShortcutBadgeCard(badge: badge)
+                                }
+                            }
+                        }
+                    }
+
+                    if isLoading {
+                        A10Card(highlighted: true) {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(accentTint)
+                                Text(L10n.text("正在刷新实时统计", "Refreshing live stats", language: language))
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(A10Palette.inkSecondary)
+                            }
+                        }
+                    }
+
+                    ForEach(model.sections) { section in
+                        A10Card {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text(section.title)
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(A10Palette.inkSecondary)
+
+                                VStack(spacing: 0) {
+                                    ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
+                                        HStack(alignment: .top, spacing: 12) {
+                                            Text(row.label)
+                                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                                .foregroundStyle(A10Palette.ink)
+                                            Spacer(minLength: 12)
+                                            Text(row.value)
+                                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(A10Palette.inkSecondary)
+                                                .multilineTextAlignment(.trailing)
+                                                .monospacedDigit()
+                                        }
+                                        .padding(.vertical, 10)
+
+                                        if index < section.rows.count - 1 {
+                                            Divider()
+                                                .overlay(A10Palette.line.opacity(0.5))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 28)
+            }
+        }
+    }
+
+    private var shortcutSheetTimestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = language == .en ? "MMM d, HH:mm" : "M月d日 HH:mm"
+        return formatter.string(from: Date())
+    }
+}
+
+private struct A10EmotionShortcutBadgeCard: View {
+    let badge: A10EmotionShortcutBadge
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(badge.title)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(A10Palette.inkSecondary)
+            Text(badge.value)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(badge.tint)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .monospacedDigit()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+        .background(A10Palette.inset.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(badge.tint.opacity(0.14), lineWidth: 1)
+        )
     }
 }
 

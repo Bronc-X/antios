@@ -227,6 +227,7 @@ struct A10ShellActivePlanSummary {
 struct A10ShellRemoteContext {
     let dashboard: DashboardData?
     let recommendations: [DailyAIRecommendationItem]
+    let scienceArticles: [ScienceArticle]
     let habits: [SupabaseManager.HabitStatus]
     let profile: ProfileSettings?
     let pendingInquiry: InquiryQuestion?
@@ -244,6 +245,10 @@ struct A10ShellRemoteContext {
 
     var recommendationCount: Int {
         recommendations.count
+    }
+
+    var scienceArticleCount: Int {
+        scienceArticles.count
     }
 
     var focusText: String? {

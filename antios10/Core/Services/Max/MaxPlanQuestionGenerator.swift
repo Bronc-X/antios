@@ -72,114 +72,21 @@ enum MaxPlanQuestionGenerator {
         }
 
         let data = await MaxPlanEngine.aggregatePlanData(userId: userId)
-        let calibration = data.calibration
-        let profile = data.profile
+        let inquirySummary = try? await SupabaseManager.shared.getInquiryContextSummary(
+            language: language.apiCode,
+            limit: 8
+        )
+        let ragQuestions = await generateRAGStarterQuestions(
+            language: language,
+            userId: userId,
+            data: data,
+            inquirySummary: inquirySummary
+        )
 
-        let hasHealthKitSleep = await hasLocalSleepData()
-
-        var missing: [QuestionType] = []
-        var questions: [String] = []
-        let isEn = language == .en
-
-        func appendUnique(_ question: String?) {
-            guard let question else { return }
-            let normalized = question.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else { return }
-            guard !questions.contains(normalized) else { return }
-            questions.append(normalized)
+        guard ragQuestions.count >= 3 else {
+            return fallbackQuestions(language: language)
         }
-
-        // 1) 优先提问：直接基于用户的真实状态与问题
-        if let concern = profile?.primaryConcern, !concern.isEmpty {
-            appendUnique(
-                isEn
-                    ? "You mentioned \"\(concern)\". What feels hardest about it this week?"
-                    : "你提到「\(concern)」，这周最困扰你的具体场景是什么？"
-            )
-        }
-
-        if !data.dataStatus.hasInquiryData {
-            missing.append(.concern)
-        }
-
-        let needsSleep = (calibration?.sleepHours ?? 0) <= 0 && !hasHealthKitSleep
-        let needsStress = (calibration?.stressLevel ?? 0) <= 0
-        let needsEnergy = (calibration?.energyLevel ?? 0) <= 0
-        let needsMood = (calibration?.moodScore ?? 0) <= 0
-
-        if needsSleep { missing.append(.sleep) }
-        if needsStress { missing.append(.stress) }
-        if needsEnergy { missing.append(.energy) }
-        if needsMood { missing.append(.mood) }
-
-        if let calibration {
-            if calibration.sleepHours > 0 {
-                if calibration.sleepHours < 6.5 {
-                    appendUnique(
-                        isEn
-                            ? "Your recent sleep is about \(String(format: "%.1f", calibration.sleepHours))h. What is blocking earlier sleep?"
-                            : "你最近睡眠约 \(String(format: "%.1f", calibration.sleepHours)) 小时，阻碍你更早入睡的主要原因是什么？"
-                    )
-                } else {
-                    appendUnique(
-                        isEn
-                            ? "Sleep is relatively stable. What would make your wake-up quality better?"
-                            : "你的睡眠相对稳定，你更想优化“起床后的状态”还是“夜间睡眠深度”？"
-                    )
-                }
-            }
-
-            if calibration.stressLevel >= 7 {
-                appendUnique(
-                    isEn
-                        ? "Your stress score is high recently (\(calibration.stressLevel)/10). Which time block is the toughest?"
-                        : "你最近压力值偏高（\(calibration.stressLevel)/10），一天里最难受的是哪个时段？"
-                )
-            }
-
-            if calibration.energyLevel > 0 && calibration.energyLevel <= 4 {
-                appendUnique(
-                    isEn
-                        ? "Your energy looks low (\(calibration.energyLevel)/10). Do you want to improve morning or afternoon energy first?"
-                        : "你当前精力偏低（\(calibration.energyLevel)/10），想先提升上午精力还是下午精力？"
-                )
-            }
-        }
-
-        if let hrv = data.hrv, hrv.avgHrv > 0 {
-            appendUnique(
-                isEn
-                    ? "Wearable data shows HRV around \(Int(hrv.avgHrv)). Have you noticed any stress trigger in the same period?"
-                    : "穿戴数据显示 HRV 约 \(Int(hrv.avgHrv))，这段时间你是否观察到固定的压力触发点？"
-            )
-        }
-
-        if let goals = profile?.healthGoals, let firstGoal = goals.first, !firstGoal.isEmpty {
-            appendUnique(
-                isEn
-                    ? "For your goal \"\(firstGoal)\", what is the smallest action you can commit to daily?"
-                    : "围绕你的目标「\(firstGoal)」，你愿意每天固定执行的最小动作是什么？"
-            )
-        }
-
-        for type in [QuestionType.lifestyle, .exercise, .goal] where !missing.contains(type) {
-            missing.append(type)
-        }
-
-        let sorted = missing.sorted { (priority[$0] ?? 99) < (priority[$1] ?? 99) }
-        let selected = Array(sorted.prefix(maxQuestions * 2))
-
-        for type in selected {
-            guard let template = templates[type] else { continue }
-            appendUnique(isEn ? template.en : template.zh)
-        }
-
-        for fallback in fallbackQuestions(language: language) where questions.count < maxQuestions {
-            appendUnique(fallback)
-        }
-
-        let final = Array(questions.prefix(maxQuestions))
-        return final.isEmpty ? fallbackQuestions(language: language) : final
+        return Array(ragQuestions.prefix(maxQuestions))
     }
 
     private static func fallbackQuestions(language: AppLanguage) -> [String] {
@@ -201,16 +108,205 @@ enum MaxPlanQuestionGenerator {
         ]
     }
 
-    private static func hasLocalSleepData() async -> Bool {
-        let healthKit = HealthKitService.shared
-        guard healthKit.isAvailable, healthKit.isAuthorizedForRead() else { return false }
-        let now = Date()
-        let start = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+    private static func generateRAGStarterQuestions(
+        language: AppLanguage,
+        userId: String,
+        data: AggregatedPlanData,
+        inquirySummary: String?
+    ) async -> [String] {
+        let query = ragStarterQuestionQuery(language: language, data: data)
+        let ragContext = await MaxRAGService.buildContext(
+            userId: userId,
+            query: query,
+            language: language.apiCode,
+            depth: .full
+        )
+        let confidence = ragConfidenceScore(
+            ragContext: ragContext,
+            data: data,
+            inquirySummary: inquirySummary
+        )
+        guard confidence >= 0.45 else { return [] }
+
+        let prompt = ragStarterQuestionPrompt(
+            language: language,
+            data: data,
+            ragContext: ragContext,
+            inquirySummary: inquirySummary
+        )
+        guard !prompt.isEmpty else { return [] }
+
         do {
-            let sleepMinutes = try await healthKit.querySleepDuration(from: start, to: now)
-            return sleepMinutes > 0
+            let response = try await SupabaseManager.shared.chatWithMax(
+                messages: [ChatRequestMessage(role: "user", content: prompt)],
+                mode: "fast"
+            )
+            let parsed = parseGeneratedQuestions(response, language: language)
+            return parsed.count >= 3 ? Array(parsed.prefix(maxQuestions)) : []
         } catch {
-            return false
+            return []
         }
+    }
+
+    private static func ragStarterQuestionQuery(
+        language: AppLanguage,
+        data: AggregatedPlanData
+    ) -> String {
+        let isEn = language == .en
+
+        var fragments: [String] = []
+        if let concern = data.profile?.primaryConcern, !concern.isEmpty {
+            fragments.append(concern)
+        }
+        if let goals = data.profile?.healthGoals, !goals.isEmpty {
+            fragments.append(goals.prefix(3).joined(separator: " "))
+        }
+        if let calibration = data.calibration {
+            if calibration.sleepHours > 0, calibration.sleepHours < 6.7 {
+                fragments.append(isEn ? "sleep debt recovery" : "睡眠债 恢复")
+            }
+            if calibration.stressLevel >= 6 {
+                fragments.append(isEn ? "stress regulation anxiety" : "压力 调节 焦虑")
+            }
+            if calibration.energyLevel > 0, calibration.energyLevel <= 4 {
+                fragments.append(isEn ? "low energy recovery" : "低能量 恢复")
+            }
+        }
+        if let hrv = data.hrv, hrv.avgHrv > 0 {
+            fragments.append(isEn ? "hrv stress resilience" : "HRV 压力恢复")
+        }
+        if let topic = data.inquiry?.topic, !topic.isEmpty {
+            fragments.append(topic)
+        }
+        return fragments.joined(separator: " ")
+    }
+
+    private static func ragConfidenceScore(
+        ragContext: MaxRAGContext,
+        data: AggregatedPlanData,
+        inquirySummary: String?
+    ) -> Double {
+        var score = 0.0
+        if let memoryBlock = ragContext.memoryBlock, !memoryBlock.isEmpty {
+            score += 0.45
+        }
+        if let playbookBlock = ragContext.playbookBlock, !playbookBlock.isEmpty {
+            score += 0.20
+        }
+        if let inquirySummary, !inquirySummary.isEmpty {
+            score += 0.15
+        }
+        if data.dataStatus.hasInquiryData {
+            score += 0.10
+        }
+        if data.dataStatus.hasCalibrationData || data.dataStatus.hasHrvData {
+            score += 0.10
+        }
+        return score
+    }
+
+    private static func ragStarterQuestionPrompt(
+        language: AppLanguage,
+        data: AggregatedPlanData,
+        ragContext: MaxRAGContext,
+        inquirySummary: String?
+    ) -> String {
+        let isEn = language == .en
+
+        var sections: [String] = []
+        if let concern = data.profile?.primaryConcern, !concern.isEmpty {
+            sections.append(isEn ? "[PRIMARY CONCERN]\n\(concern)" : "[主要困扰]\n\(concern)")
+        }
+        if let goals = data.profile?.healthGoals, !goals.isEmpty {
+            sections.append(
+                isEn
+                    ? "[GOALS]\n\(goals.joined(separator: ", "))"
+                    : "[目标]\n\(goals.joined(separator: "、"))"
+            )
+        }
+        if let calibration = data.calibration {
+            sections.append(
+                isEn
+                    ? "[RECENT SIGNALS]\nSleep \(String(format: "%.1f", calibration.sleepHours))h, stress \(calibration.stressLevel)/10, energy \(calibration.energyLevel)/10, mood \(calibration.moodScore)/10"
+                    : "[近期信号]\n睡眠 \(String(format: "%.1f", calibration.sleepHours)) 小时，压力 \(calibration.stressLevel)/10，精力 \(calibration.energyLevel)/10，情绪 \(calibration.moodScore)/10"
+            )
+        }
+        if let hrv = data.hrv, hrv.avgHrv > 0 {
+            sections.append(
+                isEn
+                    ? "[WEARABLE]\nAverage HRV \(Int(hrv.avgHrv)), resting HR \(Int(hrv.restingHr)), trend \(hrv.hrvTrend)"
+                    : "[穿戴设备]\n平均 HRV \(Int(hrv.avgHrv))，静息心率 \(Int(hrv.restingHr))，趋势 \(hrv.hrvTrend)"
+            )
+        }
+        if let inquirySummary, !inquirySummary.isEmpty {
+            sections.append(
+                isEn
+                    ? "[INQUIRY HISTORY]\n\(inquirySummary)"
+                    : "[问询历史]\n\(inquirySummary)"
+            )
+        }
+        if let memoryBlock = ragContext.memoryBlock, !memoryBlock.isEmpty {
+            sections.append(
+                isEn
+                    ? "[RETRIEVED MEMORIES]\n\(memoryBlock)"
+                    : "[检索到的记忆]\n\(memoryBlock)"
+            )
+        }
+        if let playbookBlock = ragContext.playbookBlock, !playbookBlock.isEmpty {
+            sections.append(
+                isEn
+                    ? "[RETRIEVED CONTEXT]\n\(playbookBlock)"
+                    : "[检索到的上下文]\n\(playbookBlock)"
+            )
+        }
+
+        let instruction = isEn
+            ? """
+[TASK]
+Generate 4 starter questions for Max.
+Hard rules:
+- Every question must be grounded in the retrieved history, signals, or memories above.
+- Do not ask generic intake questions.
+- Prefer the next highest-value unknown that would reduce anxiety or clarify the next action.
+- Questions must be short, specific, and non-judgmental.
+- Output only 4 bullet lines, each line one question.
+"""
+            : """
+[任务]
+请为 Max 生成 4 条起始问题。
+硬规则：
+- 每个问题都必须扎根于上面的历史、信号或检索记忆。
+- 不要提通用 intake 模板问题。
+- 优先追问“最能降低焦虑、最能澄清下一步”的那个未知点。
+- 问题要短、具体、无评判。
+- 只输出 4 行项目符号，每行一个问题。
+"""
+
+        sections.append(instruction)
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static func parseGeneratedQuestions(_ response: String, language: AppLanguage) -> [String] {
+        let rawLines = response
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let cleaned = rawLines.compactMap { line -> String? in
+            let stripped = line.replacingOccurrences(
+                of: #"^[-•\d\.\)\s]+"#,
+                with: "",
+                options: .regularExpression
+            )
+            let trimmed = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            guard trimmed.contains("?") || trimmed.contains("？") else { return nil }
+            return trimmed
+        }
+
+        if !cleaned.isEmpty {
+            return cleaned
+        }
+        return fallbackQuestions(language: language)
     }
 }

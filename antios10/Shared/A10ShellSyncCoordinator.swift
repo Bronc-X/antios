@@ -4,13 +4,19 @@ import SwiftUI
 
 @MainActor
 final class A10ShellSyncCoordinator: ObservableObject {
-    @Published private(set) var isSyncing = false
+    @Published private(set) var isCoreSyncing = false
+    @Published private(set) var isEnrichmentSyncing = false
     @Published private(set) var lastSyncAt: Date?
     @Published private(set) var lastErrorMessage: String?
     @Published private(set) var lastRemoteSource: String?
     @Published private(set) var remoteContext: A10ShellRemoteContext?
 
     private let supabase = SupabaseManager.shared
+    private var syncGeneration = 0
+
+    var isSyncing: Bool {
+        isCoreSyncing || isEnrichmentSyncing
+    }
 
     func sync(
         context: ModelContext,
@@ -18,12 +24,16 @@ final class A10ShellSyncCoordinator: ObservableObject {
         force: Bool,
         trigger: String
     ) async {
-        guard !isSyncing else { return }
-        isSyncing = true
-        defer { isSyncing = false }
+        guard !isCoreSyncing else { return }
+        syncGeneration += 1
+        let generation = syncGeneration
+        isCoreSyncing = true
+        defer { isCoreSyncing = false }
 
         if force || lastSyncAt == nil {
-            await supabase.triggerDailyRecommendations(force: force, language: language.apiCode)
+            Task { [supabase] in
+                await supabase.triggerDailyRecommendations(force: force, language: language.apiCode)
+            }
         }
 
         async let dashboardTask: DashboardData? = loadOptional { [self] in
@@ -37,7 +47,6 @@ final class A10ShellSyncCoordinator: ObservableObject {
         }
         async let profileTask: ProfileSettings? = loadProfileSettings()
         async let inquiryTask: InquiryQuestion? = loadPendingInquiry(language: language)
-        async let proactiveBriefTask: ProactiveCareBrief? = loadProactiveBrief(language: language, force: force)
         async let activePlanTask: A10ShellActivePlanSummary? = loadActivePlanSummary()
 
         let dashboard = await dashboardTask
@@ -45,7 +54,6 @@ final class A10ShellSyncCoordinator: ObservableObject {
         let habits = await habitsTask
         let profile = await profileTask
         let pendingInquiry = await inquiryTask
-        let proactiveBrief = await proactiveBriefTask
         let activePlan = await activePlanTask
 
         guard dashboard != nil
@@ -53,7 +61,6 @@ final class A10ShellSyncCoordinator: ObservableObject {
             || !recommendations.isEmpty
             || !habits.isEmpty
             || pendingInquiry != nil
-            || proactiveBrief != nil
             || activePlan != nil else {
             lastErrorMessage = "No usable remote data returned."
             return
@@ -74,10 +81,11 @@ final class A10ShellSyncCoordinator: ObservableObject {
             remoteContext = A10ShellRemoteContext(
                 dashboard: dashboard,
                 recommendations: recommendations,
+                scienceArticles: remoteContext?.scienceArticles ?? [],
                 habits: habits,
                 profile: profile,
                 pendingInquiry: pendingInquiry,
-                proactiveBrief: proactiveBrief,
+                proactiveBrief: remoteContext?.proactiveBrief,
                 activePlan: activePlan,
                 refreshedAt: .now
             )
@@ -93,13 +101,40 @@ final class A10ShellSyncCoordinator: ObservableObject {
                     "has_dashboard": dashboard != nil,
                     "has_profile": profile != nil,
                     "has_pending_inquiry": pendingInquiry != nil,
-                    "has_proactive_brief": proactiveBrief != nil,
                     "has_active_plan": activePlan != nil
                 ]
+            )
+            scheduleEnrichment(
+                generation: generation,
+                context: context,
+                language: language,
+                force: force,
+                trigger: trigger,
+                dashboard: dashboard,
+                profile: profile
             )
         } catch {
             lastErrorMessage = error.localizedDescription
         }
+    }
+
+    func refreshEnrichment(
+        context: ModelContext,
+        language: AppLanguage,
+        force: Bool,
+        trigger: String
+    ) async {
+        syncGeneration += 1
+        let generation = syncGeneration
+        await loadEnrichment(
+            generation: generation,
+            context: context,
+            language: language,
+            force: force,
+            trigger: trigger,
+            dashboard: remoteContext?.dashboard,
+            profile: remoteContext?.profile
+        )
     }
 
     func syncPlanToggle(_ plan: A10ActionPlan, context: ModelContext, language: AppLanguage) async {
@@ -147,6 +182,104 @@ final class A10ShellSyncCoordinator: ObservableObject {
         } catch {
             lastErrorMessage = error.localizedDescription
         }
+    }
+
+    private func scheduleEnrichment(
+        generation: Int,
+        context: ModelContext,
+        language: AppLanguage,
+        force: Bool,
+        trigger: String,
+        dashboard: DashboardData?,
+        profile: ProfileSettings?
+    ) {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.loadEnrichment(
+                generation: generation,
+                context: context,
+                language: language,
+                force: force,
+                trigger: trigger,
+                dashboard: dashboard,
+                profile: profile
+            )
+        }
+    }
+
+    private func loadEnrichment(
+        generation: Int,
+        context: ModelContext,
+        language: AppLanguage,
+        force: Bool,
+        trigger: String,
+        dashboard: DashboardData?,
+        profile: ProfileSettings?
+    ) async {
+        isEnrichmentSyncing = true
+        defer {
+            if generation == syncGeneration {
+                isEnrichmentSyncing = false
+            }
+        }
+
+        let resolvedDashboard = dashboard ?? remoteContext?.dashboard
+        let resolvedProfile = profile ?? remoteContext?.profile
+
+        async let scienceTask: [ScienceArticle] = loadScienceArticles(
+            language: language,
+            dashboard: resolvedDashboard,
+            profile: resolvedProfile
+        )
+        async let proactiveBriefTask: ProactiveCareBrief? = loadProactiveBrief(language: language, force: force)
+
+        let scienceArticles = await scienceTask
+        let proactiveBrief = await proactiveBriefTask
+
+        guard generation == syncGeneration else { return }
+        guard remoteContext != nil || !scienceArticles.isEmpty || proactiveBrief != nil else { return }
+
+        if let current = remoteContext {
+            remoteContext = A10ShellRemoteContext(
+                dashboard: current.dashboard,
+                recommendations: current.recommendations,
+                scienceArticles: scienceArticles.isEmpty ? current.scienceArticles : scienceArticles,
+                habits: current.habits,
+                profile: current.profile,
+                pendingInquiry: current.pendingInquiry,
+                proactiveBrief: proactiveBrief ?? current.proactiveBrief,
+                activePlan: current.activePlan,
+                refreshedAt: .now
+            )
+        } else {
+            remoteContext = A10ShellRemoteContext(
+                dashboard: resolvedDashboard,
+                recommendations: [],
+                scienceArticles: scienceArticles,
+                habits: [],
+                profile: resolvedProfile,
+                pendingInquiry: nil,
+                proactiveBrief: proactiveBrief,
+                activePlan: nil,
+                refreshedAt: .now
+            )
+        }
+
+        lastErrorMessage = nil
+        lastRemoteSource = "enrichment"
+
+        await supabase.captureUserSignal(
+            domain: "a10_shell",
+            action: "remote_enriched",
+            summary: "\(trigger): science=\(scienceArticles.count), brief=\(proactiveBrief != nil)",
+            metadata: [
+                "trigger": trigger,
+                "science_articles_count": scienceArticles.count,
+                "has_proactive_brief": proactiveBrief != nil,
+                "has_dashboard": resolvedDashboard != nil,
+                "has_profile": resolvedProfile != nil
+            ]
+        )
     }
 
     private func applyRemoteData(
@@ -526,6 +659,28 @@ final class A10ShellSyncCoordinator: ObservableObject {
         } catch {
             return nil
         }
+    }
+
+    private func loadScienceArticles(
+        language: AppLanguage,
+        dashboard: DashboardData?,
+        profile: ProfileSettings?
+    ) async -> [ScienceArticle] {
+        let baseArticles = await loadDefault([]) { [self] in
+            try await self.supabase.getScienceFeed(language: language.apiCode).articles
+        }
+        guard !baseArticles.isEmpty else { return [] }
+
+        let personalizationContext = SciencePersonalizationContext(
+            language: language,
+            userId: supabase.currentUser?.id,
+            profile: profile,
+            dashboard: dashboard
+        )
+        return await SciencePersonalizationEngine.personalize(
+            articles: baseArticles,
+            context: personalizationContext
+        )
     }
 
     private struct ActivePlanSurfaceRow: Decodable {

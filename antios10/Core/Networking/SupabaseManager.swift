@@ -82,6 +82,24 @@ private final class InsecureSessionDelegate: NSObject, URLSessionDelegate {
 
 // MARK: - 科学期刊数据模型（主要定义位置）
 
+struct ScienceArticleScoreBreakdown: Codable, Equatable {
+    let historyAlignment: Int
+    let signalAlignment: Int
+    let topicAlignment: Int
+    let recency: Int
+    let authority: Int
+    let total: Int
+
+    enum CodingKeys: String, CodingKey {
+        case historyAlignment = "history_alignment"
+        case signalAlignment = "signal_alignment"
+        case topicAlignment = "topic_alignment"
+        case recency
+        case authority
+        case total
+    }
+}
+
 /// 科学文章模型
 struct ScienceArticle: Identifiable, Codable, Equatable {
     let id: String
@@ -98,6 +116,44 @@ struct ScienceArticle: Identifiable, Codable, Equatable {
     let actionableInsight: String?
     let tags: [String]?
     let createdAt: Date?
+    let matchReasons: [String]?
+    let scoreBreakdown: ScienceArticleScoreBreakdown?
+
+    init(
+        id: String,
+        title: String,
+        titleZh: String?,
+        summary: String?,
+        summaryZh: String?,
+        sourceType: String?,
+        sourceUrl: String?,
+        matchPercentage: Int?,
+        category: String?,
+        isRecommended: Bool?,
+        whyRecommended: String?,
+        actionableInsight: String?,
+        tags: [String]?,
+        createdAt: Date?,
+        matchReasons: [String]? = nil,
+        scoreBreakdown: ScienceArticleScoreBreakdown? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.titleZh = titleZh
+        self.summary = summary
+        self.summaryZh = summaryZh
+        self.sourceType = sourceType
+        self.sourceUrl = sourceUrl
+        self.matchPercentage = matchPercentage
+        self.category = category
+        self.isRecommended = isRecommended
+        self.whyRecommended = whyRecommended
+        self.actionableInsight = actionableInsight
+        self.tags = tags
+        self.createdAt = createdAt
+        self.matchReasons = matchReasons
+        self.scoreBreakdown = scoreBreakdown
+    }
     
     enum CodingKeys: String, CodingKey {
         case id, title, summary, tags
@@ -111,6 +167,8 @@ struct ScienceArticle: Identifiable, Codable, Equatable {
         case whyRecommended = "why_recommended"
         case actionableInsight = "actionable_insight"
         case createdAt = "created_at"
+        case matchReasons = "match_reasons"
+        case scoreBreakdown = "score_breakdown"
     }
 }
 

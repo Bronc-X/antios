@@ -100,7 +100,9 @@ extension ScienceArticle {
     func applyingOverrides(
         whyRecommended: String?,
         actionableInsight: String?,
-        matchPercentage: Int?
+        matchPercentage: Int?,
+        matchReasons: [String]? = nil,
+        scoreBreakdown: ScienceArticleScoreBreakdown? = nil
     ) -> ScienceArticle {
         ScienceArticle(
             id: id,
@@ -116,7 +118,9 @@ extension ScienceArticle {
             whyRecommended: whyRecommended ?? self.whyRecommended,
             actionableInsight: actionableInsight ?? self.actionableInsight,
             tags: tags,
-            createdAt: createdAt
+            createdAt: createdAt,
+            matchReasons: matchReasons ?? self.matchReasons,
+            scoreBreakdown: scoreBreakdown ?? self.scoreBreakdown
         )
     }
 }

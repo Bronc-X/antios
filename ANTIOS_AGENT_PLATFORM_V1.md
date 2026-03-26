@@ -1,744 +1,474 @@
-# ANTIOS Agent Platform V1
+# ANTIOS Agent Platform V1.2
 
-> Status: proposed active platform blueprint for `main`
-> Updated: 2026-03-23
-> Purpose: turn `Max` from an in-app health assistant into an agent-native health runtime for both humans and external agents
-
----
-
-## 1. Strategic Thesis
-
-`antios10` should not stop at being an agent-first health app.
-
-It should become the first health agent platform designed for:
-- humans interacting through native product surfaces
-- external agents invoking health capabilities through typed contracts
-- large platforms embedding Max as a trusted health execution node
-
-This means `Max` is not just a chat surface.
-
-`Max` becomes:
-- the primary human-facing health operating surface
-- the canonical health capability runtime
-- the interoperability layer for other agents that need health state, recovery actions, evidence explanation, and follow-up loops
-
-The product target is not "better chat."
-
-The product target is:
-
-`the first health agent platform built for both humans and agents`
+> Status: execution blueprint for `main`
+> Updated: 2026-03-25
+> Scope: make `antios10` a human-facing health app and an agent-facing health runtime
+> Basis: current codebase, official OpenAI and Anthropic docs checked on 2026-03-25, plus public market signals from Andrej Karpathy and Anthropic product direction
 
 ---
 
-## 2. Product Doctrine
+## 1. Core Thesis
 
-### 2.1 Agent-Native By Default
+`antios10` should no longer be designed as "an app that happens to have an AI chat".
 
-Every core health capability must be:
-- usable by a human in app
-- invokable by another agent
-- traceable as a structured execution
-- resumable if the workflow is long-running
+It should be designed as:
 
-### 2.2 Structured State Before Free Text
+`a health state service for agents, with the iPhone app as the primary human operating surface`
 
-Important health state must not live only in natural language.
+That means three things at once:
 
-Primary state must exist as structured objects first:
-- body signals
-- risk flags
-- active plan
-- last action outcome
-- recovery status
-- pending inquiry
-- evidence context
+1. the app is where the human sees, edits, approves, and overrides health-state decisions
+2. Max is the default resident agent that reasons over the state and runs the anti-anxiety loop
+3. the same state, tools, and guardrails must be callable by other agents later
 
-Language remains important, but language is not the source of truth.
+The product is not the chat transcript.
 
-### 2.3 Capability Over Screen
-
-The unit of platform value is not a page.
-The unit of platform value is a trusted health capability.
-
-Examples:
-- `check_in`
-- `breathing`
-- `evidence_explain`
-- `inquiry`
-- `plan_review`
-- later: `panic_deescalation`, `sleep_reset`, `stress_triage`, `handoff_to_clinical`
-
-### 2.4 Platform Adapters Stay Thin
-
-Feishu, Slack, Web, iOS, Siri, service desk, and future assistants should be adapters, not the main system.
-
-Max Core must remain independent of:
-- app shell details
-- channel-specific message formats
-- vendor-specific workflow builders
-
-### 2.5 Bold On Interop, Conservative On Privacy
-
-The system should be aggressive on:
-- protocol support
-- distribution
-- agent discoverability
-- long-running workflow orchestration
-- platform embedding
-
-The system should remain conservative on:
-- health data minimization
-- consent
-- scoped context sharing
-- auditability
-- emergency escalation boundaries
+The product is the continuously updated, safety-bounded, evidence-backed health state graph and the next best action derived from it.
 
 ---
 
-## 3. What V1 Must Prove
+## 2. Why V1.2 Needs To Be Agent-First
 
-V1 must prove five things:
+### 2.1 The external signal
 
-1. Another agent can discover Max and understand what it can do.
-2. Another agent can invoke Max through a typed contract, not only by sending chat text.
-3. Max can return structured health outputs, not only prose.
-4. Max can run multi-step health workflows and return callbacks or final state.
-5. Max can be embedded into a larger platform without rewriting Max Core.
+Two market signals matter here:
 
-If V1 cannot do these five things, it is still an app with AI, not an agent platform.
+- OpenAI's current developer stack has converged around tool-using agents, the Responses API, and agent runtimes instead of plain chat wrappers.
+- Anthropic's current stack has converged around tool use, MCP connectivity, and computer use, which all point toward apps becoming operational surfaces and tool hosts for agents.
+
+There is also a clear public direction signal:
+
+- On 2026-03-22, coverage of Andrej Karpathy's "Dobby" setup described a personal agent collapsing multiple home-control apps into one agent-operated layer.
+- Anthropic's computer-use direction makes the same underlying bet from the opposite side: agents will increasingly operate software surfaces, not just answer questions.
+
+The implication for `antios10` is straightforward:
+
+- do not build only a user app
+- build a trustworthy health runtime that users see through the app
+- keep the app callable and composable by other agents from day one
+
+### 2.2 What "this app is service for agent" means in practice
+
+It does not mean the UI disappears.
+
+It means:
+
+- the UI is the human approval and inspection layer
+- the real product contract lives in typed state, typed tools, typed memories, typed outcomes
+- every important surface in the app should correspond to a capability an agent can call
 
 ---
 
-## 4. Reference Architecture
+## 3. The Best Elegant Data Combination
 
-### 4.1 Layer Model
+This section replaces the previous vague data logic. It is the minimum elegant substrate for anti-anxiety, anti-inflammatory, anti-cancer-risk-reduction, and fitness-aware guidance using iPhone plus Apple Watch.
 
-The target stack is:
+### 3.1 Passive data that is genuinely worth collecting
 
-1. `Human Surface Layer`
-2. `Agent Surface Layer`
-3. `Agent Gateway`
-4. `Capability Runtime`
-5. `Context and Memory Plane`
-6. `Evidence and Safety Plane`
-7. `Observability and Policy Plane`
+These are the highest-value passive inputs:
 
-### 4.2 Human Surface Layer
+- HRV
+- resting heart rate
+- sleep duration
+- sleep regularity
+- sleep score or sleep efficiency proxy
+- step count
+- exercise minutes
+- cardio fitness proxies when available
+- SpO2 when available
+- respiration proxies when available
+- day-over-day and 7-day deltas, not only current values
 
-Human-facing entry points:
-- iOS Coach / Max surface
-- Home handoff cards
-- App Intents / Siri shortcuts
-- notifications and reminders
-- widgets and Live Activities
+### 3.2 Active data that the user should still provide
 
-Responsibilities:
-- render native interactions
-- capture consent
-- display progress and results
-- keep the loop understandable to the user
+These must stay sparse and low-friction:
 
-Non-responsibilities:
-- core routing policy
-- external protocol logic
-- long-term orchestration ownership
+- anxiety level
+- stress level
+- body tension
+- mental clarity
+- energy
+- dominant trigger or scenario
+- whether today's action was completed
+- whether the action helped, did nothing, or felt too hard
 
-### 4.3 Agent Surface Layer
+Rule:
 
-Agent-facing entry points:
-- MCP server
-- A2A server
-- agent webhook and callback endpoints
-- platform adapters for Feishu, Slack, and Web embeds
+- Home summarizes
+- Max asks
+- the user should never be forced to fill a full questionnaire to unlock the next useful action
 
-Responsibilities:
-- expose capabilities
-- expose scoped context
-- accept structured commands
-- negotiate sync vs async execution
+### 3.3 Derived state layer
 
-### 4.4 Agent Gateway
+This is the real product substrate. Raw inputs must be compressed into a small decision layer:
 
-The `Agent Gateway` is the mandatory front door for external agent traffic.
+- `arousal_load`
+- `recovery_debt`
+- `circadian_stability`
+- `behavioral_momentum`
+- `trigger_certainty`
+- `action_capacity_today`
+- `evidence_readiness`
+- `coachability_window`
 
-Responsibilities:
-- authentication and tenant binding
-- capability discovery
-- request validation
-- idempotency
-- trace IDs
-- policy enforcement
-- callback orchestration
-- audit logging
+These variables, not raw tables, should drive:
 
-No external agent should call raw app UI pathways directly.
+- the home summary
+- Bayesian uplift
+- inquiry selection
+- science ranking
+- Max starter questions
+- external agent calls
 
-### 4.5 Capability Runtime
+### 3.4 Memory layer
 
-This is the canonical execution layer for health actions.
+The memory ranking order should be:
 
-Responsibilities:
-- execute capability handlers
-- call Max reasoning and RAG
-- invoke local or remote model paths
-- persist outcomes
-- emit structured events
+1. sensor-derived memories
+2. recent action outcomes
+3. active plan state
+4. recent self-report context
+5. inquiry history
+6. assistant strategy memory
+7. generic knowledge
 
-This is where Max stops being "chat" and becomes "runtime."
+That order is the right health-specific prioritization because the system should prefer "what the body and behavior just did" over "what the assistant said three days ago."
 
-### 4.6 Context and Memory Plane
+### 3.5 Safety and privacy boundary
 
-This plane provides the minimum trustworthy health context needed for execution.
+Externally, do not expose raw health history by default.
 
-Core inputs:
-- sensor-derived memory
-- behavior loop memory
+Expose:
+
+- summarized state snapshot
 - active plan state
-- recent agent outcomes
-- profile preferences
-- evidence readiness
+- uncertainty flags
+- evidence summary
+- action outcome summary
 
-Core rule:
-- external agents get a scoped context snapshot, not the full internal memory graph
+Do not expose:
 
-### 4.7 Evidence and Safety Plane
-
-Responsibilities:
-- evidence retrieval
-- mechanism explanation
-- conservative fallback behavior
-- non-health refusal
-- uncertainty disclosure
-- crisis and acute-risk boundary handling
-
-### 4.8 Observability and Policy Plane
-
-Responsibilities:
-- execution logs
-- latency
-- success and failure states
-- capability usage
-- policy decisions
-- consent events
-- external partner audit trails
+- full raw message history
+- full raw health event history
+- hidden memory store internals
 
 ---
 
-## 5. Protocol Strategy
+## 4. The Correct App Interaction Workflow
 
-### 5.1 MCP For Tools, Resources, and Context
+The app should run one loop, not several parallel mini-products.
 
-Use MCP when Max needs to expose:
-- tools another agent can call
-- resources another agent can read
-- reusable prompts or capability guidance
+## 4.1 Home
 
-MCP should be the default way to expose:
-- structured health capabilities
-- summarized health context resources
-- evidence resources
-- plan and follow-up resources
+Home should follow a strict three-tier loading contract:
 
-MCP is for `access to capability and context`.
+- `T0 local`: render local snapshot and local plans immediately
+- `T1 core`: refresh dashboard, recommendations, habits, profile, inquiry, active plan
+- `T2 enrichment`: refresh Bayesian interpretation, proactive brief, and personalized journals
 
-### 5.2 A2A For Peer Agent Collaboration
+This is the right home behavior:
 
-Use A2A when Max needs to act as a peer agent in a larger workflow.
+1. show one-sentence current state overview
+2. move the actual question into `当前进度`
+3. show Bayesian uplift as evidence-weighted decision support
+4. show at least three personalized journal items
+5. hand off execution to Max
 
-A2A should cover:
-- agent discovery
-- capability advertisement
-- long-running task handoff
-- async result delivery
-- collaboration with opaque external agents
+Home must not become a second chat surface.
 
-A2A is for `agent-to-agent workflow collaboration`.
+## 4.2 Max
 
-### 5.3 Platform Adapters For Distribution
+Max should own:
 
-Use platform adapters for:
-- Feishu bot / API / service desk / workflow trigger
-- Slack agent embedding
-- Web embeds
-- future operating system assistants
+- clarifying questions
+- RAG-backed starter questions
+- micro-plan generation
+- evidence explanation
+- plan continuation
+- action review
 
-Adapters should:
-- translate channel events into `AgentCommand`
-- translate `AgentExecutionResult` into channel-native output
-- preserve trace and audit IDs
+## 4.3 Me / System Status
 
-Adapters should not:
-- implement health logic
-- own memory ranking
-- duplicate capability rules
+The five status entry points:
 
----
+- `state`
+- `plan`
+- `signal`
+- `focus`
+- `max`
 
-## 6. Core Contracts
+should be native stat surfaces, not navigation traps.
 
-### 6.1 AgentCapability
+They should:
 
-Every capability exposed to humans or agents should resolve to one canonical definition.
+- stay in-page
+- open Apple Health-style statistical sheets
+- provide haptics
+- optionally refresh scoped data
+- never unexpectedly jump into Max
 
-Suggested V1 shape:
+## 4.4 Science journals
 
-```swift
-struct AgentCapability: Codable, Hashable {
-    let id: String
-    let name: String
-    let summary: String
-    let riskLevel: RiskLevel
-    let inputSchemaVersion: String
-    let outputSchemaVersion: String
-    let supportsSync: Bool
-    let supportsAsync: Bool
-    let requiresUserVisibleConfirmation: Bool
-    let requiresExplicitConsent: Bool
-    let producesEvents: [String]
-}
-```
+This should be a true ranked evidence surface, not a decorative card.
 
-V1 capability set:
-- `check_in`
-- `breathing`
-- `inquiry`
-- `evidence_explain`
-- `plan_review`
-- `proactive_brief`
-- `action_review`
+Every item must show:
 
-### 6.2 AgentCommand
-
-All external and internal invocations should normalize into one command object.
-
-```swift
-struct AgentCommand: Codable {
-    let commandID: UUID
-    let traceID: UUID
-    let actorType: ActorType
-    let actorID: String
-    let capabilityID: String
-    let userID: String?
-    let tenantID: String?
-    let input: Data
-    let contextHintIDs: [String]
-    let executionMode: ExecutionMode
-    let callbackURL: URL?
-    let idempotencyKey: String
-    let requestedAt: Date
-}
-```
-
-Core rule:
-- App Intents, notifications, inline action cards, MCP calls, A2A tasks, and platform events should all collapse into `AgentCommand`
-
-### 6.3 AgentContextSnapshot
-
-External agents should not get raw chat history by default.
-
-They should get a scoped snapshot.
-
-```swift
-struct AgentContextSnapshot: Codable {
-    let snapshotID: UUID
-    let userID: String
-    let generatedAt: Date
-    let bodyState: BodyStateSummary?
-    let activePlan: ActivePlanSummary?
-    let latestInquiry: InquirySummary?
-    let lastActionOutcome: ActionOutcomeSummary?
-    let proactiveBrief: ProactiveBriefSummary?
-    let evidenceReadiness: EvidenceReadiness
-    let riskFlags: [RiskFlag]
-    let sharingScope: SharingScope
-}
-```
-
-### 6.4 AgentExecutionResult
-
-Capability execution must return more than a text string.
-
-```swift
-struct AgentExecutionResult: Codable {
-    let commandID: UUID
-    let traceID: UUID
-    let status: ExecutionStatus
-    let userVisibleText: String?
-    let structuredOutput: Data?
-    let nextSuggestedCapabilityIDs: [String]
-    let pendingHumanConfirmation: Bool
-    let callbackState: CallbackState?
-    let emittedEventIDs: [String]
-    let completedAt: Date?
-}
-```
-
-Possible statuses:
-- `accepted`
-- `running`
-- `awaiting_user`
-- `completed`
-- `rejected`
-- `failed`
-
-### 6.5 Capability Event Model
-
-Every execution should emit typed events.
-
-V1 event families:
-- `capability_invoked`
-- `context_snapshot_generated`
-- `evidence_attached`
-- `action_started`
-- `action_completed`
-- `action_too_hard`
-- `action_skipped`
-- `followup_requested`
-- `followup_submitted`
-- `external_callback_sent`
+- original source link
+- abstract
+- match score
+- explicit personalized reason
+- actionable next step
+- score breakdown, not just one opaque percentage
 
 ---
 
-## 7. Repo Mapping
+## 5. This App As A Service For Agents
 
-### 7.1 Existing Strengths
+This is the V1.2 addition that should drive the architecture.
 
-This repo already contains the beginnings of the platform:
+### 5.1 Internal principle
 
-- action grammar and routing:
-  - `antios10/Core/Services/Max/MaxAgentActionRouter.swift`
-- inline action contract:
-  - `antios10/Core/Services/Max/MaxPromptBuilder.swift`
-- unified Max entry and action handling:
-  - `antios10/Features/Max/MaxChatViewModel.swift`
-- backend capability boundary:
-  - `antios10/Core/Services/ServiceProtocols.swift`
-- remote/local Max execution path:
-  - `antios10/Core/Networking/SupabaseManager+MaxService.swift`
-- OS entry adapters:
-  - `antios10/Core/Services/AppShortcuts.swift`
-- shell context aggregation:
-  - `antios10/Shared/A10ShellSyncCoordinator.swift`
+Every major user-facing surface should map to one or more callable capabilities.
 
-### 7.2 Required Upgrades
+The app UI becomes:
 
-#### Upgrade A: Notification Bus -> AgentCommand
+- the inspection layer
+- the approval layer
+- the correction layer
 
-Current state:
-- notifications and loose `userInfo` payloads drive app actions
+The service layer becomes:
 
-Target state:
-- all entry paths become `AgentCommand`
+- the source of truth
+- the agent interface
+- the orchestration substrate
 
-Primary insertion points:
-- `antios10/Features/Max/MaxChatViewModel.swift`
-- `antios10/Core/Services/Max/MaxAgentActionRouter.swift`
-- `antios10/Core/Services/AppShortcuts.swift`
+### 5.2 Core callable capabilities
 
-#### Upgrade B: Inline Action Card -> Capability Registry
+V1.2 should expose these capabilities internally first:
 
-Current state:
-- `max-actions` is an app-facing inline DSL
+- `observe_state_snapshot`
+- `observe_signal_history`
+- `observe_plan_state`
+- `observe_focus_state`
+- `generate_rag_questions`
+- `score_bayesian_uplift`
+- `retrieve_science_journals`
+- `write_action_outcome`
+- `refresh_signal_pipeline`
+- `open_follow_up_loop`
 
-Target state:
-- `max-actions` becomes one rendering of canonical capabilities
+### 5.3 The app calling external agents
 
-Primary insertion points:
-- `antios10/Core/Services/Max/MaxPromptBuilder.swift`
-- `antios10/Models/ChatModels.swift`
+The app should eventually call external agents for bounded tasks such as:
 
-#### Upgrade C: App API -> Agent Gateway
+- literature expansion
+- evidence reranking
+- scheduling
+- coaching specialization
+- cross-tool workflow automation
 
-Current state:
-- remote Max chat is a specialized app API path
+This must happen through typed tool boundaries, not raw prompt concatenation.
 
-Target state:
-- app API gains formal agent gateway routes, auth rules, traces, and callback support
+### 5.4 Other agents calling the app
 
-Primary insertion points:
-- `antios10/Core/Networking/SupabaseManager+AppAPIService.swift`
-- `antios10/Core/Networking/SupabaseManager+MaxService.swift`
-- remote backend routes to be added outside this repo
+The app should be invokable by other agents through a narrow capability surface:
 
-#### Upgrade D: Aggregated State -> AgentContextSnapshot
+- get the latest safe state snapshot
+- get current plan state
+- get evidence summary
+- write a suggested intervention
+- write an observed outcome
 
-Current state:
-- shell hydration builds a rich internal remote context
+The app should remain the policy-enforcing layer even when another agent calls it.
 
-Target state:
-- platform exposes a filtered `AgentContextSnapshot`
+### 5.5 Future transport shape
 
-Primary insertion points:
-- `antios10/Shared/A10ShellSyncCoordinator.swift`
-- `antios10/Core/Services/Max/MaxMemoryService.swift`
-- `antios10/Core/Services/Max/MaxRAGService.swift`
+The clean long-term transport options are:
+
+- internal tool layer first
+- MCP-compatible service boundary later
+- App Intents / Siri / Shortcuts later
+- optional external agent gateway later
+
+The important design rule is:
+
+`the capability contract must exist before the transport choice`
 
 ---
 
-## 8. V1 Platform Surfaces
+## 6. OpenAI And Anthropic Runtime Strategy
 
-### 8.1 Human Surfaces
+## 6.1 OpenAI
 
-Mandatory:
-- Coach / Max thread
-- Home next-action handoff
-- App Intents
-- notification-triggered execution
+Based on current OpenAI documentation, the right OpenAI role in `antios10` is:
 
-### 8.2 Agent Surfaces
+- agent orchestration
+- typed tool calling
+- evidence refresh with citations
+- traceable multi-step execution
+- future external-agent embedding
 
-Mandatory:
-- MCP server exposing capabilities and context resources
-- A2A server exposing Max as a peer agent
-- gateway HTTP endpoints for typed command execution
+Recommended stack:
 
-### 8.3 Distribution Surfaces
+- `Responses API` as the primary execution surface
+- tool-enabled models for web search, file search, and MCP where needed
+- `Agents SDK` where traceability, handoffs, and multi-step workflows matter
 
-Mandatory first-wave targets:
-- iOS native
-- Feishu adapter
-- Web embed
+OpenAI should reason over compact structured state, not a giant undifferentiated prompt.
 
-Second-wave targets:
-- Slack adapter
-- service desk integrations
-- enterprise assistant ecosystems
+## 6.2 Anthropic
 
----
+Based on current Anthropic documentation, the right Anthropic role in `antios10` is:
 
-## 9. Privacy and Safety Boundary
+- tool-rich delegated workflows
+- MCP-connected execution
+- computer-use or UI-operation scenarios when the workflow truly requires it
+- structured external agent composition
 
-This system should be bold on interop and strict on health data.
+Anthropic is especially relevant when `antios10` must participate in a larger tool graph rather than act only as a standalone app.
 
-### 9.1 Never Default To Full Transcript Sharing
+## 6.3 Strategic conclusion
 
-External agents should not automatically receive:
-- raw chat history
-- full memory store
-- detailed health time series
-- sensitive profile attributes not required for execution
+Use the same product contract regardless of model vendor:
 
-### 9.2 Share Minimum Necessary Context
+- typed state snapshot
+- typed tools
+- typed safety policy
+- typed outputs
 
-Default export unit:
-- summarized state
-- current objective
-- current action status
-- evidence readiness
-- explicit risk flags
-
-### 9.3 Consent Requirements
-
-Explicit consent is required before:
-- connecting a third-party external agent to personal health context
-- allowing write actions that alter the user plan or saved profile
-- allowing external callback delivery containing health state
-
-### 9.4 Safety Requirements
-
-The platform must keep:
-- non-diagnosis positioning
-- acute-risk escalation boundaries
-- uncertainty disclosure
-- conservative fallback if evidence retrieval fails
+Vendor choice should change the execution engine, not the product logic.
 
 ---
 
-## 10. V1 Rollout
+## 7. Science Retrieval, Ranking, And Explanation
 
-### Phase 0: Internal Contract Unification
+This section is now explicit. No more "based on scientific retrieval" placeholder copy.
 
-Goal:
-- unify internal app entry points before externalizing anything
+### 7.1 Retrieval order
 
-Deliverables:
-- `AgentCommand`
-- `AgentCapability`
-- `AgentExecutionResult`
-- typed command router
+The retrieval pipeline should be:
 
-Success condition:
-- App Intents, notifications, and inline action cards all use the same internal command model
+1. curated feed API
+2. curated feed queue
+3. scientific search fallback
 
-### Phase 1: Capability Registry
+Fallback should still be personalized before display.
 
-Goal:
-- turn existing Max actions into canonical platform capabilities
+### 7.2 Ranking logic
 
-Deliverables:
-- capability definitions
-- input and output schemas
-- risk metadata
-- event emission
+The personalized match score should be computed from five explicit terms:
 
-Success condition:
-- each critical Max workflow is invokable without relying on free-text prompt guessing
+- `history_alignment` weight `0.34`
+- `signal_alignment` weight `0.26`
+- `topic_alignment` weight `0.18`
+- `recency` weight `0.12`
+- `authority` weight `0.10`
 
-### Phase 2: Context Snapshot Layer
+Formula:
 
-Goal:
-- expose a safe, typed summary of user state for external use
+`match_score = 0.34H + 0.26S + 0.18T + 0.12R + 0.10A`
 
-Deliverables:
-- `AgentContextSnapshot`
-- consent-aware sharing scopes
-- snapshot generation path from current shell and memory services
+Where:
 
-Success condition:
-- another agent can make a meaningful call to Max without raw transcript access
+- `H` measures similarity to recent user memory or recent history
+- `S` measures fit to live physiological and subjective signals
+- `T` measures overlap with current focus and article topic
+- `R` measures publication freshness
+- `A` measures source quality
 
-### Phase 3: Agent Gateway
+### 7.3 Explanation contract
 
-Goal:
-- make command execution external-ready
+The recommendation reason must mention real causes, for example:
 
-Deliverables:
-- auth
-- tenant binding
-- idempotency
-- callbacks
-- audit logs
+- recent sleep deficit
+- recent elevated stress signal
+- recent low-energy state
+- overlap with current focus
+- overlap with a retrieved recent memory
+- relative source quality
 
-Success condition:
-- external systems can invoke Max capabilities through a trusted gateway
+It should never degrade into:
 
-### Phase 4: MCP and A2A Exposure
-
-Goal:
-- make Max discoverable and operable in the agent ecosystem
-
-Deliverables:
-- MCP capability server
-- MCP resources for context and evidence
-- A2A Agent Card and task handling
-- async task lifecycle support
-
-Success condition:
-- Max is discoverable and callable by other agents as a health node
-
-### Phase 5: Feishu-First Platform Embedding
-
-Goal:
-- prove platform distribution through a real enterprise adapter
-
-Deliverables:
-- Feishu adapter
-- workflow trigger mapping
-- service-desk style execution path
-- callback and status delivery
-
-Success condition:
-- Max runs inside Feishu as an embedded health execution agent without duplicating Max Core
+- "based on scientific retrieval"
+- "based on scientific search match"
+- other generic non-explanations
 
 ---
 
-## 11. Immediate Build Order For This Repo
+## 8. Bayesian Uplift Contract
 
-### Workstream 1: Define New Shared Types
+Bayesian uplift should not feel mystical. It is a compact decision layer.
 
-Create platform-facing domain types for:
-- `AgentCommand`
-- `AgentCapability`
-- `AgentContextSnapshot`
-- `AgentExecutionResult`
+Inputs:
 
-Likely location:
-- `antios10/Models/`
-or
-- `antios10/Core/Services/AgentPlatform/`
+- prior from recent readiness, stress, and sleep state
+- likelihood from body-state evidence such as HRV
+- evidence weight from ranked literature
 
-### Workstream 2: Refactor Entry Paths
+Output:
 
-Refactor:
-- App Intents
-- ask-Max notification handling
-- inline action handling
+- whether the next best move is to regulate first, inquire first, or act first
 
-So they route through one command pipeline.
+The UI message should stay narrow:
 
-### Workstream 3: Build Capability Registry
-
-Start with:
-- `check_in`
-- `breathing`
-- `inquiry`
-- `evidence_explain`
-- `plan_review`
-
-Then bind existing UI and execution handlers to that registry.
-
-### Workstream 4: Add Context Snapshot Builder
-
-Reuse:
-- shell remote context
-- memory services
-- current plan and proactive brief
-
-To build:
-- one export-safe snapshot model
-
-### Workstream 5: Prepare Gateway Interface
-
-Define the client-side contract now even if the server implementation lands later.
-
-Need:
-- request envelope
-- callback envelope
-- error model
-- execution status model
+- only scientific suggestions
+- no grandiose claims
+- no emotional fluff
 
 ---
 
-## 12. Non-Goals For V1
+## 9. Max Starter Questions Contract
 
-Do not do these in V1:
-- full marketplace design
-- public open discovery for all tenants by default
-- non-health general assistant positioning
-- diagnosis workflow
-- unlimited data sharing with external agents
-- vendor-specific logic inside Max Core
+The V1.2 rule is strict:
 
----
+- starter questions must be `RAG-first`
+- no mixed mode where generic templates appear before retrieved context
+- template fallback is allowed only when retrieval confidence is too low
 
-## 13. Success Criteria
+The generation chain should be:
 
-V1 is successful if:
-- Max can be invoked by human UI and external agents through the same core command model
-- the top health capabilities are callable with typed schemas
-- another agent can discover Max and route a task to it
-- Max can return structured outputs and async progress
-- Feishu-first or equivalent adapter integration works without forking health logic
-- privacy boundaries remain strict and auditable
+1. aggregate user state
+2. retrieve inquiry history
+3. retrieve memory and knowledge context
+4. generate 3 to 5 questions from retrieved context only
+5. fall back only if the retrieved context is genuinely insufficient
 
-V1 is not successful if:
-- the system still depends mainly on free-text chat
-- each platform needs a custom Max implementation
-- health state remains mostly trapped in UI text
-- external interop bypasses consent or auditing
+This keeps the first user-facing question honest.
 
 ---
 
-## 14. Final Position
+## 10. Immediate Codebase Implications
 
-The category goal is not:
+V1.2 means the codebase should converge toward these modules:
 
-`health app with AI`
+- `state snapshot builder`
+- `signal pipeline`
+- `science personalization engine`
+- `bayesian policy engine`
+- `rag question generator`
+- `agent capability registry`
+- `human approval surfaces`
 
-The category goal is:
+Concrete immediate moves:
 
-`health software for humans and agents`
+1. keep Home on the three-tier load contract
+2. keep Me on local stat sheets, not navigation
+3. keep science ranking explicit and inspectable
+4. keep Max starter questions on the same RAG substrate as the rest of Max
+5. keep all future agent entry points behind typed capabilities
 
-The strategic bet is:
+---
 
-- Feishu proved that agent products become much more valuable when they are embedded into work systems
-- emerging agent protocols prove that the next software layer is not just UI integration, but agent interoperability
-- health is still mostly app-centric and human-only
+## 11. Final Direction
 
-This creates an opening for `antios10` to become the first serious health agent platform:
-- trusted enough for health context
-- structured enough for protocol interoperability
-- productized enough for native human use
-- modular enough to embed into larger agent ecosystems
+The winning version of `antios10` is not:
 
-That is the correct bar for `Max`.
+- a prettier health dashboard
+- a nicer chatbot
+- a loose pile of anti-anxiety features
+
+The winning version is:
+
+`a trustworthy personal health state service that humans operate through the app and agents can safely compose around`
+
+That is the V1.2 north star.

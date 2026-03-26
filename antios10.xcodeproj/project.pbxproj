@@ -24,9 +24,10 @@
 		5164E8094CED4EDC80CE2CA8 /* Layout/AdaptiveLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083A91AA90634C2FB35E216C /* Layout/AdaptiveLayout.swift */; };
 		5168F783A7A942A4B9E3FF4D /* MaxConversationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2012FDAB302A4CBFAD64C9AC /* MaxConversationState.swift */; };
 		549490DC94FD3D6D447EE93E /* PlanSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEDB77A325527FEB94397C60 /* PlanSelectorView.swift */; };
-		54CCFA0302214FCBA4B7ECEC /* MaxContextOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2C0C494FE4407AA90ED46B /* MaxContextOptimizer.swift */; };
-		5534BC0F8A3A40AC831C6D07 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1174E2ED3FDF407FAE56D3F5 /* HapticManager.swift */; };
-		60DEFE3895414F289FA4CDED /* DigitalTwinModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A8C10C91624D24AE80C301 /* DigitalTwinModels.swift */; };
+			54CCFA0302214FCBA4B7ECEC /* MaxContextOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2C0C494FE4407AA90ED46B /* MaxContextOptimizer.swift */; };
+			5534BC0F8A3A40AC831C6D07 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1174E2ED3FDF407FAE56D3F5 /* HapticManager.swift */; };
+			A10SCPER0000000000000101 /* SciencePersonalizationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10SCPER0000000000000001 /* SciencePersonalizationEngine.swift */; };
+			60DEFE3895414F289FA4CDED /* DigitalTwinModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A8C10C91624D24AE80C301 /* DigitalTwinModels.swift */; };
 		6B10512C9B954F85AC314A60 /* MaxMemoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180F07C0CC0644F4A99434B1 /* MaxMemoryService.swift */; };
 		6B10512D9B954F85AC314A60 /* MaxAgentActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180F07C1CC0644F4A99434B1 /* MaxAgentActionRouter.swift */; };
 		6D27741E44754EAD890B5D35 /* DigitalTwinViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB957781F2C6479CAFF69A53 /* DigitalTwinViewModel.swift */; };
@@ -187,10 +188,11 @@
 		A10SBCLI000000000000001 /* SupabaseManager+ClinicalService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+ClinicalService.swift"; sourceTree = "<group>"; };
 		A10SBHAB000000000000001 /* SupabaseManager+HabitsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+HabitsService.swift"; sourceTree = "<group>"; };
 		A10SBMAX000000000000001 /* SupabaseManager+MaxService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SupabaseManager+MaxService.swift"; sourceTree = "<group>"; };
-		A10SHMOD0000000000000001 /* A10ShellModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = A10ShellModels.swift; path = Models/A10ShellModels.swift; sourceTree = "<group>"; };
-		A10SHSED0000000000000001 /* A10SeedData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SeedData.swift; sourceTree = "<group>"; };
-		A10SHSYN0000000000000001 /* A10ShellSyncCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10ShellSyncCoordinator.swift; sourceTree = "<group>"; };
-		A10VISCMP000000000000001 /* A10SpatialComponentScaffolds.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SpatialComponentScaffolds.swift; sourceTree = "<group>"; };
+			A10SHMOD0000000000000001 /* A10ShellModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = A10ShellModels.swift; path = Models/A10ShellModels.swift; sourceTree = "<group>"; };
+			A10SHSED0000000000000001 /* A10SeedData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SeedData.swift; sourceTree = "<group>"; };
+			A10SHSYN0000000000000001 /* A10ShellSyncCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10ShellSyncCoordinator.swift; sourceTree = "<group>"; };
+			A10SCPER0000000000000001 /* SciencePersonalizationEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SciencePersonalizationEngine.swift; sourceTree = "<group>"; };
+			A10VISCMP000000000000001 /* A10SpatialComponentScaffolds.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SpatialComponentScaffolds.swift; sourceTree = "<group>"; };
 		A10VISCTR000000000000001 /* A10SpatialComponentContracts.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SpatialComponentContracts.swift; sourceTree = "<group>"; };
 		A10VISSHW000000000000001 /* A10VisualSystemShowcase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10VisualSystemShowcase.swift; sourceTree = "<group>"; };
 		A10VISTOK000000000000001 /* A10SpatialDesignTokens.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = A10SpatialDesignTokens.swift; sourceTree = "<group>"; };
@@ -536,12 +538,13 @@
 			children = (
 				EEA092042F1A92D700193FC7 /* AIManager.swift */,
 				436FDBFEB4774380B61B0FE6 /* BayesianEngine.swift */,
-				EED0A1B2C3D4E5F607182931 /* DigitalTwinLocalEngine.swift */,
-				A1B2C3D4E5F60718293A4B5C /* KnowledgeBaseService.swift */,
-				A1B2C3D4E5F60718293A4B5D /* RerankService.swift */,
-				83696B62111A458281C3C205 /* ScientificSearchService.swift */,
-				EEA092012F1A929B00193FC7 /* LiveActivityAttributes.swift */,
-				0EEC4BC54C3A46548598A346 /* ServiceProtocols.swift */,
+					EED0A1B2C3D4E5F607182931 /* DigitalTwinLocalEngine.swift */,
+					A1B2C3D4E5F60718293A4B5C /* KnowledgeBaseService.swift */,
+					A1B2C3D4E5F60718293A4B5D /* RerankService.swift */,
+					83696B62111A458281C3C205 /* ScientificSearchService.swift */,
+					A10SCPER0000000000000001 /* SciencePersonalizationEngine.swift */,
+					EEA092012F1A929B00193FC7 /* LiveActivityAttributes.swift */,
+					0EEC4BC54C3A46548598A346 /* ServiceProtocols.swift */,
 				CE183FC3B4F94E92865D55E3 /* AppServices.swift */,
 				1174E2ED3FDF407FAE56D3F5 /* HapticManager.swift */,
 				788177C4C5664209A251C6B6 /* LiveActivityManager.swift */,
@@ -983,10 +986,11 @@
 				EEB545A62F1A787700B61C9D /* CalibrationViewModel.swift in Sources */,
 				BEBEAD1234567890ABCDEF02 /* BreathingSessionView.swift in Sources */,
 				EEB545A72F1A787700B61C9D /* MaxChatViewModel.swift in Sources */,
-				EEA092052F1A92D700193FC7 /* AIManager.swift in Sources */,
-				ADD7B97F31714EA69A1F635E /* BayesianEngine.swift in Sources */,
-				2DED483010EB47C18C0D2D12 /* ScientificSearchService.swift in Sources */,
-				0663D355AC0E4EE99D1DD57B /* InquiryContextService.swift in Sources */,
+					EEA092052F1A92D700193FC7 /* AIManager.swift in Sources */,
+					ADD7B97F31714EA69A1F635E /* BayesianEngine.swift in Sources */,
+					2DED483010EB47C18C0D2D12 /* ScientificSearchService.swift in Sources */,
+					A10SCPER0000000000000101 /* SciencePersonalizationEngine.swift in Sources */,
+					0663D355AC0E4EE99D1DD57B /* InquiryContextService.swift in Sources */,
 				0EA0FD2132324659B51E55D7 /* InquiryEngine.swift in Sources */,
 				54CCFA0302214FCBA4B7ECEC /* MaxContextOptimizer.swift in Sources */,
 				5168F783A7A942A4B9E3FF4D /* MaxConversationState.swift in Sources */,

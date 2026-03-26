@@ -10,4 +10,5 @@ extension Notification.Name {
     static let openMaxChat = Notification.Name("openMaxChat")
     static let startCalibration = Notification.Name("startCalibration")
     static let startBreathing = Notification.Name("startBreathing")
+    static let debugOpenA10Shortcut = Notification.Name("debugOpenA10Shortcut")
 }

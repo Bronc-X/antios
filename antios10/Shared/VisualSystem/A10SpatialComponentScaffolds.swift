@@ -366,15 +366,15 @@ struct A10DashboardSpatialHeroCard: View {
     }
 
     private var verticalSpacing: CGFloat {
-        metrics.isCompactHeight ? 11 : 13
+        metrics.isCompactHeight ? 9 : 11
     }
 
     private var chartHeight: CGFloat {
-        metrics.isCompactHeight ? 170 : 184
+        metrics.isCompactHeight ? 132 : 146
     }
 
     private var productionHeight: CGFloat {
-        metrics.isCompactHeight ? 26 : 30
+        metrics.isCompactHeight ? 20 : 24
     }
 
     var body: some View {
@@ -431,6 +431,7 @@ struct A10DashboardSpatialHeroCard: View {
                 Text(model.chart.interactionHint.resolve(language))
                     .font(A10SpatialTypography.label(10, weight: .regular))
                     .foregroundColor(A10SpatialPalette.heroSecondaryText(for: colorScheme))
+                    .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
